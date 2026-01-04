@@ -2,7 +2,7 @@
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r19 — 2026-01-04  
+**Doc Revision (internal):** r20 — 2026-01-04  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
 **Stato:** 🟢 APPROVED FOR DEV (con requisiti “backtest-grade”)
@@ -29,6 +29,7 @@ La strategia è iterativa: prima un framework “difendibile”, poi ottimizzazi
 
 ### 0.4 Scope e Non-Goals (v10)
 **In scope:**
+- **Baseline produzione:** universo **EUR / ACC** (no FX, no DIST). Strumenti non-EUR o DIST vengono rifiutati salvo abilitazione esplicita delle feature FX/DIV.
 - EOD ingestion multi-provider con audit.
 - Signal Engine oggettivo (baseline trend-following + risk sizing).
 - Fiscal engine Italia (PMC, imposta 26%, zainetto per “redditi diversi”, handling OICR).
@@ -41,7 +42,9 @@ La strategia è iterativa: prima un framework “difendibile”, poi ottimizzazi
 - Integrazione broker live (ordine reale): v10 rimane *sim/decision support*.
 
 ### 0.5 Cosa può e cosa non può fare
-Ecco cosa il tuo sistema può gestire perfettamente ("tutte le altre modalità"):
+*(Baseline produzione: universo EUR/ACC, operatività EOD, esecuzione differita.)*
+
+Ecco cosa il sistema può gestire perfettamente ("tutte le altre modalità"):
 1. Swing Trading (Orizzonte: Giorni/Settimane)
 Logica: Cerchi di catturare un movimento di breve durata (es. un rimbalzo tecnico, una rottura di resistenza).
 Fattibilità: Totale. Il tuo sistema scarica i dati la sera, calcola i segnali e ti dice "Domani mattina compra in apertura".
@@ -59,12 +62,15 @@ Vantaggio: È una strategia classica che storicamente funziona bene e richiede p
 Logica: "È sceso troppo, deve risalire". Compri quando l'RSI è a terra o il prezzo tocca la banda di Bollinger inferiore.
 Fattibilità: Sì, ma con un vincolo: operando EOD (End Of Day), entri il giorno dopo il segnale. A volte ti perdi il rimbalzo immediato, ma eviti anche di "afferrare il coltello mentre cade".
 Il vero limite (e perché è un bene)
-La tua architettura ti impone un vincolo operativo salutare: l'Esecuzione Differita (T+1 Open o T+0 Close).
+La architettura impone un vincolo operativo salutare: l'Esecuzione Differita (T+1 Open o T+0 Close).
 Non puoi reagire alla notizia uscita alle 14:30.
 Non puoi vendere per panico alle 11:00 perché il mercato fa -2%.
-Questo vincolo tecnico diventa un vantaggio psicologico. Ti costringe alla disciplina. Il sistema "pensa" a bocce ferme, la sera, a mercati chiusi. Tu esegui la mattina dopo. Questo filtro elimina il 90% degli errori emotivi che distruggono i portafogli retail.
+Questo vincolo tecnico diventa un vantaggio psicologico. Costringe alla disciplina. Il sistema "pensa" a bocce ferme, la sera, a mercati chiusi. Tu esegui la mattina dopo. 
+Questo filtro elimina il 90% degli errori emotivi che distruggono i portafogli retail.
+
 Conclusione:
-Sì, il progetto supporta tutto ciò che non è "tempo reale". È una macchina da guerra per gestire il patrimonio seriamente, spaziando dall'investimento pigro (Buy & Hold) allo speculativo ragionato (Swing), mantenendo sempre il controllo del rischio e della fiscalità.
+Sì, il progetto supporta tutto ciò che non è "tempo reale". 
+È una macchina da guerra per gestire il patrimonio seriamente, spaziando dall'investimento pigro (Buy & Hold) allo speculativo ragionato (Swing), mantenendo sempre il controllo del rischio e della fiscalità.
 
 ---
 ---
@@ -180,6 +186,8 @@ Minus nello zainetto scadono al **31/12 del 4° anno successivo** a quello di re
 `expires_at = DATE(year(realize_date)+4, 12, 31)`.
 
 ### 6.4 FX e capital gain in EUR (quando currency != EUR)
+**Baseline EUR/ACC:** questa sezione è disattivata; l’ingestione blocca strumenti non-EUR salvo feature flag FX.
+
 Per strumenti in valuta diversa da EUR, il ledger deve storicizzare:
 - `trade_currency`
 - `exchange_rate_used` (FX verso EUR alla data operazione)
@@ -187,6 +195,8 @@ Per strumenti in valuta diversa da EUR, il ledger deve storicizzare:
 Il gain fiscale è calcolato su controvalori EUR: la componente FX può generare gain tassabile.
 
 ### 6.5 Dividendi / proventi (ETF a distribuzione)
+**Baseline EUR/ACC:** `dist_policy=ACC` per tutti gli strumenti; flussi dividendo cash non previsti. La sezione resta per estensioni future.
+
 - Se lo strumento è `DIST`, i proventi generano cash e tassazione immediata (aliquota 26% nel modello).  
 - Se lo strumento è `ACC`, non si registrano proventi cash (il NAV/prezzo riflette reinvestimento).
 

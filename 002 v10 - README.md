@@ -1,163 +1,125 @@
 # 🇪🇺 ETF ITALIA PROJECT - Smart Retail (README)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r19 — 2026-01-04  
+**Doc Revision (internal):** r20 — 2026-01-04  
+**Baseline produzione:** **EUR / ACC** (universe bloccato su strumenti in EUR e ad accumulazione)
 
 ---
 
-## 🎯 Mission
-Sistema “smart retail” per residenti italiani: gestione portafoglio, simulazione/backtest, fiscalità e controllo rischio, con journaling Forecast/Postcast per misurare la qualità decisionale.
+## 1. Scopo
+Sistema “smart retail” per residenti italiani: ingestione dati EOD, calcolo segnali oggettivi, guardrails, simulazione/decision support, fiscalità (PMC, imposta 26%, zainetto *dove applicabile*), e reporting *riproducibile* tramite Run Package serializzato.
 
 Documenti canonici:
-- DIPF: requisiti e architettura
-- DATADICTIONARY: contratto dati
-- TODOLIST: piano implementativo
-- README: operatività e comandi
+- **DIPF**: requisiti e architettura end-to-end
+- **DATADICTIONARY**: contratto dati (tabelle, viste, artefatti)
+- **TODOLIST**: piano implementativo (DoD testabili)
+- **README**: operatività e comandi
 
 ---
 
-## ⚠️ Disclaimer
-Questo progetto fornisce stime e simulazioni; non sostituisce un consulente fiscale o l’intermediario. Le regole fiscali possono variare per strumento, regime e intermediario.
+## 2. Baseline v10 (EUR/ACC) — cosa è attivo
+Attivo “out of the box”:
+- Universo strumenti **solo EUR** e **ACC** (niente multi-valuta, niente distribuzione cash).
+- Prezzi: `adj_close` per segnali; `close` per valorizzazione ledger (vedi DIPF §2.1).
+- Fiscalità: categoria fiscale di default `OICR_ETF` (gain tassato pieno, no compensazione zainetto nel modello).
+- Run Package obbligatorio per ogni run con KPI (manifest + KPI + summary).
+- Sanity check bloccante e health check operativi.
+
+Disattivato nel baseline (feature flag):
+- FX (`fx_rates`, `exchange_rate_used`) — si abilita solo se si ammettono strumenti non-EUR.
+- Dividendi cash (DIST) — si abilita solo se si ammettono strumenti a distribuzione.
 
 ---
 
-## 🧰 Prerequisiti
-- Windows 10/11
-- Python 3.10+ (Python Launcher `py`)
-- Virtualenv consigliato
+## 3. Installazione (Windows)
+Da PowerShell:
 
----
-
-## 🛠️ Installazione
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\activate
 py -m pip install -U pip
-py -m pip install duckdb pandas yfinance plotly
+py -m pip install duckdb pandas yfinance plotly matplotlib
 ```
 
 ---
 
-## 📁 Struttura cartelle (minima)
-```
-ETF_ITA_project/
-├── config/
-│   └── etf_universe.json
-├── data/
-│   ├── etf_data.duckdb
-│   ├── backup/
-│   └── reports/
-├── scripts/
-└── strategies/
-```
+## 4. EntryPoints (EP) — superficie eseguibile (1:1 con TODOLIST)
+| EP | Comando | Output principale | Note |
+|---|---|---|---|
+| EP-01 | `py scripts/setup_db.py` | Crea `data/etf_data.duckdb` + schema | DD-2..DD-11 |
+| EP-02 | `py scripts/load_trading_calendar.py` | Popola `trading_calendar` | DD-3.1 |
+| EP-03 | `py scripts/ingest_data.py` | `market_data` + `ingestion_audit` | EOD |
+| EP-04 | `py scripts/health_check.py` | `data/health_report.md` | zombie/stale/gap |
+| EP-05 | `py scripts/compute_signals.py` | segnali + snapshot | strategies/ |
+| EP-06 | `py scripts/check_guardrails.py` | SAFE/DANGER + motivazioni | dry-run gate |
+| EP-07 | `py scripts/strategy_engine.py --dry-run` | `data/orders.json` | nessuna scrittura |
+| EP-08 | `py scripts/update_ledger.py --commit` | scrive `fiscal_ledger` | include backup |
+| EP-09 | `py scripts/backtest_runner.py` | Run Package completo | include sanity |
+| EP-10 | `py scripts/stress_test.py` | stress report | finestre crisi |
 
 ---
 
-## ⚙️ Config (principi)
-Il file `config/etf_universe.json` deve includere per ogni simbolo:
-- `currency`, `dist_policy` (ACC/DIST), `tax_category` (OICR_ETF / ETC_ETN_STOCK)
-- cost model (commissioni, slippage)
-- execution model (default T+1_OPEN)
-- `fx_enabled` + coppie necessarie (solo se strumenti non-EUR)
-
----
-
-## 🚀 EntryPoints (1:1 con TODOLIST)
-
-### EP-01 — Setup DB
-```powershell
-py scripts/setup_db.py
-```
-
-### EP-02 — Load Trading Calendar
-```powershell
-py scripts/load_trading_calendar.py --venue BIT --csv config/trading_calendar_BIT.csv
-```
-
-### EP-03 — Ingestione dati (EOD)
+## 5. Flusso operativo giornaliero (EOD)
+1) **Ingestione**
 ```powershell
 py scripts/ingest_data.py
 ```
-Output: `market_data` aggiornato + record `ingestion_audit`.
 
-### EP-04 — Health Check (incl. zombie data)
+2) **Health check (obbligatorio)**
 ```powershell
 py scripts/health_check.py
 ```
-Output: `data/health_report.md` (+ warning su buchi, zombie, mismatch).
+Se emergono warning hard (gap su giorni open, zombie prices, revisioni hard), fermarsi e correggere prima di procedere.
 
-### EP-05 — Compute Signals
+3) **Segnali + guardrails**
 ```powershell
 py scripts/compute_signals.py
-```
-Usa `strategies/alpha_signals.py`.
-
-### EP-06 — Guardrails
-```powershell
 py scripts/check_guardrails.py
 ```
-Output: SAFE/DANGER + motivazione.
 
-### EP-07 — Pianificazione ordini (Dry-Run)
+4) **Dry-run ordini (sempre)**
 ```powershell
-py scripts/plan_orders.py --dry-run
+py scripts/strategy_engine.py --dry-run
 ```
-Output: `data/orders.json` (nessuna scrittura su ledger).
+Output: `data/orders.json` + note sintetiche di impatto su cash e (se applicabile) tasse.
 
-### EP-08 — Update Ledger (solo con commit)
+5) **Commit (solo se OK)**
 ```powershell
-py scripts/update_ledger.py          # dry-run
-py scripts/update_ledger.py --commit # scrive su fiscal_ledger
+py scripts/update_ledger.py --commit
 ```
-**Prima del commit**: backup DB obbligatorio (automatico nello script).
-
-### EP-09 — Backtest
-```powershell
-py scripts/run_backtest.py
-```
-
-### EP-10 — Generazione report + Run Package (obbligatorio)
-```powershell
-py scripts/generate_report.py
-```
-Output: `data/reports/<run_id>/` con:
-- `manifest.json`
-- `kpi.json`
-- `summary.md`
-
-### EP-11 — Stress test
-```powershell
-py scripts/stress_test.py --quick
-```
-
-### EP-12 — Restore DB
-```powershell
-py scripts/restore_db.py --from data/backup/etf_data.duckdb.backup
-```
+Requisiti: manual gate se breaker/warning hard; backup pre-commit automatico.
 
 ---
 
-## 🧭 Flusso operativo consigliato (giornaliero)
-1) EP-03 ingest  
-2) EP-04 health check  
-3) EP-05 signals  
-4) EP-06 guardrails  
-5) EP-07 dry-run ordini  
-6) Review manuale se warning/breaker  
-7) EP-08 commit (solo se deciso)  
-8) EP-10 report (Run Package)
+## 6. Run Package (report prestazionale serializzato)
+Ogni run che produce KPI deve creare la cartella:
+`data/reports/<run_id>/`
+
+Artefatti minimi **obbligatori**:
+- `manifest.json` (parametri, universe, cost model, tax model, hash)
+- `kpi.json` (KPI + `kpi_hash`)
+- `summary.md` (riassunto leggibile)
+
+Se manca un artefatto obbligatorio → run invalida (exit code != 0).  
+Schema minimo: vedi DD-11.
 
 ---
 
-## 📄 Run Package: perché è obbligatorio
-Ogni run deve essere riproducibile: parametri, dati, KPI e hash devono essere serializzati.  
-Se manca un artefatto del Run Package, la run è invalida (exit code != 0).
+## 7. Reporting “serio”: Emotional Gap
+Nel `summary.md` (se journaling disponibile) viene riportato l’**Emotional Gap**:
+- PnL “Strategia Pura” (segnali automatici, no override)
+- PnL “Strategia Reale” (eseguito, inclusi override)
+
+Se gap < 0, il report evidenzia esplicitamente il costo degli interventi manuali.
 
 ---
 
-## 🧠 Reporting “serio”: Emotional Gap
-Nel `summary.md` viene calcolato (se journaling disponibile):
-- PnL strategia pura (senza override)
-- PnL strategia reale (con override)
-Se il gap è negativo, il report deve evidenziarlo.
+## 8. Utility (non-EP ma consigliate)
+- Backup manuale: `py scripts/backup_db.py`
+- Restore: `py scripts/restore_db.py --from <path_backup>`
+- CHECKPOINT / maintenance: eseguito in `backup_db.py` o `health_check.py` come step periodico (vedi DIPF §8.2)
 
+---
+
+## 9. Nota importante
+Questo progetto è *decision support / simulazione backtest-grade*. Non sostituisce il commercialista né costituisce consulenza finanziaria.

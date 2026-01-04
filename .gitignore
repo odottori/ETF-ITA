@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# DuckDB
+*.duckdb
+*.duckdb.backup
+
+# Reports temporanei
+data/reports/*/
+!data/reports/.gitkeep
+
+# Backup
+data/backup/*/
+!data/backup/.gitkeep
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,7 +1,8 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r19 — 2026-01-04  
+**Doc Revision (internal):** r20 — 2026-01-04  
+**Baseline produzione:** **EUR / ACC**
 
 ## LEGENDA
 - [🟢] DONE — testato e verificato
@@ -13,99 +14,96 @@
 ## TL-0. EntryPoints Registry (1:1 con README)
 | EP | Script/Command | Output principale | Cross-Ref |
 |---|---|---|---|
-| EP-01 | `scripts/setup_db.py` | DB + schema | DD-2..DD-9 |
+| EP-01 | `scripts/setup_db.py` | DB + schema | DD-2..DD-11 |
 | EP-02 | `scripts/load_trading_calendar.py` | `trading_calendar` popolata | DD-3.1 |
-| EP-03 | `scripts/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §3, DD-2, DD-5 |
+| EP-03 | `scripts/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 |
 | EP-04 | `scripts/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 |
-| EP-05 | `scripts/compute_signals.py` | segnali + snapshot opz. | DIPF §4, DD-8 |
-| EP-06 | `scripts/check_guardrails.py` | SAFE/DANGER + motivazione | DIPF §5 |
-| EP-07 | `scripts/plan_orders.py --dry-run` | `orders.json` | DIPF §8.1 |
-| EP-08 | `scripts/update_ledger.py [--commit]` | ledger aggiornato + journal | DIPF §6, DD-6/7 |
-| EP-09 | `scripts/run_backtest.py` | equity curve + KPI | DIPF §7/§9 |
-| EP-10 | `scripts/generate_report.py` | Run Package | DIPF §7, DD-11 |
-| EP-11 | `scripts/stress_test.py` | stress report | DIPF §9.2 |
-| EP-12 | `scripts/restore_db.py` | ripristino DB | DIPF §8.2 |
+| EP-05 | `scripts/compute_signals.py` | segnali + snapshot | DIPF §4, DD-8 |
+| EP-06 | `scripts/check_guardrails.py` | SAFE/DANGER | DIPF §5.3 |
+| EP-07 | `scripts/strategy_engine.py --dry-run` | `orders.json` | DIPF §8.1, DD-11 |
+| EP-08 | `scripts/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-6 |
+| EP-09 | `scripts/backtest_runner.py` | Run Package | DIPF §7, §9 |
+| EP-10 | `scripts/stress_test.py` | stress report | DIPF §9.2 |
 
 ---
 
 ## TL-1. Fase 1 — Ciclo di fiducia (MUST)
+### TL-1.1 Sanity check post-run (bloccante)
+- [🔴] Implementare `scripts/sanity_check.py` (invocato da EP-08/EP-09)
+- DoD: exit!=0 se:
+  - posizioni negative / qty < 0
+  - cash/equity incoerenti (invarianti contabili)
+  - violazione “no future data leak” rispetto all’execution model
+  - gap su giorni `is_open=TRUE` (trading_calendar)
+  - mismatch ledger vs market_data su date/symbol
 
-### TL-1.1 Sanity Check post-backtest/post-run
-- [🔴] Implementare `scripts/sanity_check.py` (invocato da EP-09/EP-10)
-- DoD: fallisce (exit!=0) se:
-  - posizioni negative o cash incoerente
-  - no-future-data-leak violato
-  - gap su giorni `is_open=TRUE`
-  - mismatch ledger vs market_data (symbol/date)
+### TL-1.2 Dry-run JSON diff-friendly
+- [🔴] EP-07 produce `data/orders.json` con:
+  - orders proposti (BUY/SELL/HOLD), qty, reason
+  - cash impact
+  - tax estimate (se SELL o se cost model lo richiede)
+  - guardrails state + explain_code
+- DoD: nessuna scrittura su DB/ledger; output deterministico a parità input.
 
-### TL-1.2 Dry-Run JSON diff-friendly
-- [🔴] EP-07 produce `orders.json` con: orders, cash impact, tax estimate, guardrails state
-- DoD: nessuna scrittura su ledger; output deterministico dato stesso input.
+### TL-1.3 Cash interest (MUST)
+- [🔴] Evento `INTEREST` mensile su cash_balance (fiscal_ledger)
+- DoD: calcolo documentato; rounding a 0.01 EUR; inclusione nel report KPI.
 
-### TL-1.3 Risk Continuity Report automatico
-- [🔴] Generare `risk_continuity.md` se missing > N giorni open
-- DoD: trigger automatico post-ingest + link in Run Package.
-
-### TL-1.4 Cash Interest (MUST)
-- [🔴] Eventi `INTEREST` mensili in ledger
-- DoD: test unitario su cash_balance con rate; verifica rounding.
+### TL-1.4 Risk Continuity Report automatico
+- [🔴] Generare `risk_continuity.md` se missing > N giorni open (post-ingest)
+- DoD: trigger automatico; link nel Run Package.
 
 ### TL-1.5 KPI snapshot + kpi_hash
-- [🔴] `metric_snapshot` aggiornato post-ingest/backtest
-- DoD: `kpi_hash` cambia se cambia uno dei KPI principali.
+- [🔴] Popolare `metric_snapshot` e calcolare `kpi_hash`
+- DoD: hash cambia se e solo se cambiano KPI canonici; include run_id.
+
+### TL-1.6 Enforce baseline EUR/ACC (gate)
+- [🔴] Validazione in ingestion/config: solo `currency=EUR` e `dist_policy=ACC`
+- DoD: se rilevato non-EUR o DIST senza feature flag → blocco run (exit!=0) + messaggio chiaro.
 
 ---
 
-## TL-2. Fase 2 — Reale & difendibile (MUST/SHOULD)
+## TL-2. Fase 2 — Realismo fiscale & data quality (SHOULD/MUST)
+### TL-2.1 Categoria fiscale strumento (CRITICO)
+- [🔴] Implementare `tax_category` (default `OICR_ETF`) e logica:
+  - `OICR_ETF`: gain tassato pieno 26% (no zainetto)
+  - `ETC_ETN_STOCK`: gain può compensare zainetto
+- DoD: unit test su caso gain ETF con zainetto presente → nessuna compensazione.
 
-### TL-2.1 Fiscalità: tax_category asimmetria ETF (CRITICO)
-- [🔴] Aggiungere `tax_category` in registry/config
-- [🔴] Fiscal engine:
-  - se `OICR_ETF` e gain>0 → tassa 26% piena, **non** usare zainetto
-  - se loss<0 → crea bucket (zainetto)
-  - se `ETC_ETN_STOCK` → offset con zainetto consentito
-- DoD: test con sequenza BUY/SELL gain su ETF: tax_paid = gain*0.26 anche con bucket disponibile.
+### TL-2.2 Zainetto: scadenza corretta 31/12 (anno+4)
+- [🔴] `expires_at = 31/12/(year(realize)+4)` su `tax_loss_buckets`
+- DoD: test con realize 05/01/2026 → expires 31/12/2030.
 
-### TL-2.2 FX (solo se `fx_enabled=true`)
-- [🔴] Tabella `fx_rates` + ingestion giornaliera
-- [🔴] Ledger salva `exchange_rate_used` e `price_eur`
-- DoD: test con due date FX diverse: gain EUR cambia anche a prezzo invariato.
+### TL-2.3 close vs adj_close (coerenza)
+- [🔴] Segnali su `adj_close`; ledger valuation su `close`
+- DoD: test che impedisce uso `adj_close` in valuation ledger (query/flag).
 
-### TL-2.3 close vs adj_close (ledger vs signals)
-- [🔴] Ingestion salva **entrambi** `close` e `adj_close`
-- [🔴] Valorizzazione portafoglio: `close`
-- [🔴] Indicatori: `adj_close`
-- DoD: test smoke su ETF DIST: price drop non “compensato” artificialmente in ledger.
+### TL-2.4 Zombie/stale prices (health + risk metrics)
+- [🔴] In health_check: rilevare close ripetuto + volume=0 su giorno open → flag “ZOMBIE”
+- DoD: risk metrics escludono giorni ZOMBIE dal calcolo della volatilità.
 
-### TL-2.4 Dividendi DIST (lean)
-- [🔴] Se `dist_policy=DIST` e dividend disponibile → evento `DIVIDEND` in ledger con tax immediata
-- DoD: warning se DIST ma dividend non modellato.
-
-### TL-2.5 Inerzia “tax-friction aware”
-- [🔴] Implementare `inertia_threshold` nel strategy engine
-- DoD: scenario dove alpha atteso < costi → HOLD.
-
-### TL-2.6 “Zombie data” detection
-- [🔴] Health check: close ripetuto + volume=0 su giorno open
-- DoD: tali giorni esclusi da vol/risk_metrics; warning in report.
-
-### TL-2.7 Maintenance DuckDB
-- [🔴] Script `maintenance_db.py` esegue `CHECKPOINT`
-- DoD: comando idempotente; log in `maintenance_log` (opzionale) o file.
+### TL-2.5 Run Package completo (manifest/kpi/summary)
+- [🔴] EP-09 deve produrre tutti gli artefatti obbligatori
+- DoD: mancanza file → exit!=0; manifest include config_hash e data_fingerprint.
 
 ---
 
-## TL-3. Fase 3 — Refinements (SHOULD/COULD)
+## TL-3. Fase 3 — “Smart retail” e UX (COULD/SHOULD)
+### TL-3.1 Inerzia tax-friction aware
+- [🔴] In strategy_engine: non ribilanciare se (alpha atteso - costi) < soglia
+- DoD: scenario test dove “fare nulla” è scelta ottimale.
 
-### TL-3.1 Emotional Gap nel report
-- [🔴] In `summary.md`: PnL “pura” vs “reale” e delta
-- DoD: se delta < 0 evidenziare esplicitamente in output.
-
-### TL-3.2 Benchmark snapshot + after-tax view
-- [🔴] Materializzare `benchmark_snapshot`
-- DoD: KPI benchmark in EUR disponibili senza ricalcolo pesante.
+### TL-3.2 Emotional Gap in summary.md
+- [🔴] Calcolo PnL “puro” vs “reale” e stampa gap
+- DoD: se gap < 0, evidenza forte nel summary.
 
 ### TL-3.3 Cash-equivalent ticker (feature flag)
-- [🔴] Se abilitato: parcheggio liquidità su ticker monetario
-- DoD: non rompe fiscal engine; contabilizza come strumento standard.
+- [🔴] Se `cash_equivalent_enabled=true`: parcheggio liquidità su ticker monetario
+- DoD: disattivato di default; attivabile solo se universe ammette il ticker e fiscalità è gestita.
 
+---
+
+## TL-4. Utility & Ops (consigliate)
+- [🔴] `scripts/backup_db.py` (backup pre-commit + CHECKPOINT)
+- [🔴] `scripts/restore_db.py` (ripristino da backup)
+- [🔴] `scripts/update_trading_calendar.py` (manutenzione annuale calendario)

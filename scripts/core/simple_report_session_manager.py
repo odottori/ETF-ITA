@@ -54,24 +54,34 @@ class SimpleReportSessionManager:
         
         return timestamp, session_dir
     
-    def add_report_to_session(self, timestamp, report_type, report_data, file_extension="json"):
-        """Aggiunge un report alla sessione"""
+    def add_report_to_session(self, timestamp, report_type, report_data, file_extension=None):
+        """Aggiunge un report alla sessione con formato appropriato"""
         
         session_dir = self.sessions_dir / timestamp
         if not session_dir.exists():
             raise FileNotFoundError(f"Session {timestamp} not found")
         
+        # Determina formato appropriato basato sul tipo di report
+        if file_extension is None:
+            file_extension = self._get_default_extension(report_type)
+        
         # Nome file report
         report_filename = f"{report_type}.{file_extension}"
         report_path = session_dir / report_filename
         
-        # Salva report
+        # Salva report con formato appropriato
         if file_extension == "json":
             with open(report_path, 'w') as f:
                 json.dump(report_data, f, indent=2)
         elif file_extension == "md":
-            with open(report_path, 'w') as f:
-                f.write(report_data)
+            # Converti dati dict in markdown se necessario
+            if isinstance(report_data, dict):
+                markdown_content = self._dict_to_markdown(report_data, report_type)
+                with open(report_path, 'w') as f:
+                    f.write(markdown_content)
+            else:
+                with open(report_path, 'w') as f:
+                    f.write(str(report_data))
         else:
             with open(report_path, 'w') as f:
                 f.write(str(report_data))
@@ -84,14 +94,81 @@ class SimpleReportSessionManager:
         session_info["reports"].append({
             "type": report_type,
             "filename": report_filename,
+            "file_extension": file_extension,
             "created_at": datetime.now().isoformat()
         })
         
         with open(info_file, 'w') as f:
             json.dump(session_info, f, indent=2)
         
-        print(f"📄 Report added: {report_filename}")
+        print(f"📄 Report added: {report_filename} ({file_extension})")
         return report_path
+    
+    def _get_default_extension(self, report_type):
+        """Determina l'estensione di default per il tipo di report"""
+        
+        # Mapping report type → default extension
+        format_mapping = {
+            "health_report": "md",           # Health report in markdown (leggibile)
+            "performance_summary": "json",   # Performance summary in JSON
+            "stress_test": "json",          # Stress test in JSON
+            "automated_test_cycle": "json",  # Automated test in JSON
+            "backtest": "json",              # Backtest in JSON
+            "portfolio_overview": "json",    # Portfolio in JSON
+            "risk_analysis": "json",         # Risk analysis in JSON
+            "system_status": "json",         # System status in JSON
+        }
+        
+        # Return mapped extension or default to JSON
+        return format_mapping.get(report_type.lower(), "json")
+    
+    def _dict_to_markdown(self, data, report_type):
+        """Converte un dizionario in formato markdown"""
+        
+        if report_type.lower() == "health_report":
+            return f"""# Health Check Report
+
+**Timestamp:** {data.get('timestamp', 'N/A')}  
+**Overall Status:** {data.get('status', 'N/A')}
+
+---
+
+## Executive Summary
+
+{self._get_status_emoji(data.get('status', 'UNKNOWN'))} **System Status:** {data.get('status', 'N/A')}
+
+---
+
+## System Metrics
+
+- **Total Issues:** {data.get('issues', 0)}
+- **System Health:** {data.get('status', 'UNKNOWN')}
+
+---
+
+## Symbol Status
+
+"""
+        
+        # Add symbol information if available
+        symbols = data.get('symbols', {})
+        for symbol, info in symbols.items():
+            emoji = self._get_status_emoji("HEALTHY")  # Default to healthy
+            content += f"### {emoji} {symbol}\n\n"
+            content += f"- **Records:** {info.get('records', 'N/A')}\n"
+            content += f"- **Issues:** {info.get('issues', 'N/A')}\n\n"
+        
+        return content
+    
+    def _get_status_emoji(self, status):
+        """Ritorna l'emoji appropriata per lo status"""
+        status_emoji = {
+            "HEALTHY": "[OK]",
+            "WARNING": "[WARN]",
+            "CRITICAL": "[CRIT]",
+            "UNKNOWN": "[?]"
+        }
+        return status_emoji.get(status.upper(), "[?]")
     
     def get_latest_session(self):
         """Ottiene la sessione più recente"""

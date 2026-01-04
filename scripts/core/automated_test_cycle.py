@@ -19,8 +19,8 @@ def automated_test_cycle():
     print("🔄 AUTOMATED TEST CYCLE - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
-    reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'reports')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports')
     
     conn = duckdb.connect(db_path)
     
@@ -40,12 +40,13 @@ def automated_test_cycle():
             FROM market_data
             WHERE symbol IN ('CSSPX.MI', 'XS2L.MI')
             AND adj_close IS NOT NULL
-            AND date >= '2020-01-01'
+            AND date >= '2010-01-01'
         )
         SELECT 
             symbol,
             STDDEV(daily_return) * SQRT(252) as annual_vol,
-            AVG(daily_return) * SQRT(252) as annual_ret,
+            AVG(daily_return) * 252 as annual_ret,
+            (EXP(AVG(LN(1 + daily_return)) * 252) - 1) as compound_annual_ret,
             COUNT(*) as data_points
         FROM daily_returns
         WHERE daily_return IS NOT NULL
@@ -55,11 +56,12 @@ def automated_test_cycle():
         
         volatility_analysis = conn.execute(returns_query).fetchall()
         
-        print(f"   📈 Volatility Analysis (2020-2026):")
-        for symbol, vol, ret, points in volatility_analysis:
+        print(f"   📈 Volatility Analysis (2010-2026):")
+        for symbol, vol, ret, compound_ret, points in volatility_analysis:
             print(f"      {symbol}:")
             print(f"        Volatility: {vol:.2%}")
-            print(f"        Return: {ret:.2%}")
+            print(f"        Simple Return: {ret:.2%}")
+            print(f"        Compound Return: {compound_ret:.2%}")
             print(f"        Data Points: {points:,}")
             print(f"        Vol/Return Ratio: {vol/abs(ret) if ret != 0 else 0:.2f}")
         

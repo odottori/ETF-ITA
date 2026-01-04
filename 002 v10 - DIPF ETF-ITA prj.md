@@ -1,4 +1,4 @@
-# DIPF - Documento di Indirizzo e Progettazione Funzionale (ETF_ITA)
+# 📋 DIPF - Design & Implementation Plan Framework (ETF_ITA)
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
@@ -10,6 +10,7 @@
 **Performance Sharpe:** **0.96** (ottimizzato)  
 **Issues Integrity:** **75** (85.3% weekend/festivi)  
 **Reports Location:** **data/reports/analysis/**
+**Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
 
 ---
 

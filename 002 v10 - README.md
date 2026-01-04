@@ -3,11 +3,8 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r25 — 2026-01-04 |
+| **Doc Revision (internal)** | r26 — 2026-01-04 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **COMPLETATO** (10/10 EntryPoint) |
-| **Performance Sharpe** | **0.96** (ottimizzato) |
-| **Issues Integrity** | **75** (85.3% weekend/festivi) |
 
 ---
 

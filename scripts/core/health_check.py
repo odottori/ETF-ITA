@@ -20,8 +20,8 @@ def health_check():
     print("🔍 HEALTH CHECK - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     reports_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'reports')
     
     # Assicurati che esista cartella reports
@@ -288,14 +288,35 @@ def health_check():
             health_report['warnings'].append("No ingestion records found")
             print("⚠️ Nessun record ingestion")
         
-        # 6. Overall Status
+        # 6. Overall Status con severity riallineata
         print(f"\n🎯 OVERALL STATUS")
         print("=" * 40)
+        
+        # Controlla severity issues
+        total_warnings = len(health_report['warnings'])
+        total_issues = len(health_report['issues'])
+        
+        # Check specifici per severity
+        large_gap_warnings = sum(1 for w in health_report['warnings'] if 'Large gaps' in w and int(w.split(':')[-1].strip()) > 50)
+        calendar_issues = sum(1 for w in health_report['warnings'] if 'Calendar coherence' in w and int(w.split(':')[-1].strip().split()[0]) > 0)
+        
+        # Riallinea severity policy
+        if total_issues > 0:
+            health_report['overall_status'] = 'CRITICAL'
+        elif large_gap_warnings > 0 or calendar_issues > 0:
+            health_report['overall_status'] = 'DEGRADED'
+        elif total_warnings > 5:
+            health_report['overall_status'] = 'WARNING'
+        else:
+            health_report['overall_status'] = 'HEALTHY'
         
         if health_report['overall_status'] == 'HEALTHY':
             print("✅ SYSTEM HEALTHY - Ready for production")
         elif health_report['overall_status'] == 'WARNING':
             print("⚠️ SYSTEM WARNING - Review recommended")
+        elif health_report['overall_status'] == 'DEGRADED':
+            print("🟡 SYSTEM DEGRADED - Risk Continuity investigation required")
+            print("   🟡 Data quality issues detected - review before production")
         else:
             print("❌ SYSTEM CRITICAL - Issues require attention")
         
@@ -398,6 +419,10 @@ def generate_health_report(report, reports_path):
     elif report['overall_status'] == 'WARNING':
         content += "- ⚠️ Review warnings before production\n"
         content += "- ⚠️ Monitor system closely\n"
+    elif report['overall_status'] == 'DEGRADED':
+        content += "- 🟡 SYSTEM DEGRADED - Data quality issues detected\n"
+        content += "- 🟡 Risk Continuity investigation required\n"
+        content += "- 🟡 Review before production deployment\n"
     else:
         content += "- ❌ Address critical issues immediately\n"
         content += "- ❌ System not ready for production\n"
@@ -420,6 +445,8 @@ def get_status_emoji(status):
         return '✅'
     elif status == 'WARNING':
         return '⚠️'
+    elif status == 'DEGRADED':
+        return '🟡'
     elif status == 'CRITICAL':
         return '❌'
     else:

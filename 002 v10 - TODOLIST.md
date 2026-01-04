@@ -3,10 +3,6 @@
 **Package:** v10 (naming canonico)  
 **Doc Revision (internal):** r26 — 2026-01-04  
 **Baseline produzione:** **EUR / ACC**  
-**Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
-**Performance Sharpe:** **0.96** (ottimizzato)  
-**Issues Integrity:** **75** (85.3% weekend/festivi)  
-**Reports Location:** **data/reports/analysis/**
 
 ## LEGENDA
 - [🟢] DONE — testato e verificato

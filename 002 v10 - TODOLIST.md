@@ -1,7 +1,7 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r20 — 2026-01-04  
+**Doc Revision (internal):** r21 — 2026-01-04  
 **Baseline produzione:** **EUR / ACC**
 
 ## LEGENDA
@@ -14,7 +14,7 @@
 ## TL-0. EntryPoints Registry (1:1 con README)
 | EP | Script/Command | Output principale | Cross-Ref |
 |---|---|---|---|
-| EP-01 | `scripts/setup_db.py` | DB + schema | DD-2..DD-11 |
+| EP-01 | `scripts/setup_db.py` | DB + schema | DD-2..DD-11 | ✅ DONE |
 | EP-02 | `scripts/load_trading_calendar.py` | `trading_calendar` popolata | DD-3.1 |
 | EP-03 | `scripts/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 |
 | EP-04 | `scripts/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 |

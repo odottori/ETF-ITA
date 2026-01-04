@@ -158,6 +158,24 @@ py scripts/utility/final_system_status.py      # Report completo stato sistema
 py scripts/utility/performance_report_generator.py # Report performance completo
 ```
 
+### 📊 Performance Reports
+```powershell
+# Report disponibili in data/reports/analysis/
+py scripts/core/performance_report_generator.py     # Genera report completo
+py scripts/core/health_check.py                        # Health check sistema
+py scripts/core/stress_test.py                            # Monte Carlo stress test
+py scripts/core/automated_test_cycle.py                   # Analisi ottimizzazione
+```
+
+**📁 Report Location:**
+```
+data/reports/analysis/
+├── health_report_20260104_164700.md      # Health check completo
+├── stress_test_20260104_172824.json       # Monte Carlo stress test
+├── automated_test_cycle_20260104_173315.json # Analisi ottimizzazione
+└── README.md                              # Guida reports
+```
+
 ### 📁 Scripts Organization
 ```
 scripts/

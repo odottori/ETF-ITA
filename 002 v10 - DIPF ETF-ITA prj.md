@@ -2,13 +2,14 @@
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r25 — 2026-01-04  
+**Doc Revision (internal):** r26 — 2026-01-04  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
 **Stato Documento:** 🟢 CANONICO — APPROVED FOR DEV  
 **Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
 **Performance Sharpe:** **0.96** (ottimizzato)  
-**Issues Integrity:** **75** (85.3% weekend/festivi)
+**Issues Integrity:** **75** (85.3% weekend/festivi)  
+**Reports Location:** **data/reports/analysis/**
 
 ---
 

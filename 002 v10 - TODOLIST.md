@@ -1,11 +1,12 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r25 — 2026-01-04  
+**Doc Revision (internal):** r26 — 2026-01-04  
 **Baseline produzione:** **EUR / ACC**  
 **Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
 **Performance Sharpe:** **0.96** (ottimizzato)  
-**Issues Integrity:** **75** (85.3% weekend/festivi)
+**Issues Integrity:** **75** (85.3% weekend/festivi)  
+**Reports Location:** **data/reports/analysis/**
 
 ## LEGENDA
 - [🟢] DONE — testato e verificato
@@ -30,6 +31,12 @@
 | EP-11 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | ✅ DONE |
 | 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | ✅ DONE |
 | 🔍 | `scripts/archive/complete_system_test.py` | assessment completo | Sistema | ✅ DONE |
+
+### 📊 **REPORTS SYSTEMA**
+- **Health Check**: `data/reports/analysis/health_report_20260104_164700.md`
+- **Stress Test**: `data/reports/analysis/stress_test_20260104_172824.json`
+- **Automated Test**: `data/reports/analysis/automated_test_cycle_20260104_173315.json`
+- **Performance Generator**: `scripts/core/performance_report_generator.py`
 
 ---
 
@@ -63,6 +70,7 @@
 - **Issues Integrity**: 75 (85.3% weekend/festivi)
 - **Stato Sistema**: COMPLETATO
 - **Pronto per**: Produzione
+- **Reports Location**: data/reports/analysis/
 
 ### 🔍 **TEST COMPLETO SISTEMA**
 - **System test**: 9/10 PASS (90%)

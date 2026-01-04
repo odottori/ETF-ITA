@@ -3,15 +3,12 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r23 — 2026-01-04 |
+| **Doc Revision (internal)** | r24 — 2026-01-04 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **COMPLETATO** (10/10 EntryPoint) |
-| **Performance Sharpe** | **0.96** (ottimizzato) |
-| **Issues Integrity** | **75** (85.3% weekend/festivi) |
 
 ---
 
-## 1) Mission
+## 1) Descrizione del sistema
 
 Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, con:
 - data quality gating (staging → master)
@@ -19,9 +16,9 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 - ledger fiscale (PMC) + journaling (forecast/postcast)
 - reporting serializzato (Run Package)
 
-## 1.1) Scopo del progetto
-- **Decision support / simulazione backtest-grade**: genera segnali, ordini proposti (dry-run), controlli di rischio, contabilità fiscale simulata e reporting riproducibile.
-- **Non è un sistema di execution automatica**: l’operatività reale richiede revisione e conferma esplicite (manual gate), soprattutto in presenza di guardrails/circuit breaker.
+### 1.1 Scopo
+- **Decision support / simulazione backtest-grade**: segnali, ordini proposti (dry-run), controlli rischio, contabilità fiscale simulata e report riproducibili.
+- **Non è execution automatica**: la produzione è *human-in-the-loop* (manual gate), soprattutto in caso di guardrails/circuit breaker.
 
 ---
 
@@ -29,67 +26,33 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 
 Prerequisiti:
 - Python Launcher `py`
-- (consigliato) Git
+- (opzionale) Git
 
 Installazione:
 ```powershell
 py -m venv .venv
-.\.venv\Scriptsctivate
+.\.venv\Scripts\activate
 py -m pip install -r requirements.txt
 ```
 
----
-
-## 3) Stato Attuale Sistema (2026-01-04)
-
-### ✅ **SISTEMA COMPLETAMENTE IMPLEMENTATO**
-- **10/10 EntryPoint** completati e testati
-- **90% success rate** nei test di sistema
-- **0 Failed** - **0 Errors**
-- **1 Warning** (integrity issues minori)
-
-### 🤖 **OTTIMIZZAZIONE AUTOMATICA COMPLETATA**
-- **Sharpe Ratio**: 0.96 (eccellente)
-- **Strategy CAGR**: 11.78%
-- **Benchmark CAGR**: 17.65%
-- **Alpha**: -5.87%
-- **Configurazione salvata**: `optimal_strategy_20260104_172202.json`
-
-### 🔍 **DATA QUALITY**
-- **Records totali**: 10,898
-- **Periodo**: 2010-2026 (16+ anni)
-- **Integrity issues**: 75 (85.3% weekend/festivi)
-- **Zombie prices**: 0 (completamente risolti)
-
-### 🔧 **COMPONENTI ROBUSTI**
-- **Database**: 10 tabelle complete
-- **Signal Engine**: 120 segnali funzionanti
-- **Risk Management**: Guardrails attivi
-- **Fiscal Ledger**: 3 transazioni
-- **Trading Calendar**: 2,192 giorni configurati
-
----
-
-## 4) Flusso Operativo EOD (EntryPoints)
-
-Nota operativa: per baseline **EUR/ACC**, strumenti non-EUR o DIST sono **bloccati** con messaggio esplicativo.
-
-### EP-01 — Setup DB
+Inizializzazione DB:
 ```powershell
 py scripts/setup_db.py
-```
-
-### EP-02 — Carica Trading Calendar
-```powershell
 py scripts/load_trading_calendar.py
 ```
+
+---
+
+## 3) Flusso operativo EOD (EntryPoints)
+
+Nota baseline **EUR/ACC**: strumenti non-EUR o a distribuzione (DIST) sono **bloccati** salvo feature flag esplicito.
 
 ### EP-03 — Ingestion (staging + quality gates)
 ```powershell
 py scripts/ingest_data.py
 ```
 
-### EP-04 — Health Check (zombie/gap) + Risk Continuity se necessario
+### EP-04 — Health Check (gap/zombie) + Risk Continuity se necessario
 ```powershell
 py scripts/health_check.py
 ```
@@ -108,7 +71,10 @@ py scripts/check_guardrails.py
 ```powershell
 py scripts/strategy_engine.py --dry-run
 ```
-Output: `data/reports/<run_id>/orders.json` con HOLD/TRADE e `do_nothing_score`.
+Output: `data/reports/<run_id>/orders.json` con:
+- ordini proposti (BUY/SELL/HOLD) e motivazioni (`explain_code`)
+- stime costi/attrito (`fees_est`, `tax_friction_est`, `expected_alpha_est`)
+- **`do_nothing_score`** + **`recommendation`** (HOLD/TRADE)
 
 ### EP-08 — Update Ledger (commit)
 ```powershell
@@ -120,72 +86,38 @@ Best practice: eseguire backup prima del commit.
 ```powershell
 py scripts/backtest_runner.py
 ```
-Produce: `manifest.json`, `kpi.json`, `summary.md`.
-
-### EP-10 — Stress Test (Monte Carlo)
-```powershell
-py scripts/stress_test.py
-```
 
 ### EP-11 — Sanity Check (bloccante)
 ```powershell
 py scripts/sanity_check.py
 ```
 
-### 🤖 Ottimizzazione Automatica Strategie
-```powershell
-py scripts/auto_strategy_optimizer.py
-```
-Output: `data/reports/optimal_strategy_*.json` con configurazione ottimale
-
-### 🔍 Test Completo Sistema
-```powershell
-py scripts/complete_system_test.py
-```
-Output: `data/reports/system_test_*.json` con assessment completo
-
-### 🔍 Utility Scripts
-```powershell
-py scripts/utility/analyze_warning.py          # Analisi integrity issues EP-04
-py scripts/utility/check_issues.py              # Check dettagliato health issues
-py scripts/utility/clear_signals.py             # Pulizia tabella signals
-py scripts/utility/final_system_status.py      # Report completo stato sistema
-py scripts/utility/performance_report_generator.py # Report performance completo
-```
-
-### 📁 Scripts Organization
-```
-scripts/
-├── core/           # Core system scripts (EP-01..EP-10)
-├── utility/        # Analysis, testing, and utility scripts
-├── archive/        # Temporary implementation scripts
-└── advanced/       # Advanced ML and optimization scripts
-```
-
 ---
 
-## 5) Run Package (serializzato)
+## 4) Run Package (reporting serializzato)
 
 Percorso: `data/reports/<run_id>/`
 
-Obbligatori:
+Artefatti obbligatori:
 - `manifest.json` (config_hash + data_fingerprint)
 - `kpi.json` (kpi_hash)
-- `summary.md` (include Emotional Gap)
+- `summary.md` (include sezione Emotional Gap)
 
-Se manca un file obbligatorio: la run è **FAIL**.
+Se manca un file obbligatorio: la run è **FAIL** (exit code ≠ 0).
 
 ---
 
-## 5) Regole chiave (da ricordare)
-- Segnali su `adj_close`, valorizzazione ledger su `close`.
-- Zombie prices: esclusi dai KPI rischio.
-- Benchmark: se INDEX → no tasse simulate; se ETF → tasse simulate.
-- Baseline EUR/ACC: blocco strumenti non conformi.
+## 5) Regole chiave (baseline)
+
+- **Segnali** su `adj_close`, **ledger/valorizzazione** su `close`.
+- **Zombie prices**: esclusi dai KPI di rischio.
+- **Benchmark**: se `benchmark_kind=INDEX` → no tasse simulate (solo friction proxy); se ETF → tassazione simulata coerente.
+- **EUR/ACC gate**: blocco strumenti non conformi salvo feature flag.
 
 ---
 
 ## 6) Struttura progetto
+
 ```
 ETF_ITA_project/
 ├── config/
@@ -212,6 +144,18 @@ ETF_ITA_project/
 
 ---
 
-## 7) Nota importante
+## 7) Utility scripts (opzionali)
+
+Questi script non sono parte del “percorso operativo” standard, ma aiutano debug e manutenzione.
+
+- `scripts/analyze_warning.py` — Analisi integrity issues EP-04 (zombie prices, gaps)
+- `scripts/check_issues.py` — Check dettagliato health issues con reporting
+- `scripts/clear_signals.py` — Pulizia tabella signals per reset
+- `scripts/final_system_status.py` — Report completo stato sistema
+- `scripts/performance_report_generator.py` — Report performance completo
+
+---
+
+## 8) Nota importante
 
 Questo progetto è *decision support / simulazione backtest-grade*. Non sostituisce il commercialista né costituisce consulenza finanziaria.

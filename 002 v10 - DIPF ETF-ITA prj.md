@@ -2,12 +2,10 @@
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r23 — 2026-01-04  
+**Doc Revision (internal):** r24 — 2026-01-04  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
-**Stato:** **COMPLETATO** (10/10 EntryPoint)  
-**Performance Sharpe:** **0.96** (ottimizzato)  
-**Issues Integrity:** **75** (85.3% weekend/festivi)
+**Stato Documento:** 🟢 CANONICO — APPROVED FOR DEV
 
 ---
 
@@ -90,13 +88,6 @@ Sì, il progetto supporta tutto ciò che non è "tempo reale". È una macchina d
 5) Commit ledger (solo con `--commit` + backup pre-commit).
 6) Report e Run Package serializzato.
 
-### 4.5 Utility Scripts (Debug & Analysis)
-- `scripts/analyze_warning.py`: Analisi integrity issues EP-04 (zombie prices, gaps)
-- `scripts/check_issues.py`: Check dettagliato health issues con reporting
-- `scripts/clear_signals.py`: Pulizia tabella signals per reset
-- `scripts/final_system_status.py`: Report completo stato sistema
-- `scripts/performance_report_generator.py`: Report performance completo
-- **Scope**: Supporto al debug, analisi e monitoraggio del sistema
 
 ---
 

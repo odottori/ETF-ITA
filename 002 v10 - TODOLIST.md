@@ -1,71 +1,13 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r23 — 2026-01-04  
+**Doc Revision (internal):** r24 — 2026-01-04  
 **Baseline produzione:** **EUR / ACC**  
-**Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
-**Performance Sharpe:** **0.96** (ottimizzato)
 
 ## LEGENDA
 - [🟢] DONE — testato e verificato
 - [🟡] WIP — in lavorazione
 - [🔴] TODO — non iniziato
-
----
-
-## 📊 STATO ATTUALE SISTEMA (2026-01-04)
-
-### ✅ **SISTEMA COMPLETAMENTE IMPLEMENTATO**
-- **10/10 EntryPoint** completati e testati
-- **90% success rate** nei test di sistema
-- **0 Failed** - **0 Errors**
-- **1 Warning** (integrity issues minori)
-
-### 🤖 **OTTIMIZZAZIONE AUTOMATICA**
-- **Sharpe Ratio**: 0.96 (eccellente)
-- **Strategy CAGR**: 11.78%
-- **Benchmark CAGR**: 17.65%
-- **Alpha**: -5.87%
-- **Configurazione**: `optimal_strategy_20260104_172202.json`
-
-### 🔍 **DATA QUALITY**
-- **Records totali**: 10,898
-- **Periodo**: 2010-2026 (16+ anni)
-- **Integrity issues**: 75 (85.3% weekend/festivi)
-- **Zombie prices**: 0 (completamente risolti)
-
-### 🔧 **COMPONENTI ROBUSTI**
-- **Database**: 10 tabelle complete
-- **Signal Engine**: 120 segnali funzionanti
-- **Risk Management**: Guardrails attivi
-- **Fiscal Ledger**: 3 transazioni
-- **Trading Calendar**: 2,192 giorni configurati
-
----
-
-## 🛠️ UTILITY SCRIPTS (Debug & Analysis)
-
-### Scripts di Supporto Implementati
-- **`analyze_warning.py`**: Analisi integrity issues EP-04 (zombie prices, gaps)
-- **`check_issues.py`**: Check dettagliato health issues con reporting
-- **`clear_signals.py`**: Pulizia tabella signals per reset
-- **`final_system_status.py`**: Report completo stato sistema
-- **`performance_report_generator.py`**: Report performance completo
-
-### Utilizzo
-```powershell
-py scripts/analyze_warning.py          # Analisi EP-04 issues
-py scripts/check_issues.py              # Check health issues
-py scripts/clear_signals.py             # Pulizia signals
-py scripts/final_system_status.py      # Report stato sistema
-py scripts/performance_report_generator.py # Report performance
-```
-
-### Scopo
-- **Debug**: Analisi e risoluzione problemi di sistema
-- **Monitoring**: Report completo stato e performance
-- **Maintenance**: Pulizia e reset componenti
-- **Analysis**: Deep dive su integrity issues e metrics
 
 ---
 
@@ -114,7 +56,7 @@ py scripts/performance_report_generator.py # Report performance
 
 ---
 
-## TL-1. Fase 1 — Ciclo di fiducia (COMPLETATO)
+## TL-1. Fase 1 — Ciclo di fiducia
 ### TL-1.1 Sanity check post-run (bloccante)
 - [🟢] **COMPLETATO** `scripts/sanity_check.py` (invocato da EP-08/EP-09)
 - DoD: exit!=0 se:
@@ -168,50 +110,35 @@ py scripts/performance_report_generator.py # Report performance
 - [🟢] Evento `INTEREST` mensile su cash_balance (fiscal_ledger)
 - DoD: calcolo documentato; rounding a 0.01 EUR; inclusione nel report KPI.
 
-### TL-1.4 Risk Continuity Report automatico
-- [🟢] Generare `risk_continuity.md` se missing > N giorni open (post-ingest)
-- DoD: trigger automatico; link nel Run Package.
-
-### TL-1.5 KPI snapshot + kpi_hash
-- [🟢] Popolare `metric_snapshot` e calcolare `kpi_hash`
-- DoD: hash cambia se e solo se cambiano KPI canonici; include run_id.
-
-### TL-1.6 Enforce baseline EUR/ACC (gate)
-- [🟢] Validazione in ingestion/config: solo `currency=EUR` e `dist_policy=ACC`
-- DoD: se rilevato non-EUR o DIST senza feature flag → blocco run (exit!=0) + messaggio chiaro.
-
----
-
-## TL-2. Fase 2 — Realismo fiscale & data quality (SHOULD/MUST)
 ### TL-2.1 Categoria fiscale strumento (CRITICO)
-- [�] Implementare `tax_category` (default `OICR_ETF`) e logica:
+- [🔴] Implementare `tax_category` (default `OICR_ETF`) e logica:
   - `OICR_ETF`: gain tassato pieno 26% (no zainetto)
   - `ETC_ETN_STOCK`: gain può compensare zainetto
 - DoD: unit test su caso gain ETF con zainetto presente → nessuna compensazione.
 
 ### TL-2.2 Zainetto: scadenza corretta 31/12 (anno+4)
-- [�] `expires_at = 31/12/(year(realize)+4)` su `tax_loss_buckets`
+- [🔴] `expires_at = 31/12/(year(realize)+4)` su `tax_loss_buckets`
 - DoD: test con realize 05/01/2026 → expires 31/12/2030.
 
 ### TL-2.3 close vs adj_close (coerenza)
-- [�] Segnali su `adj_close`; ledger valuation su `close`
+- [🔴] Segnali su `adj_close`; ledger valuation su `close`
 - DoD: test che impedisce uso `adj_close` in valuation ledger (query/flag).
 
 ### TL-2.4 Zombie/stale prices (health + risk metrics)
-- [�] In health_check: rilevare close ripetuto + volume=0 su giorno open → flag "ZOMBIE"
+- [🔴] In health_check: rilevare close ripetuto + volume=0 su giorno open → flag "ZOMBIE"
 - DoD: risk metrics escludono giorni ZOMBIE dal calcolo della volatilità.
 
 ### TL-2.5 Run Package completo (manifest/kpi/summary)
-- [�] EP-09 deve produrre tutti gli artefatti obbligatori
+- [🔴] EP-09 deve produrre tutti gli artefatti obbligatori
 - DoD: mancanza file → exit!=0; manifest include config_hash e data_fingerprint.
 
 ### TL-2.6 Spike threshold per simbolo (max_daily_move_pct)
-- [�] Aggiungere `max_daily_move_pct` (default 0.15) in `etf_universe.json` e/o `symbol_registry`
-- [�] In ingestion: usare la soglia specifica per scartare spike > soglia e loggare la soglia usata
+- [🔴] Aggiungere `max_daily_move_pct` (default 0.15) in `etf_universe.json` e/o `symbol_registry`
+- [🔴] In ingestion: usare la soglia specifica per scartare spike > soglia e loggare la soglia usata
 - DoD: test su simbolo con soglia più stretta (es. 10%) e su simbolo default 15%.
 
 ### TL-2.7 Benchmark after-tax corretto (INDEX vs ETF)
-- [�] Il reporting deve distinguere `benchmark_kind`:
+- [🔴] Il reporting deve distinguere `benchmark_kind`:
   - `INDEX`: no tassazione simulata (solo friction proxy)
   - `ETF`: tassazione simulata coerente con `tax_category`
 - DoD: KPI benchmark non distorti; `manifest.json` esplicita `benchmark_kind`.
@@ -220,23 +147,23 @@ py scripts/performance_report_generator.py # Report performance
 
 ## TL-3. Fase 3 — “Smart retail” e UX (COULD/SHOULD)
 ### TL-3.1 Inerzia tax-friction aware
-- [�] In strategy_engine: non ribilanciare se (alpha atteso - costi) < soglia
+- [🔴] In strategy_engine: non ribilanciare se (alpha atteso - costi) < soglia
 - DoD: scenario test dove “fare nulla” è scelta ottimale.
 
 ### TL-3.2 Emotional Gap in summary.md
-- [�] Calcolo PnL “puro” vs “reale” e stampa gap
+- [🔴] Calcolo PnL “puro” vs “reale” e stampa gap
 - DoD: se gap < 0, evidenza forte nel summary.
 
 ### TL-3.3 Cash-equivalent ticker (feature flag)
-- [�] Se `cash_equivalent_enabled=true`: parcheggio liquidità su ticker monetario
+- [🔴] Se `cash_equivalent_enabled=true`: parcheggio liquidità su ticker monetario
 - DoD: disattivato di default; attivabile solo se universe ammette il ticker e fiscalità è gestita.
 
 ---
 
 ## TL-4. Utility & Ops (consigliate)
-- [�] `scripts/backup_db.py` (backup pre-commit + CHECKPOINT)
-- [�] `scripts/restore_db.py` (ripristino da backup)
-- [�] `scripts/update_trading_calendar.py` (manutenzione annuale calendario)
+- [🔴] `scripts/backup_db.py` (backup pre-commit + CHECKPOINT)
+- [🔴] `scripts/restore_db.py` (ripristino da backup)
+- [🔴] `scripts/update_trading_calendar.py` (manutenzione annuale calendario)
 
 ---
 

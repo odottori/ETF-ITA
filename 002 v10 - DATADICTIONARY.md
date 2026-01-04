@@ -1,12 +1,9 @@
 # 📚 DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r23 — 2026-01-04  
+**Doc Revision (internal):** r24 — 2026-01-04  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
-**Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
-**Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
-**Performance Sharpe:** **0.96** (ottimizzato)  
-**Issues Integrity:** **75** (85.3% weekend/festivi)
+**Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  
 
 ---
 
@@ -17,6 +14,40 @@
 - Tabelle principali: `created_at` e `last_updated`.
 - Convenzione prezzi: `adj_close` per segnali, `close` per valorizzazione ledger (DIPF §2.1).
 - Baseline EUR/ACC: `currency='EUR'` e `dist_policy='ACC'` per strumenti attivi; non-EUR/DIST richiedono feature flag.
+
+
+## DD-0.1 Inventory Oggetti DB (tabelle e viste)
+
+Questa sezione elenca gli oggetti principali descritti in questo Data Dictionary.
+
+**Tabelle principali:**
+
+- `market_data`
+- `corporate_actions`
+- `trading_calendar`
+- `symbol_registry`
+- `fx_rates`
+- `ingestion_audit`
+- `staging_data`
+- `signals`
+- `fiscal_ledger`
+- `tax_loss_buckets`
+- `trade_journal`
+- `metric_snapshot`
+- `benchmark_snapshot`
+- `run_registry`
+- `manifest.json`
+- `kpi.json`
+- `summary.md`
+- `orders.json`
+
+**Viste principali:**
+
+- `portfolio_overview`
+- `trade_actions_log`
+- `benchmark_after_tax_eur`
+
+Nota: DuckDB non fa affidamento su indici tradizionali per performance come RDBMS OLTP; la strategia di performance è basata su schema “lean”, bulk insert, funzioni finestra e snapshot/materializzazioni quando necessario.
 
 ---
 
@@ -275,35 +306,6 @@ Nota: il calcolo “after-tax” del benchmark dipende da `benchmark_kind` (vedi
 
 ---
 
-## DD-9. Utility Scripts (Debug & Analysis)
-
-### Scripts di Supporto
-- **`analyze_warning.py`**: Analisi integrity issues EP-04 (zombie prices, gaps)
-  - Conteggio zombie prices e large gaps
-  - Reporting dettagliato per risoluzione problemi
-- **`check_issues.py`**: Check dettagliato health issues
-  - Visualizzazione specifica dei problemi di integrità
-  - Reporting per categoria di issue
-- **`clear_signals.py`**: Pulizia tabella signals
-  - Reset dei segnali per simboli specifici
-  - Supporto al debug del signal engine
-- **`final_system_status.py`**: Report completo stato sistema
-  - Assessment completo di tutti i componenti
-  - Raccomandazioni per miglioramenti
-- **`performance_report_generator.py`**: Report performance completo
-  - Analisi backtest, stress test, ottimizzazione
-  - KPI e metrics dettagliate
-
-### Utilizzo
-```powershell
-py scripts/analyze_warning.py          # Analisi EP-04 issues
-py scripts/check_issues.py              # Check health issues
-py scripts/clear_signals.py             # Pulizia signals
-py scripts/final_system_status.py      # Report stato sistema
-py scripts/performance_report_generator.py # Report performance
-```
-
----
 
 ## DD-10. Run Registry (opzionale ma raccomandato)
 

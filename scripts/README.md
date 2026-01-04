@@ -1,14 +1,30 @@
 # Scripts Organization - ETF Italia Project v10
 
-## 📁 Struttura Scripts
+## 📁 Scripts Organization
 
 ```
 scripts/
-├── core/                    # Core system scripts (EP-01..EP-10)
-├── utility/                 # Analysis, testing, and utility scripts
-├── archive/                 # Temporary implementation scripts
-└── advanced/                # Advanced ML and optimization scripts
+├── core/           # Core system scripts (EP-01..EP-10)
+├── utility/        # Analysis, testing, and utility scripts
+├── archive/        # Temporary implementation scripts
+└── advanced/       # [DELETED] Advanced ML and optimization scripts
 ```
+
+### 🗑️ Advanced Scripts - ARCHIVIATI
+Tutti gli advanced scripts sono stati archiviati perché:
+- **Over-engineering**: ML non necessario per sistema semplice
+- **Duplicazione**: Funzionalità già presenti in core scripts
+- **Complessità**: Manutenzione troppo alta per valore aggiunto
+- **Dependencies**: sklearn non necessario per produzione
+
+**Scripts archiviati:**
+- `adaptive_signal_engine.py` (436 linee) - ML signal engine
+- `auto_strategy_optimizer.py` (451 linee) - ML optimizer
+- `simple_strategy_optimizer.py` (337 linee) - Simple optimizer
+- `master_runner.py` (400 linee) - Orchestrator
+- `complete_system_test.py` (395 linee) - System test
+
+**Vedi `scripts/advanced_analysis.md` per analisi dettagliata.**
 
 ## 🔧 Core Scripts (25 files)
 

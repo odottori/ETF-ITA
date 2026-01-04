@@ -108,8 +108,9 @@ Indicatori (SMA, vol, drawdown, ecc.) preferibilmente in SQL, con funzioni fines
 Ogni ingestione produce record in `ingestion_audit` (provider, range date, accepted/rejected, motivazioni).
 
 ### 3.2 Revised history (soft vs hard)
-- **Soft revision:** variazione relativa < `revision_tol_pct` (default 0.5%) → log warning, non blocca.
-- **Hard revision:** ≥ soglia → richiede intervento (force reload / accettazione esplicita).
+- **Soft revision**: variazione relativa < `revision_tol_pct` (default 0.5%) → log warning, non blocca.
+- **Hard revision**: ≥ soglia → richiede intervento (force reload / accettazione esplicita).
+- **Retail policy**: Qualsiasi revisione > 0% deve fermare il ciclo (investigazione manuale).
 
 ### 3.3 Multi-provider e normalizzazione schema
 Se il provider fallback viene usato, i dati devono passare da normalizzazione (stessa semantica `close/adj_close/volume/currency`).  
@@ -146,12 +147,39 @@ Output minimo standardizzato:
 - `risk_scalar` (0..1)
 - `explain_code` (stringa corta)
 
-### 4.2 Override discipline
+### 4.2 Baseline Strategy (SMA 200/50 Crossover)
+**Implementazione obbligatoria per edge verificato:**
+- **Signal primario**: SMA 200/50 crossover con regime filter
+- **Regime filter**: Solo RISK_ON se SPY > SMA 200 (bear market guard)
+- **Target Sharpe**: > 0.7 su 10+ anni walk-forward analysis
+- **Requisito**: Edge verificato prima di produzione
+
+**Componenti strategia:**
+```python
+# Trend detection
+if price > sma_50 and sma_50 > sma_200:
+    signal_state = 'RISK_ON'
+elif price < sma_50 and sma_50 < sma_200:
+    signal_state = 'RISK_OFF'
+else:
+    signal_state = 'HOLD'
+
+# Regime filter
+if spy_close < spy_sma_200:
+    signal_state = 'RISK_OFF'  # Bear market guard
+```
+
+### 4.3 Signal Diversification (futura)
+- **Mean Reversion**: RSI extremes (oversold/overbought)
+- **Momentum**: 12-month momentum ranking
+- **Regime-based weighting**: Low vol → momentum, high vol → mean reversion
+
+### 4.4 Override discipline
 Se l’operatore inserisce ordini che contraddicono il segnale automatico:
 - `trade_journal.flag_override = TRUE`
 - `override_reason` obbligatorio (stringa corta)
 
-### 4.3 Inerzia “tax-friction aware” (smart retail)
+### 4.5 Inerzia “tax-friction aware” (smart retail)
 Quando una riallocazione implica realizzo di gain tassabili o costi elevati:
 - calcolare `tax_friction_est + fees_est`
 - se `(expected_alpha - total_cost) < inertia_threshold` → **nessuna azione** (HOLD)
@@ -162,7 +190,7 @@ Output richiesto in `orders.json` (EP-07):
 - `do_nothing_score` (quanto conviene non agire)
 - `recommendation` = `HOLD` / `TRADE` (decisione proposta dal motore)
 
-Cross-Ref: DATADICTIONARY DD-11.4, TODOLIST TL-1.2 e TL-3.1.
+Cross-Ref: DATADICTIONARY DD-12.4, TODOLIST TL-1.2 e TL-3.1.
 
 ---
 
@@ -171,10 +199,35 @@ Cross-Ref: DATADICTIONARY DD-11.4, TODOLIST TL-1.2 e TL-3.1.
 ### 5.1 Execution model
 Default: **T+1_OPEN** per backtest difendibile. Opzionale: T+0_CLOSE (solo con cost model adeguato).
 
-### 5.2 Slippage monitoring
+### 5.2 Cost Model Realistico (CRITICO)
+**TER drag giornaliero:** Applicare come drag continuo, non solo annuale.
+```python
+# TER drag giornaliero
+ter_daily = (1 + ter) ** (1/252) - 1
+adj_return = raw_return - ter_daily
+```
+**Impatto:** 2% CAGR in 10 anni (non 0.2% come in config).
+
+**Slippage dinamico:** Basato su volatilità e volume.
+```python
+# Slippage dinamico (bps)
+vol_20d = annualized_volatility_20d
+slippage_bps = max(2, vol_20d * 0.5)  # min 2 bps
+```
+
+**Commissioni realistiche:** Min commission bias per retail.
+```python
+# Commissioni minime (es. Interactive Brokers)
+if trade_value < 1000:
+    commission = max(5.0, trade_value * commission_pct)
+else:
+    commission = trade_value * commission_pct
+```
+
+### 5.3 Slippage monitoring
 Nel journal: `theoretical_price` vs `realized_price` e `slippage_bps`.
 
-### 5.3 Guardrails
+### 5.4 Guardrails
 - Spy/benchmark guard (configurabile)
 - Volatility regime alert (es. 25% come “crisi”), breaker separato e default OFF
 - Floor su sizing per evitare paralisi: `risk_scalar = max(floor, min(1.0, target_vol/current_vol))`
@@ -218,7 +271,22 @@ Requisito minimo: distinguere `dist_policy` e usare `close` per valorizzazione; 
 
 ### 6.6 Cash interest
 Evento `INTEREST` mensile su `cash_balance`, con tasso configurabile.  
-Opzionale: parcheggio cash su “cash-equivalent ticker” (feature flag).
+**CRITICO per realismo CAGR**: cash 3.5% genera +0.5% CAGR netto su portafoglio.  
+Implementazione obbligatoria in baseline EUR/ACC.
+
+| Parametro | Default | Note |
+|---|---|---|
+| `cash_interest_rate` | 0.02 | 2% annualizzato (configurabile) |
+| `cash_interest_monthly` | true | Accrual mensile su `fiscal_ledger` |
+| `rounding` | 0.01 EUR | Arrotondamento contabile |
+
+**Implementazione:**
+```python
+# Monthly accrual in update_ledger.py
+monthly_rate = config['fiscal']['cash_interest_rate'] / 12
+interest_amount = cash_balance * monthly_rate
+# Insert INTEREST record in fiscal_ledger
+```
 
 ---
 
@@ -280,14 +348,40 @@ Il flusso standard è:
 ## 9. Testing & Validation
 
 ### 9.1 Sanity check (bloccante)
+**CRITICO:** Sanity check deve bloccare commit se fallisce.
 Invarianti minime:
-- nessuna posizione negativa
-- cash/equity coerenti
-- no future data leak (rispetto execution model)
-- coerenza tra market_data e ledger dates (trading_calendar)
+- nessuna posizione negativa / qty < 0
+- cash/equity incoerenti (invarianti contabili)
+- violazione "no future data leak" rispetto all'execution model
+- gap su giorni `is_open=TRUE` (trading_calendar)
+- mismatch ledger vs market_data su date/symbol
+
+**Implementazione obbligatoria:**
+```python
+# In update_ledger.py --commit
+if not sanity_check.run():
+    print("SANITY FAILED: Aborting commit.")
+    sys.exit(1)
+```
 
 ### 9.2 Stress test (smoke)
 Backtest su finestre di crisi + worst rolling (12/24 mesi), con output in run package.
+
+### 9.3 Monte Carlo Smoke Test (semplice)
+**Implementazione obbligatoria per validazione rischio coda:**
+```python
+# Shuffle test semplice (1000 iterazioni)
+for i in range(1000):
+    shuffled_returns = np.random.permutation(returns)
+    cagr, max_dd = calculate_metrics(shuffled_returns)
+    results.append((cagr, max_dd))
+
+# 5th percentile MaxDD check
+max_dd_5pct = np.percentile([r[1] for r in results], 5)
+if max_dd_5pct > 0.25:  # 25% max drawdown
+    print("STRATEGY TOO VOLATILE for retail")
+```
+**Target:** 5th percentile MaxDD < 25% per retail risk tolerance.
 
 ---
 

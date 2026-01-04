@@ -168,7 +168,7 @@ Tabella segnali oggettivi generati dal Signal Engine.
 
 ## DD-7. Fiscalità e ledger
 
-### DD-7.1 `fiscal_ledger`
+### DD-6.1 `fiscal_ledger`
 Registro operazioni e stato contabile.
 
 | Colonna | Tipo | Note |
@@ -190,6 +190,11 @@ Registro operazioni e stato contabile.
 | created_at | TIMESTAMP | |
 | last_updated | TIMESTAMP | |
 
+**Note importanti:**
+- `INTEREST`: Evento mensile su cash_balance con tasso da config
+- `pmc_eur`: Calcolato come prezzo medio ponderato continuo
+- Arrotondamenti a 2 decimali in query fiscali
+
 ### DD-7.2 `tax_loss_buckets`
 Minusvalenze "redditi diversi" riportabili (lean FIFO).
 
@@ -204,10 +209,10 @@ Minusvalenze "redditi diversi" riportabili (lean FIFO).
 
 ---
 
-## DD-7. Trade journaling & attribution
+## DD-8. Trade journaling & attribution
 
-### DD-7.1 `trade_journal`
-Tabella “ombra” collegata a `fiscal_ledger` per Forecast/Postcast.  
+### DD-8.1 `trade_journal`
+Tabella "ombra" collegata a `fiscal_ledger` per Forecast/Postcast.  
 Approccio **scalar-first**; JSON opzionale.
 
 | Colonna | Tipo | Note |
@@ -216,25 +221,26 @@ Approccio **scalar-first**; JSON opzionale.
 | run_id | VARCHAR | |
 | flag_override | BOOLEAN | default FALSE |
 | override_reason | VARCHAR | obbl. se override |
-| entry_reason | VARCHAR | forecast |
+| entry_reason | VARCHAR | forecast (max 100 char) |
 | expected_risk_pct | DOUBLE | es. -0.07 |
 | signal_state_entry | VARCHAR | RISK_ON/OFF/HOLD |
 | risk_scalar_entry | DOUBLE | 0..1 |
-| exit_reason | VARCHAR | postcast |
+| exit_reason | VARCHAR | postcast (max 100 char) |
 | realized_pnl_pct | DOUBLE | |
 | holding_days | INTEGER | |
 | theoretical_price | DOUBLE | modello esecuzione |
 | realized_price | DOUBLE | se disponibile |
 | slippage_bps | DOUBLE | |
-| market_state_json | JSON | opzionale |
 | created_at | TIMESTAMP | |
 | last_updated | TIMESTAMP | |
+
+**Note:** Semplificato per retail - rimossi campi research-grade
 
 ---
 
 ## DD-8. Metriche e snapshot
 
-### DD-8.1 `metric_snapshot`
+### DD-9.1 `metric_snapshot`
 Snapshot KPI portfolio-level (post-run).
 
 | Colonna | Tipo | Note |
@@ -249,7 +255,7 @@ Snapshot KPI portfolio-level (post-run).
 | kpi_hash | VARCHAR | hash KPI canonici |
 | created_at | TIMESTAMP | |
 
-### DD-8.2 `benchmark_snapshot`
+### DD-9.2 `benchmark_snapshot`
 | Colonna | Tipo | Note |
 |---|---|---|
 | run_id | VARCHAR | PK |
@@ -266,9 +272,9 @@ Nota: il calcolo “after-tax” del benchmark dipende da `benchmark_kind` (vedi
 
 ---
 
-## DD-9. Run Registry (opzionale ma raccomandato)
+## DD-10. Run Registry (opzionale ma raccomandato)
 
-### DD-9.1 `run_registry`
+### DD-10.1 `run_registry`
 Indice delle run (non sostituisce i file).
 
 | Colonna | Tipo | Note |
@@ -285,24 +291,24 @@ Indice delle run (non sostituisce i file).
 
 ---
 
-## DD-10. Views (output ergonomico)
+## DD-11. Views (output ergonomico)
 
-### DD-10.1 `portfolio_overview`
+### DD-11.1 `portfolio_overview`
 Vista: qty, pmc, market_value, unrealized_pnl, ecc.
 
-### DD-10.2 `trade_actions_log`
+### DD-11.2 `trade_actions_log`
 Join `fiscal_ledger` + `trade_journal` per log motivazioni/azioni.
 
-### DD-10.3 `benchmark_after_tax_eur`
+### DD-11.3 `benchmark_after_tax_eur`
 Vista comparabile “apples-to-apples” (EUR, proxy costi/tasse).
 - Se `benchmark_kind=INDEX`: **no** tassazione simulata (solo friction proxy: TER/slippage/fees).
 - Se `benchmark_kind=ETF`: tassazione simulata coerente con `tax_category`.
 
 ---
 
-## DD-11. Run Package (filesystem artifacts)
+## DD-12. Run Package (filesystem artifacts)
 
-### DD-11.1 `manifest.json` (minimo)
+### DD-12.1 `manifest.json` (minimo)
 Campi obbligatori:
 - `run_id`, `run_ts`, `mode`
 - `execution_model`, `cost_model`, `tax_model`
@@ -311,19 +317,19 @@ Campi obbligatori:
 - `benchmark_symbol`, `benchmark_kind` (`ETF`/`INDEX`)
 - `config_hash`, `data_fingerprint`
 
-### DD-11.2 `kpi.json` (minimo)
+### DD-12.2 `kpi.json` (minimo)
 - KPI portfolio (cagr, max_dd, vol, sharpe, turnover)
 - componenti costo/tasse (fees, taxes, slippage_est)
 - `kpi_hash`
 
-### DD-11.3 `summary.md`
+### DD-12.3 `summary.md`
 Una pagina leggibile con:
 - parametri principali
 - KPI + confronto benchmark (se presente)
-- sezione “Emotional Gap” (se journaling disponibile)
+- sezione "Emotional Gap" (se journaling disponibile)
 
 
-### DD-11.4 `orders.json` (dry-run)
+### DD-12.4 `orders.json` (dry-run)
 Output diff-friendly di EP-07.
 Campi minimi consigliati:
 - elenco ordini (BUY/SELL/HOLD) con qty, symbol, reason, `explain_code`

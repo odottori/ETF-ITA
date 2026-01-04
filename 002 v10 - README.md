@@ -146,11 +146,20 @@ Output: `data/reports/system_test_*.json` con assessment completo
 
 ### 🔍 Utility Scripts
 ```powershell
-py scripts/analyze_warning.py          # Analisi integrity issues EP-04
-py scripts/check_issues.py              # Check dettagliato health issues
-py scripts/clear_signals.py             # Pulizia tabella signals
-py scripts/final_system_status.py      # Report completo stato sistema
-py scripts/performance_report_generator.py # Report performance completo
+py scripts/utility/analyze_warning.py          # Analisi integrity issues EP-04
+py scripts/utility/check_issues.py              # Check dettagliato health issues
+py scripts/utility/clear_signals.py             # Pulizia tabella signals
+py scripts/utility/final_system_status.py      # Report completo stato sistema
+py scripts/utility/performance_report_generator.py # Report performance completo
+```
+
+### 📁 Scripts Organization
+```
+scripts/
+├── core/           # Core system scripts (EP-01..EP-10)
+├── utility/        # Analysis, testing, and utility scripts
+├── archive/        # Temporary implementation scripts
+└── advanced/       # Advanced ML and optimization scripts
 ```
 
 ---

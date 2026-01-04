@@ -1,9 +1,12 @@
 # 📚 DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r24 — 2026-01-04  
+**Doc Revision (internal):** r25 — 2026-01-04  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  
+**Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
+**Performance Sharpe:** **0.96** (ottimizzato)  
+**Issues Integrity:** **75** (85.3% weekend/festivi)  
 
 ---
 

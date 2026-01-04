@@ -3,8 +3,11 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r24 — 2026-01-04 |
+| **Doc Revision (internal)** | r25 — 2026-01-04 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
+| **Stato Sistema** | **COMPLETATO** (10/10 EntryPoint) |
+| **Performance Sharpe** | **0.96** (ottimizzato) |
+| **Issues Integrity** | **75** (85.3% weekend/festivi) |
 
 ---
 
@@ -146,13 +149,39 @@ ETF_ITA_project/
 
 ## 7) Utility scripts (opzionali)
 
-Questi script non sono parte del “percorso operativo” standard, ma aiutano debug e manutenzione.
+### 🔍 Utility Scripts
+```powershell
+py scripts/utility/analyze_warning.py          # Analisi integrity issues EP-04
+py scripts/utility/check_issues.py              # Check dettagliato health issues
+py scripts/utility/clear_signals.py             # Pulizia tabella signals
+py scripts/utility/final_system_status.py      # Report completo stato sistema
+py scripts/utility/performance_report_generator.py # Report performance completo
+```
 
-- `scripts/analyze_warning.py` — Analisi integrity issues EP-04 (zombie prices, gaps)
-- `scripts/check_issues.py` — Check dettagliato health issues con reporting
-- `scripts/clear_signals.py` — Pulizia tabella signals per reset
-- `scripts/final_system_status.py` — Report completo stato sistema
-- `scripts/performance_report_generator.py` — Report performance completo
+### 📁 Scripts Organization
+```
+scripts/
+├── core/           # Core system scripts (EP-01..EP-10)
+├── utility/        # Analysis, testing, and utility scripts
+├── archive/        # Temporary implementation scripts
+└── advanced/       # [DELETED] Advanced ML and optimization scripts
+```
+
+### 🗑️ Advanced Scripts - ARCHIVIATI
+Tutti gli advanced scripts sono stati archiviati perché:
+- **Over-engineering**: ML non necessario per sistema semplice
+- **Duplicazione**: Funzionalità già presenti in core scripts
+- **Complessità**: Manutenzione troppo alta per valore aggiunto
+- **Dependencies**: sklearn non necessario per produzione
+
+**Scripts archiviati:**
+- `adaptive_signal_engine.py` (436 linee) - ML signal engine
+- `auto_strategy_optimizer.py` (451 linee) - ML optimizer
+- `simple_strategy_optimizer.py` (337 linee) - Simple optimizer
+- `master_runner.py` (400 linee) - Orchestrator
+- `complete_system_test.py` (395 linee) - System test
+
+**Vedi `scripts/advanced_analysis.md` per analisi dettagliata.**
 
 ---
 

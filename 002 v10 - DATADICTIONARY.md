@@ -16,36 +16,51 @@
 - Baseline EUR/ACC: `currency='EUR'` e `dist_policy='ACC'` per strumenti attivi; non-EUR/DIST richiedono feature flag.
 
 
-## DD-0.1 Inventory Oggetti DB (tabelle e viste)
+## DD-0.1 Database Objects (tabelle e viste)
 
-Questa sezione elenca gli oggetti principali descritti in questo Data Dictionary.
+Questa sezione elenca gli oggetti database principali.
 
 **Tabelle principali:**
 
-- `market_data`
-- `corporate_actions`
-- `trading_calendar`
-- `symbol_registry`
-- `fx_rates`
-- `ingestion_audit`
-- `staging_data`
-- `signals`
-- `fiscal_ledger`
-- `tax_loss_buckets`
-- `trade_journal`
-- `metric_snapshot`
-- `benchmark_snapshot`
-- `run_registry`
-- `manifest.json`
-- `kpi.json`
-- `summary.md`
-- `orders.json`
+- `market_data` - Dati storici prezzi (OHLCV)
+- `corporate_actions` - Eventi corporate actions
+- `trading_calendar` - Calendario trading borse
+- `symbol_registry` - Registry simboli e metadati
+- `fx_rates` - Tassi di cambio FX
+- `ingestion_audit` - Audit ingestione dati
+- `staging_data` - Area staging per validazione
+- `signals` - Segnali strategia
+- `fiscal_ledger` - Ledger fiscale PMC
+- `tax_loss_buckets` - Bucket perdite fiscali
+- `trade_journal` - Journal operazioni
+- `metric_snapshot` - Snapshot metriche
+- `benchmark_snapshot` - Snapshot benchmark
+- `run_registry` - Registry esecuzioni
 
 **Viste principali:**
 
-- `portfolio_overview`
-- `trade_actions_log`
-- `benchmark_after_tax_eur`
+- `portfolio_overview` - Vista portafoglio
+- `trade_actions_log` - Log azioni trading
+- `benchmark_after_tax_eur` - Benchmark after-tax EUR
+
+---
+
+## DD-0.2 Filesystem Artifacts (Run Package)
+
+Questa sezione elenca gli artifact generati dal sistema.
+
+**Run Package Files:**
+
+- `manifest.json` - Metadata esecuzione
+- `kpi.json` - KPI performance
+- `summary.md` - Report riassuntivo
+- `orders.json` - Ordini proposti
+
+**Report Files:**
+
+- `health_report.md` - Health check report
+- `stress_test.json` - Stress test results
+- `automated_test_cycle.json` - Test cycle results
 
 Nota: DuckDB non fa affidamento su indici tradizionali per performance come RDBMS OLTP; la strategia di performance è basata su schema “lean”, bulk insert, funzioni finestra e snapshot/materializzazioni quando necessario.
 

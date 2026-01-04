@@ -4,21 +4,14 @@
 
 ```
 data/reports/
-├── analysis/           # [DEPRECATED] Vecchi report (migrati a sessions/)
-├── sessions/           # 📊 Nuova struttura con timestamp univoco
-│   ├── 20260104_164304/  # Session più vecchia
+├── sessions/           # 📊 Report organizzati per sessione di lancio
+│   ├── 20260104_164304/  # Session storica (primo file: 16:43:04)
 │   │   ├── session_info.json
-│   │   └── stress_test.json
-│   ├── 20260104_164700/  # Health check session
-│   │   ├── session_info.json
-│   │   └── health_report.md
-│   ├── 20260104_172824/  # Stress test session
-│   │   ├── session_info.json
-│   │   └── stress_test.json
-│   ├── 20260104_173315/  # Automated test session
-│   │   ├── session_info.json
+│   │   ├── health_report.md
+│   │   ├── stress_test.json
+│   │   ├── stress_test_2.json
 │   │   └── automated_test_cycle.json
-│   └── 20260104_183535/  # Session più recente (demo)
+│   └── 20260104_185248/  # Session test (primo file: 18:52:48)
 │       ├── session_info.json
 │       ├── health_report.json
 │       ├── stress_test.json
@@ -26,37 +19,49 @@ data/reports/
 └── [future_sessions]/  # Session future
 ```
 
+## 🎯 Logica di Organizzazione
+
+### 📋 **UNA SESSIONE = UN LANCIO**
+- **Nome directory**: Data/ora del **PRIMO** file generato
+- **Contenuto**: **TUTTI** i report dello stesso lancio
+- **Nomi file**: **SENZA** data/ora (solo tipo report)
+
+### 🔄 **ESEMPIO LANCIO:**
+```
+Lancio alle 16:43:04 → genera 4 file:
+├── stress_test_20260104_164304.json      # PRIMO file (16:43:04)
+├── health_report_20260104_164700.md      # Secondo file (16:47:00)
+├── stress_test_20260104_172824.json       # Terzo file (17:28:24)
+└── automated_test_cycle_20260104_173315.json # Quarto file (17:33:15)
+
+↓ Organizzati in:
+data/reports/sessions/20260104_164304/    # Data del PRIMO file
+├── session_info.json
+├── stress_test.json      # Senza timestamp
+├── health_report.md      # Senza timestamp
+├── stress_test_2.json    # Senza timestamp
+└── automated_test_cycle.json # Senza timestamp
+```
+
 ## 📋 Report Disponibili
 
-### 🔍 Health Check Report
-- **Session**: `20260104_164700`
-- **File**: `health_report.md`
-- **Contenuto**: Stato sistema, integrità dati, performance
-- **Status**: HEALTHY ✅
-- **Data**: 2026-01-04T16:47:00
+### 🔍 Session Storica (20260104_164304)
+- **Session**: `20260104_164304` (primo file: 16:43:04)
+- **File**: 4 report dello stesso lancio
+- **Contenuto**: Health check, stress test (x2), automated test
+- **Status**: COMPLETO ✅
 
-### 📈 Stress Test Reports
-- **Session**: `20260104_164304`
-- **File**: `stress_test.json`
-- **Contenuto**: Monte Carlo stress test (vecchio)
-
-- **Session**: `20260104_172824`
-- **File**: `stress_test.json`
-- **Contenuto**: Monte Carlo stress test (recente)
-- **Risk Level**: HIGH ⚠️
-
-### 🔬 Automated Test Cycle
-- **Session**: `20260104_173315`
-- **File**: `automated_test_cycle.json`
-- **Contenuto**: Analisi completa ottimizzazione
-- **Volatilità**: CSSPX.MI 17.9%, XS2L.MI 39.8%
-- **Max DD**: CSSPX.MI -33.6%, XS2L.MI -59.1%
+### 🧪 Session Test (20260104_185248)
+- **Session**: `20260104_185248` (primo file: 18:52:48)
+- **File**: 3 report generati
+- **Contenuto**: Health check, stress test, performance summary
+- **Status**: TEST ✅
 
 ## 🚀 Come Generare Nuovi Report
 
-### 📊 Performance Report Completo
+### 📊 Session Manager (Nuova Struttura)
 ```powershell
-# Usa il nuovo session manager
+# Crea nuova sessione e aggiungi report
 py scripts/core/simple_report_session_manager.py
 ```
 
@@ -97,15 +102,12 @@ py scripts/core/automated_test_cycle.py
 - **^GSPC**: 4,025 record (2010-2026)
 - **Issues**: 75 integrity issues
 
-## 📅 Report History
+## 📅 Session History
 
-| Session | Data | Tipo | Status | Reports |
-|---------|------|------|--------|---------|
-| 20260104_164304 | 2026-01-04 16:43 | Stress Test | ✅ | 1 |
-| 20260104_164700 | 2026-01-04 16:47 | Health Check | ✅ | 1 |
-| 20260104_172824 | 2026-01-04 17:28 | Stress Test | ✅ | 1 |
-| 20260104_173315 | 2026-01-04 17:33 | Automated Test | ✅ | 1 |
-| 20260104_183535 | 2026-01-04 18:35 | Demo | ✅ | 3 |
+| Session | Primo File | Tipo | Status | Reports |
+|---------|------------|------|--------|---------|
+| 20260104_164304 | 16:43:04 | Storica | ✅ | 4 |
+| 20260104_185248 | 18:52:48 | Test | ✅ | 3 |
 
 ## 🎯 Accesso Rapido
 
@@ -118,31 +120,34 @@ Get-Content $latest/session_info.json
 
 ### 📊 Report Specifici
 ```powershell
-# Health report più recente
-Get-Content data/reports/sessions/20260104_164700/health_report.md
+# Session storica completa
+Get-Content data/reports/sessions/20260104_164304/session_info.json
 
-# Stress test più recente
-Get-Content data/reports/sessions/20260104_172824/stress_test.json
+# Health report storico
+Get-Content data/reports/sessions/20260104_164304/health_report.md
 
-# Automated test più recente
-Get-Content data/reports/sessions/20260104_173315/automated_test_cycle.json
+# Stress test storico
+Get-Content data/reports/sessions/20260104_164304/stress_test.json
+
+# Automated test storico
+Get-Content data/reports/sessions/20260104_164304/automated_test_cycle.json
 ```
 
 ## 🔄 Migrazione da Vecchia Struttura
 
 ### ✅ COMPLETATO:
-- Tutti i report da `data/reports/analysis/` migrati a `data/reports/sessions/`
-- Session info creato per ogni report
-- Timestamp univoco per ogni sessione
-- Metadata completi con file originali
+- **Cancellata**: Directory `data/reports/analysis/`
+- **Migrati**: Tutti i report in `data/reports/sessions/`
+- **Organizzati**: Per sessione di lancio
+- **Rinominati**: Senza timestamp nei nomi file
 
-### 📁 Vecchia Struttura (DEPRECATED):
+### 📁 Vecchia Struttura (ELIMINATA):
 ```
-data/reports/analysis/
-├── health_report_20260104_164700.md      # → sessions/20260104_164700/
+data/reports/analysis/  # ❌ ELIMINATA
+├── health_report_20260104_164700.md      # → sessions/20260104_164304/
 ├── stress_test_20260104_164304.json       # → sessions/20260104_164304/
-├── stress_test_20260104_172824.json       # → sessions/20260104_172824/
-└── automated_test_cycle_20260104_173315.json # → sessions/20260104_173315/
+├── stress_test_20260104_172824.json       # → sessions/20260104_164304/
+└── automated_test_cycle_20260104_173315.json # → sessions/20260104_164304/
 ```
 
 ---

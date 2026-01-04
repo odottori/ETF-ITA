@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-01-04T16:42:18.068753",
+  "best_combination": {
+    "strategies": [
+      "mean_reversion",
+      "momentum"
+    ],
+    "performance": {
+      "cagr": 0.009513536661303279,
+      "volatility": 0.033407061253684096,
+      "sharpe": 0.28477622108272505,
+      "max_dd": -0.06445867169668429,
+      "total_return": 0.15343152621512046
+    }
+  },
+  "correlation_analysis": {
+    "high_correlation_pairs": [
+      [
+        "CSSPX.MI",
+        "XS2L.MI",
+        0.7529682659708304
+      ]
+    ],
+    "correlation_matrix": {
+      "CSSPX.MI": {
+        "CSSPX.MI": 1.0,
+        "XS2L.MI": 0.7529682659708304,
+        "^GSPC": 0.4589179080788559
+      },
+      "XS2L.MI": {
+        "CSSPX.MI": 0.7529682659708304,
+        "XS2L.MI": 1.0,
+        "^GSPC": 0.4132609834186904
+      },
+      "^GSPC": {
+        "CSSPX.MI": 0.4589179080788559,
+        "XS2L.MI": 0.4132609834186904,
+        "^GSPC": 1.0
+      }
+    }
+  },
+  "strategy_weights": {
+    "mean_reversion": 0.5,
+    "momentum": 0.5
+  }
+}

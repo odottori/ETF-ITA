@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-01-04T17:02:37.956978",
+  "tests": {
+    "ep01": {
+      "status": "PASSED",
+      "tables_count": 13
+    },
+    "ep02": {
+      "status": "PASSED",
+      "stats": {
+        "total": 2192,
+        "trading": 1517,
+        "holidays": 675,
+        "start": "2020-01-01",
+        "end": "2025-12-31"
+      }
+    },
+    "ep03": {
+      "status": "PASSED",
+      "stats": {
+        "total": 10898,
+        "symbols": 3,
+        "start": "2010-01-04",
+        "end": "2026-01-02",
+        "dates": 4130
+      }
+    },
+    "ep04": {
+      "status": "WARNING",
+      "integrity_issues": 7
+    },
+    "ep05": {
+      "status": "PASSED",
+      "stats": {
+        "total": 120,
+        "symbols": 2,
+        "dates": 78,
+        "risk_on": 120,
+        "risk_off": 0,
+        "hold": 0,
+        "avg_scalar": 0.7393833333333333
+      }
+    },
+    "ep06": {
+      "status": "PASSED",
+      "issues": 0
+    },
+    "ep07": {
+      "status": "PASSED",
+      "potential_orders": 5
+    },
+    "ep08": {
+      "status": "PASSED",
+      "stats": {
+        "total": 3,
+        "days": 1,
+        "deposits": 3,
+        "buys": 0,
+        "sells": 0,
+        "interests": 0
+      }
+    },
+    "ep09": {
+      "status": "PASSED",
+      "data_points": 3949
+    },
+    "ep10": {
+      "status": "PASSED",
+      "returns_count": 3949
+    }
+  },
+  "overall_status": "PASSED"
+}

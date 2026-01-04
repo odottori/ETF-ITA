@@ -1,0 +1,422 @@
+{
+  "phase": 4,
+  "timestamp": "2026-01-04T17:41:04.151909",
+  "integration": {
+    "position_sizing": {
+      "volatility_target": 0.15,
+      "positions": [
+        {
+          "symbol": "CSSPX.MI",
+          "volatility": 0.17879377201788055,
+          "position": 0.8389553970873158,
+          "risk_level": "MODERATE"
+        },
+        {
+          "symbol": "XS2L.MI",
+          "volatility": 0.39841889708607847,
+          "position": 0.1882440831710757,
+          "risk_level": "AGGRESSIVE"
+        }
+      ]
+    },
+    "cost_model": {
+      "commission_pct": 0.0005,
+      "slippage_bps": 3,
+      "ter": 0.05
+    },
+    "risk_management": {
+      "stop_loss_levels": {
+        "CSSPX.MI": -0.15,
+        "XS2L.MI": -0.2
+      },
+      "max_drawdown_target": -0.2,
+      "volatility_limit": 0.25
+    },
+    "performance": {
+      "trading_days": 1526,
+      "annual_return": 0.1252804820029432,
+      "annual_volatility": 0.11494654482822793,
+      "sharpe_ratio": 1.0899021122397192,
+      "estimated_max_dd": -0.2873663620705698,
+      "net_cagr": 0.07368048200294319,
+      "cost_adjusted": true
+    },
+    "enhanced_strategy": {
+      "base_signals": {
+        "trend_following": {
+          "weight": 0.4,
+          "description": "SMA 200/50 crossover con regime filter"
+        },
+        "mean_reversion": {
+          "weight": 0.3,
+          "description": "RSI < 30 (oversold) = BUY, RSI > 70 (overbought) = SELL"
+        },
+        "momentum": {
+          "weight": 0.3,
+          "description": "12-month momentum con regime adjustment"
+        }
+      },
+      "regime_adjustments": {
+        "LOW_VOL": {
+          "position_multiplier": 1.2,
+          "signal_boost": 0.1
+        },
+        "NORMAL_VOL": {
+          "position_multiplier": 1.0,
+          "signal_boost": 0.0
+        },
+        "HIGH_VOL": {
+          "position_multiplier": 0.7,
+          "signal_boost": -0.1
+        }
+      },
+      "risk_management": {
+        "stop_loss": -0.15,
+        "take_profit": 0.1,
+        "max_position": 0.8
+      }
+    },
+    "expected_improvements": {
+      "current_sharpe": 1.09,
+      "signal_improvement": 0.2,
+      "regime_improvement": 0.15,
+      "expected_sharpe": 1.4715,
+      "current_cagr": 0.0737,
+      "expected_cagr": 0.09949499999999999
+    }
+  },
+  "performance_projection": {
+    "baseline": {
+      "cagr": 0.2282,
+      "sharpe": 0.006,
+      "max_dd": -0.9052
+    },
+    "phase1": {
+      "cagr": 0.17659999999999998,
+      "sharpe": 0.06
+    },
+    "phase2": {
+      "cagr": 0.07368048200294319,
+      "sharpe": 1.0899021122397192
+    },
+    "phase3": {
+      "cagr": 0.0994686507039733,
+      "sharpe": 1.4713678515236208
+    }
+  },
+  "readiness_assessment": {
+    "score": 85.0,
+    "max_score": 100,
+    "status": "PRODUCTION_READY"
+  },
+  "deployment": {
+    "production_settings": {
+      "auto_update": true,
+      "monitoring": true,
+      "backup_frequency": "daily",
+      "alert_thresholds": {
+        "max_drawdown": -0.25,
+        "volatility_spike": 0.3,
+        "signal_failure": 0.1
+      }
+    },
+    "system_parameters": {
+      "position_sizing": {
+        "volatility_target": 0.15,
+        "positions": [
+          {
+            "symbol": "CSSPX.MI",
+            "volatility": 0.17879377201788055,
+            "position": 0.8389553970873158,
+            "risk_level": "MODERATE"
+          },
+          {
+            "symbol": "XS2L.MI",
+            "volatility": 0.39841889708607847,
+            "position": 0.1882440831710757,
+            "risk_level": "AGGRESSIVE"
+          }
+        ]
+      },
+      "cost_model": {
+        "commission_pct": 0.0005,
+        "slippage_bps": 3,
+        "ter": 0.05
+      },
+      "risk_management": {
+        "stop_loss_levels": {
+          "CSSPX.MI": -0.15,
+          "XS2L.MI": -0.2
+        },
+        "max_drawdown_target": -0.2,
+        "volatility_limit": 0.25
+      },
+      "enhanced_strategy": {
+        "base_signals": {
+          "trend_following": {
+            "weight": 0.4,
+            "description": "SMA 200/50 crossover con regime filter"
+          },
+          "mean_reversion": {
+            "weight": 0.3,
+            "description": "RSI < 30 (oversold) = BUY, RSI > 70 (overbought) = SELL"
+          },
+          "momentum": {
+            "weight": 0.3,
+            "description": "12-month momentum con regime adjustment"
+          }
+        },
+        "regime_adjustments": {
+          "LOW_VOL": {
+            "position_multiplier": 1.2,
+            "signal_boost": 0.1
+          },
+          "NORMAL_VOL": {
+            "position_multiplier": 1.0,
+            "signal_boost": 0.0
+          },
+          "HIGH_VOL": {
+            "position_multiplier": 0.7,
+            "signal_boost": -0.1
+          }
+        },
+        "risk_management": {
+          "stop_loss": -0.15,
+          "take_profit": 0.1,
+          "max_position": 0.8
+        }
+      }
+    },
+    "performance_targets": {
+      "target_cagr": 0.0994686507039733,
+      "target_sharpe": 1.4713678515236208,
+      "max_drawdown_limit": -0.25,
+      "volatility_limit": 0.25
+    },
+    "monitoring": {
+      "daily_reports": true,
+      "weekly_reviews": true,
+      "monthly_optimization": true
+    }
+  },
+  "configs_used": {
+    "phase1": {
+      "phase": 1,
+      "timestamp": "2026-01-04T17:37:31.795567",
+      "implementation": {
+        "position_sizing": {
+          "volatility_target": 0.15,
+          "positions": [
+            {
+              "symbol": "CSSPX.MI",
+              "volatility": 0.17879377201788055,
+              "position": 0.8389553970873158,
+              "risk_level": "MODERATE"
+            },
+            {
+              "symbol": "XS2L.MI",
+              "volatility": 0.39841889708607847,
+              "position": 0.1882440831710757,
+              "risk_level": "AGGRESSIVE"
+            }
+          ]
+        },
+        "cost_model": {
+          "commission_pct": 0.0005,
+          "slippage_bps": 3,
+          "ter": 0.05
+        },
+        "risk_management": {
+          "stop_loss_levels": {
+            "CSSPX.MI": -0.15,
+            "XS2L.MI": -0.2
+          },
+          "max_drawdown_target": -0.2,
+          "volatility_limit": 0.25
+        }
+      },
+      "expected_improvements": {
+        "cagr_improvement": "+2.1%",
+        "drawdown_reduction": "-30%",
+        "cost_reduction": "-30%",
+        "sharpe_improvement": "+0.303"
+      }
+    },
+    "phase2": {
+      "phase": 2,
+      "timestamp": "2026-01-04T17:39:29.255311",
+      "backtest_results": {
+        "trading_days": 1526,
+        "annual_return": 0.1252804820029432,
+        "annual_volatility": 0.11494654482822793,
+        "sharpe_ratio": 1.0899021122397192,
+        "estimated_max_dd": -0.2873663620705698,
+        "net_cagr": 0.07368048200294319,
+        "cost_adjusted": true
+      },
+      "baseline_comparison": {
+        "baseline_cagr": 0.2282,
+        "baseline_sharpe": 0.006,
+        "baseline_max_dd": -0.9052,
+        "cagr_improvement": -67.71232164638774,
+        "sharpe_improvement": 18065.035203995318,
+        "dd_improvement": 68.25382654987078
+      },
+      "risk_assessment": {
+        "risk_score": 50,
+        "risk_level": "GOOD"
+      },
+      "config_used": {
+        "phase": 1,
+        "timestamp": "2026-01-04T17:37:31.795567",
+        "implementation": {
+          "position_sizing": {
+            "volatility_target": 0.15,
+            "positions": [
+              {
+                "symbol": "CSSPX.MI",
+                "volatility": 0.17879377201788055,
+                "position": 0.8389553970873158,
+                "risk_level": "MODERATE"
+              },
+              {
+                "symbol": "XS2L.MI",
+                "volatility": 0.39841889708607847,
+                "position": 0.1882440831710757,
+                "risk_level": "AGGRESSIVE"
+              }
+            ]
+          },
+          "cost_model": {
+            "commission_pct": 0.0005,
+            "slippage_bps": 3,
+            "ter": 0.05
+          },
+          "risk_management": {
+            "stop_loss_levels": {
+              "CSSPX.MI": -0.15,
+              "XS2L.MI": -0.2
+            },
+            "max_drawdown_target": -0.2,
+            "volatility_limit": 0.25
+          }
+        },
+        "expected_improvements": {
+          "cagr_improvement": "+2.1%",
+          "drawdown_reduction": "-30%",
+          "cost_reduction": "-30%",
+          "sharpe_improvement": "+0.303"
+        }
+      }
+    },
+    "phase3": {
+      "phase": 3,
+      "timestamp": "2026-01-04T17:39:59.823588",
+      "signal_analysis": [
+        {
+          "signal": "RISK_ON",
+          "count": 80,
+          "avg_return": -0.0015060412652679865,
+          "sharpe": -0.1657118755873085
+        }
+      ],
+      "rsi_analysis": [
+        {
+          "symbol": "XS2L.MI",
+          "total_days": 1285,
+          "oversold_days": 91,
+          "overbought_days": 302,
+          "avg_rsi": 57.241682625057834
+        },
+        {
+          "symbol": "CSSPX.MI",
+          "total_days": 1525,
+          "oversold_days": 96,
+          "overbought_days": 354,
+          "avg_rsi": 57.22951289374553
+        }
+      ],
+      "regime_analysis": [
+        {
+          "symbol": "CSSPX.MI",
+          "regime": "LOW_VOL",
+          "days": 853,
+          "avg_vol": 0.10583782893396278
+        },
+        {
+          "symbol": "CSSPX.MI",
+          "regime": "NORMAL_VOL",
+          "days": 548,
+          "avg_vol": 0.1912633769493127
+        },
+        {
+          "symbol": "CSSPX.MI",
+          "regime": "HIGH_VOL",
+          "days": 124,
+          "avg_vol": 0.36773713449617473
+        },
+        {
+          "symbol": "XS2L.MI",
+          "regime": "HIGH_VOL",
+          "days": 843,
+          "avg_vol": 0.4288961773032237
+        },
+        {
+          "symbol": "XS2L.MI",
+          "regime": "NORMAL_VOL",
+          "days": 395,
+          "avg_vol": 0.2052573050093762
+        },
+        {
+          "symbol": "XS2L.MI",
+          "regime": "LOW_VOL",
+          "days": 47,
+          "avg_vol": 0.12548017083373578
+        }
+      ],
+      "enhanced_strategy": {
+        "base_signals": {
+          "trend_following": {
+            "weight": 0.4,
+            "description": "SMA 200/50 crossover con regime filter"
+          },
+          "mean_reversion": {
+            "weight": 0.3,
+            "description": "RSI < 30 (oversold) = BUY, RSI > 70 (overbought) = SELL"
+          },
+          "momentum": {
+            "weight": 0.3,
+            "description": "12-month momentum con regime adjustment"
+          }
+        },
+        "regime_adjustments": {
+          "LOW_VOL": {
+            "position_multiplier": 1.2,
+            "signal_boost": 0.1
+          },
+          "NORMAL_VOL": {
+            "position_multiplier": 1.0,
+            "signal_boost": 0.0
+          },
+          "HIGH_VOL": {
+            "position_multiplier": 0.7,
+            "signal_boost": -0.1
+          }
+        },
+        "risk_management": {
+          "stop_loss": -0.15,
+          "take_profit": 0.1,
+          "max_position": 0.8
+        }
+      },
+      "expected_improvements": {
+        "current_sharpe": 1.09,
+        "signal_improvement": 0.2,
+        "regime_improvement": 0.15,
+        "expected_sharpe": 1.4715,
+        "current_cagr": 0.0737,
+        "expected_cagr": 0.09949499999999999
+      }
+    }
+  }
+}

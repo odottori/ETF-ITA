@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-01-04T16:33:39.757015",
+  "tests": {
+    "ep01": {
+      "status": "FAILED",
+      "missing_tables": [
+        "symbol_registry"
+      ]
+    },
+    "ep02": {
+      "status": "PASSED",
+      "stats": {
+        "total": 2192,
+        "trading": 1517,
+        "holidays": 675,
+        "start": 

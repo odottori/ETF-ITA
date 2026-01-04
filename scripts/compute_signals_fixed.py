@@ -40,7 +40,6 @@ def compute_signals():
         # Crea tabella signals se non esiste
         conn.execute("""
         CREATE TABLE IF NOT EXISTS signals (
-            id INTEGER PRIMARY KEY,
             date DATE NOT NULL,
             symbol VARCHAR NOT NULL,
             signal_state VARCHAR NOT NULL CHECK (signal_state IN ('RISK_ON', 'RISK_OFF', 'HOLD')),
@@ -51,12 +50,11 @@ def compute_signals():
             spy_guard BOOLEAN DEFAULT FALSE,
             regime_filter VARCHAR DEFAULT 'NEUTRAL',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(date, symbol)
+            PRIMARY KEY (date, symbol)
         )
         """)
         
         # Crea indici
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_date_symbol ON signals(date, symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_state ON signals(signal_state)")
         
         print("✅ Signal Engine ready")

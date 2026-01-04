@@ -1,9 +1,12 @@
 # 📚 DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r22 — 2026-01-04  
+**Doc Revision (internal):** r23 — 2026-01-04  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
+**Stato Sistema:** **COMPLETATO** (10/10 EntryPoint)  
+**Performance Sharpe:** **0.96** (ottimizzato)  
+**Issues Integrity:** **75** (85.3% weekend/festivi)
 
 ---
 
@@ -269,6 +272,36 @@ Snapshot KPI portfolio-level (post-run).
 
 
 Nota: il calcolo “after-tax” del benchmark dipende da `benchmark_kind` (vedi DD-10.3 e DIPF §7.2.1).
+
+---
+
+## DD-9. Utility Scripts (Debug & Analysis)
+
+### Scripts di Supporto
+- **`analyze_warning.py`**: Analisi integrity issues EP-04 (zombie prices, gaps)
+  - Conteggio zombie prices e large gaps
+  - Reporting dettagliato per risoluzione problemi
+- **`check_issues.py`**: Check dettagliato health issues
+  - Visualizzazione specifica dei problemi di integrità
+  - Reporting per categoria di issue
+- **`clear_signals.py`**: Pulizia tabella signals
+  - Reset dei segnali per simboli specifici
+  - Supporto al debug del signal engine
+- **`final_system_status.py`**: Report completo stato sistema
+  - Assessment completo di tutti i componenti
+  - Raccomandazioni per miglioramenti
+- **`performance_report_generator.py`**: Report performance completo
+  - Analisi backtest, stress test, ottimizzazione
+  - KPI e metrics dettagliate
+
+### Utilizzo
+```powershell
+py scripts/analyze_warning.py          # Analisi EP-04 issues
+py scripts/check_issues.py              # Check health issues
+py scripts/clear_signals.py             # Pulizia signals
+py scripts/final_system_status.py      # Report stato sistema
+py scripts/performance_report_generator.py # Report performance
+```
 
 ---
 

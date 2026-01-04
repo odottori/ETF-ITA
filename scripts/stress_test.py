@@ -31,20 +31,21 @@ def stress_test():
     conn = duckdb.connect(db_path)
     
     try:
-        print("🔍 Inizio stress test...")
+        print(" Inizio stress test...")
         
         # 1. Ottieni dati storici per stress test
-        print("📊 Caricamento dati storici...")
+        print(" Caricamento dati storici...")
         
-        # Ottieni returns giornalieri per portfolio
+        # Ottieni dati da market_data per stress test
         portfolio_returns = conn.execute("""
         SELECT date, adj_close, volume
-        FROM portfolio_overview
-        ORDER BY date
+        FROM market_data
+        WHERE symbol IN ('CSSPX.MI', 'XS2L.MI')
+        ORDER BY symbol, date
         """).fetchall()
         
         if not portfolio_returns:
-            print("❌ Nessun dato storico disponibile per stress test")
+            print(" Nessun dato storico disponibile per stress test")
             return False
         
         df = pd.DataFrame(portfolio_returns, columns=['date', 'adj_close', 'volume'])

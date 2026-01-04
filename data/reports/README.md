@@ -5,18 +5,13 @@
 ```
 data/reports/
 ├── sessions/           # 📊 Report organizzati per sessione di lancio
-│   ├── 20260104_164304/  # Session storica (primo file: 16:43:04)
-│   │   ├── session_info.json
-│   │   ├── health_report.md
-│   │   ├── stress_test.json
-│   │   ├── stress_test_2.json
-│   │   └── automated_test_cycle.json
-│   └── 20260104_185248/  # Session test (primo file: 18:52:48)
+│   └── 20260104_164304/  # Session storica con dati reali
 │       ├── session_info.json
-│       ├── health_report.json
+│       ├── health_report.md
 │       ├── stress_test.json
-│       └── performance_summary.json
-└── [future_sessions]/  # Session future
+│       ├── stress_test_2.json
+│       └── automated_test_cycle.json
+└── [future_sessions]/  # Session future con dati reali
 ```
 
 ## 🎯 Logica di Organizzazione
@@ -45,17 +40,18 @@ data/reports/sessions/20260104_164304/    # Data del PRIMO file
 
 ## 📋 Report Disponibili
 
-### 🔍 Session Storica (20260104_164304)
+### 🔍 Session Storica (20260104_164304) - DATI REALI
 - **Session**: `20260104_164304` (primo file: 16:43:04)
-- **File**: 4 report dello stesso lancio
-- **Contenuto**: Health check, stress test (x2), automated test
-- **Status**: COMPLETO ✅
+- **File**: 5 report dello stesso lancio
+- **Origine**: File originali migrati da `data/reports/analysis/`
+- **Contenuto**: Health check, stress test (x2), automated test cycle
+- **Status**: DATI REALI ✅
 
-### 🧪 Session Test (20260104_185248)
-- **Session**: `20260104_185248` (primo file: 18:52:48)
-- **File**: 3 report generati
-- **Contenuto**: Health check, stress test, performance summary
-- **Status**: TEST ✅
+### 📊 Metriche Reali della Sessione
+- **Health Report**: Status HEALTHY, 75 integrity issues
+- **Stress Test 1**: CAGR 4.67%, Risk HIGH (16:43:04)
+- **Stress Test 2**: CAGR 4.65%, Risk HIGH (17:28:24)
+- **Automated Test**: CSSPX vol 17.9%, XS2L vol 39.8%
 
 ## 🚀 Come Generare Nuovi Report
 
@@ -104,42 +100,45 @@ py scripts/core/automated_test_cycle.py
 
 ## 📅 Session History
 
-| Session | Primo File | Tipo | Status | Reports |
-|---------|------------|------|--------|---------|
-| 20260104_164304 | 16:43:04 | Storica | ✅ | 4 |
-| 20260104_185248 | 18:52:48 | Test | ✅ | 3 |
+| Session | Primo File | Tipo | Status | Reports | Dati |
+|---------|------------|------|--------|---------|------|
+| 20260104_164304 | 16:43:04 | Storica | ✅ | 5 | **REALI** |
 
 ## 🎯 Accesso Rapido
 
-### 📋 Ultima Sessione
+### 📋 Session Storica (Dati Reali)
 ```powershell
-# Trova session più recente
-$latest = Get-ChildItem data/reports/sessions/* | Sort-Object Name -Descending | Select-Object -First 1
-Get-Content $latest/session_info.json
-```
-
-### 📊 Report Specifici
-```powershell
-# Session storica completa
+# Session completa con dati reali
 Get-Content data/reports/sessions/20260104_164304/session_info.json
 
-# Health report storico
+# Health report reale (formato markdown)
 Get-Content data/reports/sessions/20260104_164304/health_report.md
 
-# Stress test storico
+# Stress test reali
 Get-Content data/reports/sessions/20260104_164304/stress_test.json
+Get-Content data/reports/sessions/20260104_164304/stress_test_2.json
 
-# Automated test storico
+# Automated test reale
 Get-Content data/reports/sessions/20260104_164304/automated_test_cycle.json
 ```
 
-## 🔄 Migrazione da Vecchia Struttura
+## 🔄 Migrazione e Pulizia
 
 ### ✅ COMPLETATO:
 - **Cancellata**: Directory `data/reports/analysis/`
-- **Migrati**: Tutti i report in `data/reports/sessions/`
+- **Migrati**: Report reali in `data/reports/sessions/`
 - **Organizzati**: Per sessione di lancio
 - **Rinominati**: Senza timestamp nei nomi file
+- **Puliti**: Rimossi 4 sessioni fake di test
+
+### 🗑️ SESSION RIMOSSE (DATI FAKE):
+- `20260104_185248` - Test session (dati fake)
+- `20260104_190012` - Test session (dati vuoti)
+- `20260104_190035` - Test session (dati vuoti)
+- `20260104_190045` - Test session (dati fake)
+
+### ✅ SESSION MANTENUTA (DATI REALI):
+- `20260104_164304` - File originali con dati reali
 
 ### 📁 Vecchia Struttura (ELIMINATA):
 ```

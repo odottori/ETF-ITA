@@ -159,21 +159,64 @@ py scripts/utility/performance_report_generator.py # Report performance completo
 ```
 
 ### 📊 Performance Reports
-```powershell
-# Report disponibili in data/reports/analysis/
-py scripts/core/performance_report_generator.py     # Genera report completo
-py scripts/core/health_check.py                        # Health check sistema
-py scripts/core/stress_test.py                            # Monte Carlo stress test
-py scripts/core/automated_test_cycle.py                   # Analisi ottimizzazione
+
+**📁 Struttura Reports:**
+```
+data/reports/sessions/
+└── 20260104_164304/           # Session storica con dati reali
+    ├── session_info.json      # Metadata sessione
+    ├── health_report.md       # Health check (markdown)
+    ├── stress_test.json       # Stress test 1 (16:43)
+    ├── stress_test_2.json     # Stress test 2 (17:28)
+    └── automated_test_cycle.json # Analisi ottimizzazione (17:33)
 ```
 
-**📁 Report Location:**
+**🎯 Logica di Organizzazione:**
+- **Una sessione = un lancio**: Tutti i report dello stesso lancio insieme
+- **Nome directory**: Data/ora del primo file generato
+- **Nomi file**: Senza timestamp (solo tipo report)
+- **Formati uniformi**: Health report in markdown, dati in JSON
+
+**📋 Session Disponibile:**
+- **20260104_164304**: Dati reali originali
+  - Health Report: Status HEALTHY, 75 integrity issues
+  - Stress Test 1: CAGR 4.67%, Risk HIGH
+  - Stress Test 2: CAGR 4.65%, Risk HIGH  
+  - Automated Test: CSSPX vol 17.9%, XS2L vol 39.8%
+
+**🚀 Comandi Report:**
+```powershell
+# Health check completo
+py scripts/core/health_check.py
+# Output: data/reports/sessions/<timestamp>/health_report.md
+
+# Stress test Monte Carlo
+py scripts/core/stress_test.py
+# Output: data/reports/sessions/<timestamp>/stress_test.json
+
+# Analisi ottimizzazione
+py scripts/core/automated_test_cycle.py
+# Output: data/reports/sessions/<timestamp>/automated_test_cycle.json
+
+# Report performance completo
+py scripts/core/performance_report_generator.py
+# Analizza tutti i report disponibili
 ```
-data/reports/analysis/
-├── health_report_20260104_164700.md      # Health check completo
-├── stress_test_20260104_172824.json       # Monte Carlo stress test
-├── automated_test_cycle_20260104_173315.json # Analisi ottimizzazione
-└── README.md                              # Guida reports
+
+**🎯 Accesso Rapido:**
+```powershell
+# Session storica con dati reali
+Get-Content data/reports/sessions/20260104_164304/session_info.json
+
+# Health report reale (markdown)
+Get-Content data/reports/sessions/20260104_164304/health_report.md
+
+# Stress test reali
+Get-Content data/reports/sessions/20260104_164304/stress_test.json
+Get-Content data/reports/sessions/20260104_164304/stress_test_2.json
+
+# Analisi completa reale
+Get-Content data/reports/sessions/20260104_164304/automated_test_cycle.json
 ```
 
 ### 📁 Scripts Organization

@@ -1,7 +1,7 @@
 # 🇪🇺 ETF ITALIA PROJECT - Smart Retail (README)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r20 — 2026-01-04  
+**Doc Revision (internal):** r22 — 2026-01-04  
 **Baseline produzione:** **EUR / ACC** (universe bloccato su strumenti in EUR e ad accumulazione)
 
 ---
@@ -22,6 +22,7 @@ Attivo “out of the box”:
 - Universo strumenti **solo EUR** e **ACC** (niente multi-valuta, niente distribuzione cash).
 - Prezzi: `adj_close` per segnali; `close` per valorizzazione ledger (vedi DIPF §2.1).
 - Fiscalità: categoria fiscale di default `OICR_ETF` (gain tassato pieno, no compensazione zainetto nel modello).
+- Benchmark: consigliato **ETF UCITS EUR/ACC**; se si usa un **indice** (es. `^GSPC`) è solo proxy e nel reporting non si applicano tasse simulate.
 - Run Package obbligatorio per ogni run con KPI (manifest + KPI + summary).
 - Sanity check bloccante e health check operativi.
 
@@ -61,6 +62,7 @@ py -m pip install duckdb pandas yfinance plotly matplotlib
 
 ## 5. Flusso operativo giornaliero (EOD)
 1) **Ingestione**
+Nota: l’ingestione applica una soglia di spike per simbolo (`max_daily_move_pct`, default 15%) e scarta movimenti anomali registrandoli nell’audit.
 ```powershell
 py scripts/ingest_data.py
 ```
@@ -81,7 +83,7 @@ py scripts/check_guardrails.py
 ```powershell
 py scripts/strategy_engine.py --dry-run
 ```
-Output: `data/orders.json` + note sintetiche di impatto su cash e (se applicabile) tasse.
+Output: `data/orders.json` (diff-friendly) con impatto su cash/tasse, stime costi, `do_nothing_score` e raccomandazione (HOLD/TRADE).
 
 5) **Commit (solo se OK)**
 ```powershell
@@ -96,7 +98,7 @@ Ogni run che produce KPI deve creare la cartella:
 `data/reports/<run_id>/`
 
 Artefatti minimi **obbligatori**:
-- `manifest.json` (parametri, universe, cost model, tax model, hash)
+- `manifest.json` (parametri, universe, cost model, tax model, `config_hash`, `data_fingerprint`)
 - `kpi.json` (KPI + `kpi_hash`)
 - `summary.md` (riassunto leggibile)
 

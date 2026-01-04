@@ -1,7 +1,7 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r21 — 2026-01-04  
+**Doc Revision (internal):** r22 — 2026-01-04  
 **Baseline produzione:** **EUR / ACC**
 
 ## LEGENDA
@@ -12,18 +12,18 @@
 ---
 
 ## TL-0. EntryPoints Registry (1:1 con README)
-| EP | Script/Command | Output principale | Cross-Ref |
-|---|---|---|---|
+| EP | Script/Command | Output principale | Cross-Ref | Status |
+|---|---|---|---|---|
 | EP-01 | `scripts/setup_db.py` | DB + schema | DD-2..DD-11 | ✅ DONE |
-| EP-02 | `scripts/load_trading_calendar.py` | `trading_calendar` popolata | DD-3.1 |
-| EP-03 | `scripts/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 |
-| EP-04 | `scripts/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 |
-| EP-05 | `scripts/compute_signals.py` | segnali + snapshot | DIPF §4, DD-8 |
-| EP-06 | `scripts/check_guardrails.py` | SAFE/DANGER | DIPF §5.3 |
-| EP-07 | `scripts/strategy_engine.py --dry-run` | `orders.json` | DIPF §8.1, DD-11 |
-| EP-08 | `scripts/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-6 |
-| EP-09 | `scripts/backtest_runner.py` | Run Package | DIPF §7, §9 |
-| EP-10 | `scripts/stress_test.py` | stress report | DIPF §9.2 |
+| EP-02 | `scripts/load_trading_calendar.py` | `trading_calendar` popolata | DD-3.1 | ✅ DONE |
+| EP-03 | `scripts/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | ✅ DONE |
+| EP-04 | `scripts/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | ✅ DONE |
+| EP-05 | `scripts/compute_signals.py` | segnali + snapshot | DIPF §4, DD-6 | ✅ DONE |
+| EP-06 | `scripts/check_guardrails.py` | SAFE/DANGER | DIPF §5.3 | 🔴 TODO |
+| EP-07 | `scripts/strategy_engine.py --dry-run` | `orders.json` | DIPF §8.1, DD-11 | 🔴 TODO |
+| EP-08 | `scripts/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-7 | 🔴 TODO |
+| EP-09 | `scripts/backtest_runner.py` | Run Package | DIPF §7, §9 | 🔴 TODO |
+| EP-10 | `scripts/stress_test.py` | stress report | DIPF §9.2 | 🔴 TODO |
 
 ---
 
@@ -39,10 +39,12 @@
 
 ### TL-1.2 Dry-run JSON diff-friendly
 - [🔴] EP-07 produce `data/orders.json` con:
-  - orders proposti (BUY/SELL/HOLD), qty, reason
+  - orders proposti (BUY/SELL/HOLD), qty, reason, `explain_code`
   - cash impact
   - tax estimate (se SELL o se cost model lo richiede)
-  - guardrails state + explain_code
+  - stime: `expected_alpha_est`, `fees_est`, `tax_friction_est`
+  - `do_nothing_score` + `recommendation` (HOLD/TRADE)
+  - guardrails state
 - DoD: nessuna scrittura su DB/ledger; output deterministico a parità input.
 
 ### TL-1.3 Cash interest (MUST)
@@ -87,6 +89,18 @@
 - DoD: mancanza file → exit!=0; manifest include config_hash e data_fingerprint.
 
 ---
+
+### TL-2.6 Spike threshold per simbolo (max_daily_move_pct)
+- [🔴] Aggiungere `max_daily_move_pct` (default 0.15) in `etf_universe.json` e/o `symbol_registry`
+- [🔴] In ingestion: usare la soglia specifica per scartare spike > soglia e loggare la soglia usata
+- DoD: test su simbolo con soglia più stretta (es. 10%) e su simbolo default 15%.
+
+### TL-2.7 Benchmark after-tax corretto (INDEX vs ETF)
+- [🔴] Il reporting deve distinguere `benchmark_kind`:
+  - `INDEX`: no tassazione simulata (solo friction proxy)
+  - `ETF`: tassazione simulata coerente con `tax_category`
+- DoD: KPI benchmark non distorti; `manifest.json` esplicita `benchmark_kind`.
+
 
 ## TL-3. Fase 3 — “Smart retail” e UX (COULD/SHOULD)
 ### TL-3.1 Inerzia tax-friction aware

@@ -1,7 +1,7 @@
 # 📚 DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r20 — 2026-01-04  
+**Doc Revision (internal):** r22 — 2026-01-04  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
 
@@ -79,6 +79,7 @@ Anagrafica strumenti e gestione ticker-change/survivorship (lean).
 | venue | VARCHAR | BIT/XETRA |
 | currency | VARCHAR | EUR (baseline) |
 | dist_policy | VARCHAR | ACC (baseline) |
+| max_daily_move_pct | DOUBLE | soglia spike (es. 0.15 = 15%), opzionale |
 | tax_category | VARCHAR | `OICR_ETF` default |
 | parent_symbol | VARCHAR | alias/mapping (opz.) |
 | status | VARCHAR | ACTIVE/STALLED/DELISTED |
@@ -122,11 +123,52 @@ Usata solo se `currency != EUR` è consentito (non nel baseline).
 | provider_schema_hash | VARCHAR | compatibilità fallback |
 | created_at | TIMESTAMP | |
 
+### DD-5.2 `staging_data`
+Tabella di transito per validazione dati.
+
+| Colonna | Tipo | Note |
+|---|---|---|
+| symbol | VARCHAR | PK (composita) |
+| date | DATE | PK (composita) |
+| high | DOUBLE | |
+| low | DOUBLE | |
+| close | DOUBLE | |
+| adj_close | DOUBLE | |
+| volume | BIGINT | >= 0 |
+| source | VARCHAR | provider |
+| created_at | TIMESTAMP | |
+
+**PK:** (`symbol`, `date`)
+
 ---
 
-## DD-6. Fiscalità e ledger
+## DD-6. Signal Engine
 
-### DD-6.1 `fiscal_ledger`
+### DD-6.1 `signals`
+Tabella segnali oggettivi generati dal Signal Engine.
+
+| Colonna | Tipo | Note |
+|---|---|---|
+| id | INTEGER | PK |
+| date | DATE | data segnale |
+| symbol | VARCHAR | strumento |
+| signal_state | VARCHAR | RISK_ON/RISK_OFF/HOLD |
+| risk_scalar | DOUBLE | 0..1 sizing |
+| explain_code | VARCHAR | spiegazione |
+| sma_200 | DOUBLE | media mobile 200gg |
+| volatility_20d | DOUBLE | volatilità 20gg |
+| spy_guard | BOOLEAN | guardia S&P 500 |
+| regime_filter | VARCHAR | regime volatilità |
+| created_at | TIMESTAMP | |
+
+**PK:** (`id`)
+**Index:** (`date`, `symbol`), (`signal_state`)
+
+---
+
+## DD-7. Fiscalità e ledger
+
+### DD-7.1 `fiscal_ledger`
 Registro operazioni e stato contabile.
 
 | Colonna | Tipo | Note |
@@ -148,8 +190,8 @@ Registro operazioni e stato contabile.
 | created_at | TIMESTAMP | |
 | last_updated | TIMESTAMP | |
 
-### DD-6.2 `tax_loss_buckets`
-Minusvalenze “redditi diversi” riportabili (lean FIFO).
+### DD-7.2 `tax_loss_buckets`
+Minusvalenze "redditi diversi" riportabili (lean FIFO).
 
 | Colonna | Tipo | Note |
 |---|---|---|
@@ -219,6 +261,9 @@ Snapshot KPI portfolio-level (post-run).
 | kpi_hash | VARCHAR | |
 | created_at | TIMESTAMP | |
 
+
+Nota: il calcolo “after-tax” del benchmark dipende da `benchmark_kind` (vedi DD-10.3 e DIPF §7.2.1).
+
 ---
 
 ## DD-9. Run Registry (opzionale ma raccomandato)
@@ -249,7 +294,9 @@ Vista: qty, pmc, market_value, unrealized_pnl, ecc.
 Join `fiscal_ledger` + `trade_journal` per log motivazioni/azioni.
 
 ### DD-10.3 `benchmark_after_tax_eur`
-Vista comparabile “apples-to-apples” (EUR, proxy costi/tasse), coerente con `tax_category`.
+Vista comparabile “apples-to-apples” (EUR, proxy costi/tasse).
+- Se `benchmark_kind=INDEX`: **no** tassazione simulata (solo friction proxy: TER/slippage/fees).
+- Se `benchmark_kind=ETF`: tassazione simulata coerente con `tax_category`.
 
 ---
 
@@ -261,6 +308,7 @@ Campi obbligatori:
 - `execution_model`, `cost_model`, `tax_model`
 - `currency_base` (EUR)
 - `universe` (lista strumenti + tax_category + dist_policy)
+- `benchmark_symbol`, `benchmark_kind` (`ETF`/`INDEX`)
 - `config_hash`, `data_fingerprint`
 
 ### DD-11.2 `kpi.json` (minimo)
@@ -273,3 +321,11 @@ Una pagina leggibile con:
 - parametri principali
 - KPI + confronto benchmark (se presente)
 - sezione “Emotional Gap” (se journaling disponibile)
+
+
+### DD-11.4 `orders.json` (dry-run)
+Output diff-friendly di EP-07.
+Campi minimi consigliati:
+- elenco ordini (BUY/SELL/HOLD) con qty, symbol, reason, `explain_code`
+- stime: `expected_alpha_est`, `fees_est`, `tax_friction_est`
+- `do_nothing_score` e `recommendation` (`HOLD`/`TRADE`)

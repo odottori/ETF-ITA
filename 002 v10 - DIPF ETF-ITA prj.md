@@ -1,11 +1,11 @@
-# 🇪🇺 DIPF - Documento di Indirizzo e Progettazione Funzionale (ETF_ITA)
+# DIPF - Documento di Indirizzo e Progettazione Funzionale (ETF_ITA)
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r20 — 2026-01-04  
+**Doc Revision (internal):** r22 — 2026-01-04  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
-**Stato:** 🟢 APPROVED FOR DEV (con requisiti “backtest-grade”)
+**Stato:** APPROVED FOR DEV (con requisiti "backtest-grade")
 
 ---
 
@@ -44,7 +44,7 @@ La strategia è iterativa: prima un framework “difendibile”, poi ottimizzazi
 ### 0.5 Cosa può e cosa non può fare
 *(Baseline produzione: universo EUR/ACC, operatività EOD, esecuzione differita.)*
 
-Ecco cosa il sistema può gestire perfettamente ("tutte le altre modalità"):
+Ecco cosa il tuo sistema può gestire perfettamente ("tutte le altre modalità"):
 1. Swing Trading (Orizzonte: Giorni/Settimane)
 Logica: Cerchi di catturare un movimento di breve durata (es. un rimbalzo tecnico, una rottura di resistenza).
 Fattibilità: Totale. Il tuo sistema scarica i dati la sera, calcola i segnali e ti dice "Domani mattina compra in apertura".
@@ -62,15 +62,12 @@ Vantaggio: È una strategia classica che storicamente funziona bene e richiede p
 Logica: "È sceso troppo, deve risalire". Compri quando l'RSI è a terra o il prezzo tocca la banda di Bollinger inferiore.
 Fattibilità: Sì, ma con un vincolo: operando EOD (End Of Day), entri il giorno dopo il segnale. A volte ti perdi il rimbalzo immediato, ma eviti anche di "afferrare il coltello mentre cade".
 Il vero limite (e perché è un bene)
-La architettura impone un vincolo operativo salutare: l'Esecuzione Differita (T+1 Open o T+0 Close).
+La tua architettura ti impone un vincolo operativo salutare: l'Esecuzione Differita (T+1 Open o T+0 Close).
 Non puoi reagire alla notizia uscita alle 14:30.
 Non puoi vendere per panico alle 11:00 perché il mercato fa -2%.
-Questo vincolo tecnico diventa un vantaggio psicologico. Costringe alla disciplina. Il sistema "pensa" a bocce ferme, la sera, a mercati chiusi. Tu esegui la mattina dopo. 
-Questo filtro elimina il 90% degli errori emotivi che distruggono i portafogli retail.
-
+Questo vincolo tecnico diventa un vantaggio psicologico. Ti costringe alla disciplina. Il sistema "pensa" a bocce ferme, la sera, a mercati chiusi. Tu esegui la mattina dopo. Questo filtro elimina il 90% degli errori emotivi che distruggono i portafogli retail.
 Conclusione:
-Sì, il progetto supporta tutto ciò che non è "tempo reale". 
-È una macchina da guerra per gestire il patrimonio seriamente, spaziando dall'investimento pigro (Buy & Hold) allo speculativo ragionato (Swing), mantenendo sempre il controllo del rischio e della fiscalità.
+Sì, il progetto supporta tutto ciò che non è "tempo reale". È una macchina da guerra per gestire il patrimonio seriamente, spaziando dall'investimento pigro (Buy & Hold) allo speculativo ragionato (Swing), mantenendo sempre il controllo del rischio e della fiscalità.
 
 ---
 ---
@@ -122,6 +119,14 @@ Audit registra `provider_schema_hash`.
 `trading_calendar` definisce giorni di negoziazione (is_open) per le borse di riferimento.  
 Usi: validazione gap reali, rolling windows, “missing data” continuity check.
 
+#### 3.4.1 Spike detection (per simbolo, config-driven)
+Oltre ai check di coerenza, applicare una soglia massima di movimento giornaliero **per simbolo**:
+- Campo: `max_daily_move_pct` in `config/etf_universe.json` (default **15%** se assente).
+- Regola: se `ABS(close_t / close_{t-1} - 1) > max_daily_move_pct` → record **SCARTATO** e motivazione registrata in `ingestion_audit.reject_summary`.
+
+Scopo: ridurre falsi positivi/negativi e mantenere il controllo “retail-serio” senza dinamiche complesse.
+Cross-Ref: DATADICTIONARY DD-3.2, DD-5.1; TODOLIST TL-2.6.
+
 ### 3.5 Protezione “Zombie Price”
 Caso tipico: provider ripete lo stesso `close` per giorni con `volume=0`.  
 Requisito: tali giorni **non** devono ridurre artificialmente la volatilità; vengono marcati e esclusi dai calcoli di rischio, o trattati come missing.
@@ -152,6 +157,13 @@ Quando una riallocazione implica realizzo di gain tassabili o costi elevati:
 - se `(expected_alpha - total_cost) < inertia_threshold` → **nessuna azione** (HOLD)
 Scopo: massimizzare rendimento netto tramite differimento d’imposta quando razionale.
 
+Output richiesto in `orders.json` (EP-07):
+- `expected_alpha_est`, `fees_est`, `tax_friction_est`
+- `do_nothing_score` (quanto conviene non agire)
+- `recommendation` = `HOLD` / `TRADE` (decisione proposta dal motore)
+
+Cross-Ref: DATADICTIONARY DD-11.4, TODOLIST TL-1.2 e TL-3.1.
+
 ---
 
 ## 5. Execution Model & Risk Engine
@@ -178,6 +190,8 @@ PMC ponderato continuo su quantità; arrotondamenti contabili a 0.01 EUR via `RO
 Ogni strumento deve avere una `tax_category` (da config o registry):
 - `OICR_ETF` (tipico ETF/fondi): **gain** trattato come reddito di capitale → tassazione piena 26% **senza** compensazione con zainetto; **loss** come reddito diverso → va nello zainetto (se applicabile in regime simulato).
 - `ETC_ETN_STOCK` (semplificazione): gain/loss come redditi diversi → **compensazione** con zainetto consentita nel modello.
+
+**Chiarimento operativo (baseline EUR/ACC):** se l’universo contiene solo strumenti `OICR_ETF`, lo zainetto può **accumularsi** (per loss) ma **non** riduce i gain/proventi degli ETF. Diventa “utilizzabile” solo se/quando si abilitano strumenti `ETC_ETN_STOCK` (feature flag / universo esteso).
 
 > Nota: il sistema è una simulazione; l’utente resta responsabile della verifica con intermediario/consulente.
 
@@ -220,9 +234,22 @@ Se manca un artefatto obbligatorio → run invalida (exit code != 0).
 
 ### 7.2 Contenuti minimi
 - Parametri run (execution model, cost model, tax model, universe)
+- `config_hash` e `data_fingerprint` (input tracciabili)
 - KPI e `kpi_hash`
 - Collegamenti ad audit/ledger
 - Se presente journaling: sezione “Forecast vs Postcast” e “Emotional Gap” (vedi §7.3)
+
+#### 7.2.1 Benchmark “apples-to-apples” (indice vs ETF investibile)
+- **Benchmark consigliato (default):** un **ETF UCITS EUR/ACC** investibile e comparabile (stessa valuta e policy di distribuzione).
+- **Indice non investibile (es. `^GSPC`)**: usarlo come *market proxy* / regime filter è lecito, ma nel reporting **non** applicare tassazione simulata “da realizzo”.  
+  In tal caso il benchmark può includere solo:
+  - FX (se abilitato),  
+  - TER proxy (se si vuole un friction proxy),  
+  - slippage/fees indicative.  
+- **ETF benchmark investibile:** la tassazione simulata segue `tax_category` (es. `OICR_ETF` = gain tassato pieno, senza compensazione zainetto).
+
+Requisito: il `manifest.json` deve indicare `benchmark_symbol` e `benchmark_kind` (`ETF`/`INDEX`) per evitare ambiguità nei KPI.
+Cross-Ref: DATADICTIONARY DD-8.2, DD-10.3, DD-11.1; TODOLIST TL-2.7.
 
 ### 7.3 Emotional Gap (serietà)
 Nel `summary.md` includere confronto:

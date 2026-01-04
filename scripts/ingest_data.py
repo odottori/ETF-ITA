@@ -10,6 +10,7 @@ import json
 import yfinance as yf
 import pandas as pd
 import duckdb
+import requests
 from datetime import datetime, timedelta
 import hashlib
 
@@ -21,6 +22,62 @@ def get_config():
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
     with open(config_path, 'r') as f:
         return json.load(f)
+
+def download_stooq_data(symbol, start_date, end_date):
+    """Download dati da Stooq.com come fallback"""
+    try:
+        # Converti simbolo per Stooq (es. XS2L.MI -> xs2l.mi)
+        stooq_symbol = symbol.lower().replace('.', '')
+        
+        # Stooq API - formato CSV con data range
+        url = f"https://stooq.com/q/l/?s={stooq_symbol}&i=d"
+        
+        print(f"   🔄 Tentativo download Stooq per {symbol}...")
+        response = requests.get(url, timeout=30)
+        
+        if response.status_code == 200 and response.text.strip():
+            # Parse CSV data
+            lines = response.text.strip().split('\n')
+            if len(lines) > 1:  # Header + data
+                data = []
+                for line in lines[1:]:  # Skip header
+                    parts = line.split(',')
+                    if len(parts) >= 6:
+                        try:
+                            date_str = parts[0]
+                            open_price = float(parts[1])
+                            high_price = float(parts[2])
+                            low_price = float(parts[3])
+                            close_price = float(parts[4])
+                            volume = int(parts[5]) if parts[5] else 0
+                            
+                            # Filtra per range date
+                            record_date = pd.to_datetime(date_str).date()
+                            if start_date <= record_date <= end_date:
+                                data.append({
+                                    'Date': pd.to_datetime(date_str),
+                                    'Open': open_price,
+                                    'High': high_price,
+                                    'Low': low_price,
+                                    'Close': close_price,
+                                    'Volume': volume
+                                })
+                        except (ValueError, IndexError):
+                            continue
+                
+                if data:
+                    df = pd.DataFrame(data)
+                    df.set_index('Date', inplace=True)
+                    df.sort_index(inplace=True)
+                    print(f"   ✅ Stooq: {len(df)} record scaricati (range filtrato)")
+                    return df
+        
+        print(f"   ❌ Stooq: nessun dato disponibile")
+        return None
+        
+    except Exception as e:
+        print(f"   ❌ Errore Stooq: {e}")
+        return None
 
 def validate_data_quality(df, symbol):
     """Validazione quality gates su dati"""
@@ -114,13 +171,20 @@ def ingest_data():
                 else:
                     start_date = end_date - timedelta(days=365)  # 1 anno di dati iniziali
                 
-                # Download
-                print(f"   Download {start_date} → {end_date}")
+                # Download primario Yahoo Finance
+                print(f"   Download YF {start_date} → {end_date}")
                 hist = ticker.history(start=start_date, end=end_date)
                 
-                if hist.empty:
-                    print(f"   ⚠️ Nessun dato disponibile per {symbol}")
-                    continue
+                # Se YF fallisce o dati insufficienti, prova Stooq
+                if hist.empty or len(hist) < 10:
+                    print(f"   ⚠️ YF dati insufficienti ({len(hist)} record)")
+                    stooq_data = download_stooq_data(symbol, start_date, end_date)
+                    if stooq_data is not None and not stooq_data.empty:
+                        hist = stooq_data
+                        print(f"   ✅ Usati dati Stooq: {len(hist)} record")
+                    else:
+                        print(f"   ❌ Nessun dato disponibile da nessuna fonte")
+                        continue
                 
                 # Validazione quality gates
                 validation_results, valid_df = validate_data_quality(hist, symbol)
@@ -132,6 +196,21 @@ def ingest_data():
                 if validation_results['rejection_reasons']:
                     print(f"   ⚠️ Rejection reasons: {', '.join(validation_results['rejection_reasons'])}")
                     all_rejection_reasons.extend(validation_results['rejection_reasons'])
+                
+                # Se troppi respinti (>15%), prova Stooq per recuperare
+                if validation_results['rejected_records'] > 0 and validation_results['rejected_records'] / validation_results['total_records'] > 0.15:
+                    print(f"   🔄 Troppe rejections ({validation_results['rejected_records']}/{validation_results['total_records']}), provo Stooq...")
+                    stooq_fallback = download_stooq_data(symbol, start_date, end_date)
+                    
+                    if stooq_fallback is not None and not stooq_fallback.empty:
+                        # Validazione dati Stooq
+                        stooq_validation, stooq_valid = validate_data_quality(stooq_fallback, symbol)
+                        
+                        if stooq_validation['accepted_records'] > validation_results['accepted_records']:
+                            print(f"   ✅ Stooq migliore: {stooq_validation['accepted_records']} vs {validation_results['accepted_records']}")
+                            valid_df = stooq_valid
+                            validation_results = stooq_validation
+                            all_rejection_reasons.append(f"Used Stooq fallback for {symbol}")
                 
                 # Insert in staging table
                 if not valid_df.empty:

@@ -244,8 +244,8 @@ def run_backtest_simulation():
             'timestamp': datetime.now().isoformat(),
             'backtest_simulation': {
                 'period': {
-                    'start': historical_data[0][0],
-                    'end': historical_data[-1][0],
+                    'start': str(historical_data[0][0]),
+                    'end': str(historical_data[-1][0]),
                     'trading_days': len(historical_data)
                 },
                 'scenarios': results,

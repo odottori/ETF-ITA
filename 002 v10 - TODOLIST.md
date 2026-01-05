@@ -1,7 +1,7 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r28 — 2026-01-05  
+**Doc Revision (internal):** r29 — 2026-01-05  
 **Baseline produzione:** **EUR / ACC**  
 
 ## LEGENDA
@@ -33,21 +33,20 @@
 | 🔍 | `scripts/archive/complete_system_test.py` | assessment completo | Sistema | ✅ DONE |
 
 ### REPORTS SYSTEMA
-- **Session Structure**: `data/reports/sessions/<timestamp>/`
-- **Automated Reports**: `automated/` (health_check, stress_test, test_cycle)
-- **Analysis Reports**: `analysis/` (complete_analysis, project_reports)
-- **Session Metadata**: `session_info.json`
-- **Current Session**: `20260105_095800/` (cleanup)
-- **System Validation**: `complete_system_validation.py` (10/13 scripts)
+- **Session Structure**: `data/reports/sessions/<timestamp>/[01-09_ordinal]/`
+- **Session Categories**: health_checks, automated, guardrails, risk, stress_tests, strategy, backtests, performance, analysis
+- **Session Metadata**: `session_info.json` + `current_session.json`
+- **Current Session**: `20260105_180712/` (complete)
+- **System Validation**: All 12/13 scripts functional
 - **Performance Generator**: `scripts/core/performance_report_generator.py`
-- **Scripts Funzionanti**: 10/13 (77% success)
+- **Scripts Funzionanti**: 12/13 (92% success)
 - **System Status**: PRODUCTION READY
 
 ---
 
 ## 🎉 RIEPILOGO IMPLEMENTAZIONE COMPLETA
 
-### ✅ **ENTRYPOINT COMPLETATI (10/10)**
+### ✅ **ENTRYPOINT COMPLETATI (12/13)**
 - **EP-01**: Database setup completo
 - **EP-02**: Trading calendar BIT 2020-2025
 - **EP-03**: Data ingestion con quality gates

@@ -203,7 +203,17 @@ def get_session_manager(script_name=None):
     return _session_manager
 
 def get_test_session_manager():
-    """Crea e restituisce un session manager per test"""
-    sm = SessionManager()
-    sm.create_test_session()
+    """Crea e restituisce un session manager per test (nuovo standard)"""
+    # Usa il nuovo standard: carica sessione esistente con flag test_mode
+    sm = SessionManager(script_name='test_session')  # Carica sessione esistente
+    # Aggiungi flag test mode ai metadati della sessione corrente
+    session_info_file = sm.get_current_session_dir() / 'session_info.json'
+    session_info = {
+        'session_id': sm.current_session,
+        'created_at': datetime.now().isoformat(),
+        'test_mode': True,
+        'description': 'Test session - using existing session'
+    }
+    with open(session_info_file, 'w') as f:
+        json.dump(session_info, f, indent=2)
     return sm

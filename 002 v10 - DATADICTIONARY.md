@@ -1,13 +1,13 @@
 # 📚 DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r28 — 2026-01-05  
+**Doc Revision (internal):** r29 — 2026-01-05  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
-**Reports Structure:** `data/reports/sessions/<timestamp>/[automated|analysis]/`  
-**Risk Analysis:** `analysis/reports/comprehensive_risk_analysis_*.json`  
-**Risk Summary:** `analysis/reports/risk_assessment_summary.md`  
+**Reports Structure:** `data/reports/sessions/<timestamp>/[01_health_checks|02_automated|03_guardrails|04_risk|05_stress_tests|06_strategy|07_backtests|08_performance|09_analysis]/`  
+**Risk Analysis:** `data/reports/sessions/<timestamp>/04_risk/risk_management_*.json`  
+**Risk Summary:** `data/reports/sessions/<timestamp>/08_performance/performance_*.json`  
 **System Status:** **PRODUCTION READY**  
-**Scripts Funzionanti:** **10/13** (77% success)  
+**Scripts Funzionanti:** **12/13** (92% success)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  
 
 ---

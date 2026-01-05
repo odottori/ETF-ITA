@@ -1,0 +1,38 @@
+{
+  "version": "v10",
+  "created": "2026-01-05T10:21:32.533065",
+  "paths": {
+    "base_reports": "C:\\Users\\Asus\\Documents\\ETF - ITA project\\analysis\\reports",
+    "data_reports": "C:\\Users\\Asus\\Documents\\ETF - ITA project\\data\\reports",
+    "sessions": "C:\\Users\\Asus\\Documents\\ETF - ITA project\\data\\reports\\sessions",
+    "temp": "C:\\Users\\Asus\\Documents\\ETF - ITA project\\data\\reports\\temp"
+  },
+  "directories": {
+    "automated_tests": "automated_tests",
+    "guardrails": "guardrails",
+    "stress_tests": "stress_tests",
+    "health_checks": "health_checks",
+    "backtests": "backtests",
+    "performance": "performance",
+    "archive": "archive"
+  },
+  "file_patterns": {
+    "automated_test_cycle": "automated_tests",
+    "guardrails_report": "guardrails",
+    "stress_test": "stress_tests",
+    "health_report": "health_checks",
+    "backtest": "backtests",
+    "performance": "performance",
+    "optimal_strategy": "archive",
+    "optimization": "archive",
+    "phase": "archive",
+    "final": "archive",
+    "complete": "archive",
+    "auto_strategy": "archive",
+    "simple_strategy": "archive",
+    "master": "archive"
+  },
+  "correct_structure": true,
+  "current_session": "20260105_104004",
+  "last_fix": "2026-01-05T10:40:04.379761"
+}

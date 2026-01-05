@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from session_manager import get_session_manager
+
 def stress_test():
     """Esegue stress test con Monte Carlo"""
     
@@ -23,6 +25,9 @@ def stress_test():
     
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    
+    # Inizializza session manager
+    session_manager = get_session_manager()
     
     # Carica configurazione
     with open(config_path, 'r') as f:
@@ -221,30 +226,8 @@ def stress_test():
         }
         
         # Salva report usando session manager
-        try:
-            from scripts.core.simple_report_session_manager import SimpleReportSessionManager
-            session_manager = SimpleReportSessionManager()
-            
-            # Crea o aggiungi a session esistente
-            latest_session = session_manager.get_latest_session()
-            if latest_session:
-                timestamp = latest_session.name
-            else:
-                timestamp, _ = session_manager.create_session()
-            
-            # Aggiungi stress test alla sessione
-            session_manager.add_report_to_session(timestamp, "stress_test", stress_report, "json")
-            print(f" Stress test salvato in session: {timestamp}")
-            
-        except ImportError:
-            # Fallback a vecchio metodo
-            reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports')
-            os.makedirs(reports_dir, exist_ok=True)
-            
-            stress_file = os.path.join(reports_dir, f"stress_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-            with open(stress_file, 'w') as f:
-                json.dump(stress_report, f, indent=2)
-            print(f" Stress test report salvato: {stress_file}")
+        report_file = session_manager.add_report_to_session('stress_test', stress_report, 'json')
+        print(f" Stress test salvato in session: {report_file}")
         
         # 6. Raccomandazioni
         print(f"\n Raccomandazioni:")

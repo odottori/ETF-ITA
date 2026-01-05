@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-01-05T15:34:11.000733",
+  "dry_run": true,
+  "orders": [
+    {
+      "symbol": "CSSPX.MI",
+      "action": "BUY",
+      "qty": 9.60522565548112,
+      "price": 624.6599731445312,
+      "reason": "TREND_UP_SMA200_VOL_BOOST",
+      "expected_alpha_est": 300.0,
+      "fees_est": 7.2,
+      "tax_friction_est": 0.0,
+      "do_nothing_score": 0.048531477253927195,
+      "recommendation": "HOLD"
+    },
+    {
+      "symbol": "XS2L.MI",
+      "action": "BUY",
+      "qty": 9.863349016538718,
+      "price": 251.6699981689453,
+      "reason": "TREND_UP_SMA200",
+      "expected_alpha_est": 124.1154514465984,
+      "fees_est": 2.978770834718362,
+      "tax_friction_est": 0.0,
+      "do_nothing_score": 0.048531477253927195,
+      "recommendation": "HOLD"
+    }
+  ],
+  "summary": {
+    "total_orders": 2,
+    "buy_orders": 2,
+    "sell_orders": 0,
+    "hold_orders": 0,
+    "total_estimated_cost": 10.178770834718362,
+    "total_expected_alpha": 424.1154514465984
+  }
+}

@@ -3,7 +3,7 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r28 — 2026-01-05 |
+| **Doc Revision (internal)** | r29 — 2026-01-05 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
 
 ---
@@ -14,6 +14,7 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 - data quality gating (staging → master)
 - guardrails + sizing
 - ledger fiscale (PMC) + journaling (forecast/postcast)
+- **session management centralizzato** con prefissi ordinali
 - reporting serializzato (Run Package)
 
 ### 1.1 Scopo
@@ -94,20 +95,95 @@ py scripts/sanity_check.py
 
 ---
 
-## 4) Run Package (reporting serializzato)
+## 4) Session Management & Semaforica
 
-Percorso: `data/reports/<run_id>/`
+### 4.1 Session Manager Centralizzato
 
-Artefatti obbligatori:
-- `manifest.json` (config_hash + data_fingerprint)
-- `kpi.json` (kpi_hash)
-- `summary.md` (include sezione Emotional Gap)
+Il sistema usa un **Session Manager** che organizza tutti i report in sessioni timestampate:
+
+```
+data/reports/sessions/<YYYYMMDD_HHMMSS>/
+├── 01_health_checks/     # Verifiche integrità sistema
+├── 02_automated/         # Test automatici e cicli
+├── 03_guardrails/        # Controlli risk management
+├── 04_stress_tests/      # Test stress Monte Carlo
+├── 05_strategy/          # Motore strategia e ordini
+├── 06_backtests/         # Backtest completi
+├── 07_performance/       # Metriche sistema
+└── 08_analysis/          # Report riassuntivi
+```
+
+**Vantaggi:**
+- ✅ **Ordinamento automatico** con prefissi ordinali
+- ✅ **Tracciabilità completa** di ogni esecuzione
+- ✅ **Nessun file sparso** in cartelle sbagliate
+- ✅ **Sessioni TEST** leggere per controlli rapidi
+
+### 4.2 Sessioni TEST
+
+Per test estemporanei:
+```python
+from scripts.core.session_manager import get_test_session_manager
+sm = get_test_session_manager()  # Crea sessione <timestamp>_TEST
+```
+
+Le sessioni TEST creano solo le cartelle essenziali (01, 03, 05, 08).
+
+### 4.3 Semaforica Operativa
+
+**🟢 VERDE** - Sistema operativo:
+- Tutti i check passati
+- Guardrails OK
+- Ordini generabili
+
+**🟡 GIALLO** - Attenzione:
+- Warning presenti
+- Guardrails borderline
+- Revisione manuale richiesta
+
+**🔴 ROSSO** - Sistema bloccato:
+- Errori critici
+- Guardrails violated
+- Nessun ordine permesso
+
+---
+
+## 5) Run Package (reporting serializzato)
+
+Percorso: `data/reports/sessions/<YYYYMMDD_HHMMSS>/06_backtests/`
+
+Artefatti obbligatori con timestamp:
+- `manifest_<timestamp>.json` (config_hash + data_fingerprint)
+- `kpi_<timestamp>.json` (kpi_hash)
+- `summary_<timestamp>.md` (include sezione Emotional Gap)
 
 Se manca un file obbligatorio: la run è **FAIL** (exit code ≠ 0).
 
 ---
 
-## 5) Regole chiave (baseline)
+## 6) Quick Test (controlli rapidi)
+
+Per test estemporanei del sistema:
+
+```powershell
+py scripts/core/quick_test.py
+```
+
+Crea una sessione TEST leggera con solo le cartelle essenziali:
+- 01_health_checks/ - Verifiche base
+- 03_guardrails/ - Controlli rischio
+- 05_strategy/ - Motore strategia
+- 08_analysis/ - Report finale
+
+Ideale per:
+- ✅ Verifiche pre-produzione
+- ✅ Debug rapido
+- ✅ Test di integrità
+- ✅ Sviluppo iterativo
+
+---
+
+## 7) Regole chiave (baseline)
 
 - **Segnali** su `adj_close`, **ledger/valorizzazione** su `close`.
 - **Zombie prices**: esclusi dai KPI di rischio.
@@ -116,36 +192,49 @@ Se manca un file obbligatorio: la run è **FAIL** (exit code ≠ 0).
 
 ---
 
-## 6) Struttura progetto
+## 8) Struttura progetto
 
 ```
 ETF_ITA_project/
-├── analysis/
-│   ├── scripts/
-│   │   └── comprehensive_risk_analysis.py
-│   └── reports/
-│       ├── comprehensive_risk_analysis_20260105_091552.json
-│       └── risk_assessment_summary.md
 ├── config/
 │   └── etf_universe.json
 ├── data/
 │   ├── etf_data.duckdb
 │   └── reports/
-├── docs/
-│   ├── 002 v10 - DIPF ETF-ITA prj.md
-│   ├── 002 v10 - DATADICTIONARY.md
-│   └── 002 v10 - TODOLIST.md
-└── scripts/
-    ├── setup_db.py
-    ├── load_trading_calendar.py
-    ├── ingest_data.py
-    ├── health_check.py
-    ├── compute_signals.py
-    ├── check_guardrails.py
-    ├── strategy_engine.py
-    ├── update_ledger.py
-    ├── backtest_runner.py
-    └── sanity_check.py
+│       └── sessions/           # Session management
+│           ├── 20260105_160036/  # Sessione completa
+│           │   ├── 01_health_checks/
+│           │   ├── 02_automated/
+│           │   ├── 03_guardrails/
+│           │   ├── 04_stress_tests/
+│           │   ├── 05_strategy/
+│           │   ├── 06_backtests/
+│           │   ├── 07_performance/
+│           │   └── 08_analysis/
+│           └── 20260105_160450_TEST/  # Sessione TEST
+│               ├── 01_health_checks/
+│               ├── 03_guardrails/
+│               ├── 05_strategy/
+│               └── 08_analysis/
+├── scripts/
+│   ├── core/                   # Session manager & test
+│   │   ├── session_manager.py
+│   │   ├── quick_test.py
+│   │   ├── health_check.py
+│   │   ├── check_guardrails.py
+│   │   ├── stress_test.py
+│   │   ├── strategy_engine.py
+│   │   └── backtest_runner.py
+│   ├── setup_db.py
+│   ├── load_trading_calendar.py
+│   ├── ingest_data.py
+│   ├── compute_signals.py
+│   └── update_ledger.py
+└── docs/
+    ├── 002 v10 - DIPF ETF-ITA prj.md
+    ├── 002 v10 - DATADICTIONARY.md
+    ├── 002 v10 - README.md
+    └── 002 v10 - TODOLIST.md
 ```
 
 ---

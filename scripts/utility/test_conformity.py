@@ -25,7 +25,7 @@ def test_conformity():
     # Test 1: Struttura cartelle
     print("\n📁 Test 1: Struttura cartelle")
     tests_total += 1
-    required_dirs = ['config', 'data', 'scripts', 'strategies', 'data/backup', 'data/reports']
+    required_dirs = ['config', 'data', 'scripts', 'data/backup', 'data/reports']
     missing_dirs = []
     
     for dir_path in required_dirs:

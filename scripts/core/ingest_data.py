@@ -106,7 +106,7 @@ def validate_data_quality(df, symbol):
     
     # Quality Gate 3: Spike Detection (>15%)
     df_sorted = df.sort_index()
-    price_change = df_sorted['Close'].pct_change().abs()
+    price_change = df_sorted['Close'].pct_change(fill_method=None).abs()
     spike_mask = price_change > 0.15
     spike_count = spike_mask.sum()
     if spike_count > 0:

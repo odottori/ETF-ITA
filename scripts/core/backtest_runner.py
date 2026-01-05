@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from session_manager import get_session_manager
+
 def backtest_runner():
     """Esegue backtest completo con Run Package"""
     
@@ -22,6 +24,9 @@ def backtest_runner():
     
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    
+    # Inizializza session manager
+    session_manager = get_session_manager()
     
     # Carica configurazione
     with open(config_path, 'r') as f:
@@ -44,9 +49,8 @@ def backtest_runner():
         
         print(f" Run ID: {run_id}")
         
-        # 3. Crea cartella report
-        reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports', run_id)
-        os.makedirs(reports_dir, exist_ok=True)
+        # 3. Crea sottocartella backtest nella sessione corrente
+        backtest_dir = session_manager.create_backtest_dir(run_id)
         
         # 4. Calcola KPI portfolio
         print(" Calcolo KPI portfolio...")
@@ -95,10 +99,11 @@ def backtest_runner():
             'summary': generate_summary(run_id, kpi_data, benchmark_data)
         }
         
-        # 7. Salva artefatti
-        manifest_file = os.path.join(reports_dir, 'manifest.json')
-        kpi_file = os.path.join(reports_dir, 'kpi.json')
-        summary_file = os.path.join(reports_dir, 'summary.md')
+        # 7. Salva artefatti nella sottocartella backtest con timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        manifest_file = backtest_dir / f'manifest_{timestamp}.json'
+        kpi_file = backtest_dir / f'kpi_{timestamp}.json'
+        summary_file = backtest_dir / f'summary_{timestamp}.md'
         
         with open(manifest_file, 'w') as f:
             json.dump(run_package['manifest'], f, indent=2)
@@ -109,7 +114,7 @@ def backtest_runner():
         with open(summary_file, 'w', encoding='utf-8') as f:
             f.write(run_package['summary'])
         
-        print(f" Run Package salvato in: {reports_dir}")
+        print(f" Run Package salvato in: {backtest_dir}")
         
         # 8. Stampa riepilogo
         print(f"\n BACKTEST RESULTS:")
@@ -222,7 +227,7 @@ def calculate_kpi(conn, config):
         df.set_index('date', inplace=True)
         
         # Calcola returns giornalieri
-        df['daily_return'] = df['adj_close'].pct_change()
+        df['daily_return'] = df['adj_close'].pct_change(fill_method=None)
         
         # Rimuovi primi return (NaN)
         df = df.dropna()
@@ -307,7 +312,7 @@ def calculate_benchmark_kpi(conn, config):
         df.set_index('date', inplace=True)
         
         # Calcola returns giornalieri
-        df['daily_return'] = df['adj_close'].pct_change()
+        df['daily_return'] = df['adj_close'].pct_change(fill_method=None)
         
         # Rimuovi primi return (NaN)
         df = df.dropna()

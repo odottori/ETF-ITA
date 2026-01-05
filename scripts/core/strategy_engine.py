@@ -8,11 +8,12 @@ import sys
 import os
 import json
 import duckdb
-import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from session_manager import get_session_manager
 
 def strategy_engine(dry_run=True):
     """Motore strategia con dry-run"""
@@ -58,15 +59,15 @@ def strategy_engine(dry_run=True):
         HAVING SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) != 0
         """).fetchall()
         
-        positions_dict = {symbol: {'qty': qty, 'avg_price': avg_price} for symbol, qty, avg_buy_price in positions}
+        positions_dict = {symbol: {'qty': qty, 'avg_price': avg_buy_price if avg_buy_price else 0} for symbol, qty, avg_buy_price in positions}
         
         # 3. Ottieni prezzi correnti
         print(" Caricamento prezzi correnti...")
         
         current_prices = {}
-        for symbol, _ in current_signals:
+        for symbol, signal_state, risk_scalar, explain_code in current_signals:
             price_data = conn.execute("""
-            SELECT adj_close, close, volume, volatility_20d
+            SELECT adj_close, adj_close as close, 0 as volume, volatility_20d
             FROM risk_metrics 
             WHERE symbol = ? AND date = (SELECT MAX(date) FROM risk_metrics WHERE symbol = ?)
             """, [symbol, symbol]).fetchone()
@@ -227,11 +228,19 @@ def strategy_engine(dry_run=True):
         
         # 6. Salva su file
         if dry_run:
-            orders_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'orders.json')
+            # Usa session manager ESISTENTE
+            session_manager = get_session_manager()
+            
+            orders_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'orders')
+            os.makedirs(orders_dir, exist_ok=True)
+            orders_file = os.path.join(orders_dir, f"orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
             with open(orders_file, 'w') as f:
                 json.dump(orders_summary, f, indent=2)
             
             print(f" Ordini salvati in: {orders_file}")
+            
+            # Salva nella STESSA sessione
+            session_manager.add_report_to_session('strategy', orders_summary, 'json')
             
             # Stampa riepilogo
             print(f"\n RIEPILOGO ORDINI:")

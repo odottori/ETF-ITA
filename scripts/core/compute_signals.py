@@ -11,6 +11,7 @@ import duckdb
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+from itertools import chain
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -182,17 +183,9 @@ def compute_signals():
                     'regime_filter': regime_filter
                 })
             
-            # Insert signals nel database
+            # Insert signals nel database con UPSERT
             if signals_data:
-                # Pulisci signals esistenti per questo simbolo
-                start_date = signals_data[0]['date']
-                end_date = signals_data[-1]['date']
-                conn.execute("""
-                DELETE FROM signals 
-                WHERE symbol = ? AND date BETWEEN ? AND ?
-                """, [symbol, start_date, end_date])
-                
-                # Insert nuovi signals
+                # Usa UPSERT di DuckDB (INSERT OR REPLACE)
                 signals_to_insert = []
                 for signal in signals_data:
                     signals_to_insert.append((
@@ -208,12 +201,13 @@ def compute_signals():
                         datetime.now()
                     ))
                 
+                # Usa INSERT OR REPLACE per gestire duplicati automaticamente
                 conn.executemany("""
-                INSERT INTO signals (date, symbol, signal_state, risk_scalar, explain_code, sma_200, volatility_20d, spy_guard, regime_filter, created_at)
+                INSERT OR REPLACE INTO signals (date, symbol, signal_state, risk_scalar, explain_code, sma_200, volatility_20d, spy_guard, regime_filter, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, signals_to_insert)
                 
-                print(f"    {symbol}: {len(signals_data)} signals computed")
+                print(f"    {symbol}: {len(signals_data)} signals upserted")
                 total_signals += len(signals_data)
         
         # 4. Report segnali correnti

@@ -13,7 +13,8 @@
 **Correlazione ETF:** **0.821** (CSSPX-XS2L)  
 **Volatilità Portfolio:** **26.75%** (elevata)  
 **Max Drawdown:** **-59.06%** (critico)  
-**Reports Location:** **data/reports/analysis/**  
+**Reports Location:** **data/reports/sessions/<timestamp>/**  
+**Report Structure:** automated/ + analysis/ + session_info.json  
 **Risk Analysis:** **analysis/reports/**
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
 

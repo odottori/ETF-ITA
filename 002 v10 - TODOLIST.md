@@ -30,11 +30,11 @@
 | 🔍 | `scripts/archive/complete_system_test.py` | assessment completo | Sistema | ✅ DONE |
 
 ### 📊 **REPORTS SYSTEMA**
-- **Health Check**: `data/reports/analysis/health_report_20260104_164700.md`
-- **Stress Test**: `data/reports/analysis/stress_test_20260104_172824.json`
-- **Automated Test**: `data/reports/analysis/automated_test_cycle_20260104_173315.json`
-- **Risk Analysis**: `analysis/reports/comprehensive_risk_analysis_20260105_091552.json`
-- **Risk Summary**: `analysis/reports/risk_assessment_summary.md`
+- **Session Structure**: `data/reports/sessions/<timestamp>/`
+- **Automated Reports**: `automated/` (health_check, stress_test, test_cycle)
+- **Analysis Reports**: `analysis/` (complete_analysis, project_reports)
+- **Session Metadata**: `session_info.json`
+- **Current Session**: `20260105_085740/`
 - **Performance Generator**: `scripts/core/performance_report_generator.py`
 
 ---
@@ -73,7 +73,7 @@
 - **Issues Integrity**: 75 (85.3% weekend/festivi)
 - **Stato Sistema**: COMPLETATO
 - **Pronto per**: Produzione
-- **Reports Location**: data/reports/analysis/
+- **Reports Structure**: sessions/<timestamp>/[automated|analysis]/
 - **Risk Analysis**: analysis/reports/
 
 ### 🔍 **TEST COMPLETO SISTEMA**

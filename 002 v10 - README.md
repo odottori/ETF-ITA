@@ -204,40 +204,43 @@ Get-Content analysis/reports/risk_assessment_summary.md
 **📁 Struttura Reports:**
 ```
 data/reports/sessions/
-└── 20260104_164304/           # Session storica con dati reali
-    ├── session_info.json      # Metadata sessione
-    ├── health_report.md       # Health check (markdown)
-    ├── stress_test.json       # Stress test 1 (16:43)
-    ├── stress_test_2.json     # Stress test 2 (17:28)
-    └── automated_test_cycle.json # Analisi ottimizzazione (17:33)
+└── 20260105_085740/           # Session con dati reali
+    ├── automated/             # Report generati automaticamente
+    │   ├── automated_test_cycle.json
+    │   ├── health_check.json
+    │   └── stress_test.json
+    ├── analysis/               # Report analisi ad-hoc
+    │   ├── complete_analysis.json
+    │   └── project_analysis_report.md
+    └── session_info.json      # Metadata sessione
 ```
 
 **🎯 Logica di Organizzazione:**
-- **Una sessione = un lancio**: Tutti i report dello stesso lancio insieme
-- **Nome directory**: Data/ora del primo file generato
-- **Nomi file**: Senza timestamp (solo tipo report)
-- **Formati uniformi**: Health report in markdown, dati in JSON
+- **Una sessione = un timestamp**: Tutti i report dello stesso periodo insieme
+- **Sottocartelle per tipo**: automated/ vs analysis/ per separazione logica
+- **Nomi file senza timestamp**: Solo tipo report (timestamp nella directory)
+- **Formati uniformi**: JSON per dati, MD per report leggibili
+- **Metadata centralizzati**: session_info.json per ogni sessione
 
 **📋 Session Disponibile:**
-- **20260104_164304**: Dati reali originali
-  - Health Report: Status HEALTHY, 75 integrity issues
-  - Stress Test 1: CAGR 4.67%, Risk HIGH
-  - Stress Test 2: CAGR 4.65%, Risk HIGH  
-  - Automated Test: CSSPX vol 17.9%, XS2L vol 39.8%
+- **20260105_085740**: Dati reali e analisi complete
+  - **automated/**: Test cycle automatico
+  - **analysis/**: Analisi progetto complete
+  - **session_info.json**: Metadata sessione
 
 **🚀 Comandi Report:**
 ```powershell
 # Health check completo
 py scripts/core/health_check.py
-# Output: data/reports/sessions/<timestamp>/health_report.md
+# Output: data/reports/sessions/<timestamp>/automated/health_check.json
 
 # Stress test Monte Carlo
 py scripts/core/stress_test.py
-# Output: data/reports/sessions/<timestamp>/stress_test.json
+# Output: data/reports/sessions/<timestamp>/automated/stress_test.json
 
 # Analisi ottimizzazione
 py scripts/core/automated_test_cycle.py
-# Output: data/reports/sessions/<timestamp>/automated_test_cycle.json
+# Output: data/reports/sessions/<timestamp>/automated/automated_test_cycle.json
 
 # Report performance completo
 py scripts/core/performance_report_generator.py
@@ -246,18 +249,17 @@ py scripts/core/performance_report_generator.py
 
 **🎯 Accesso Rapido:**
 ```powershell
-# Session storica con dati reali
-Get-Content data/reports/sessions/20260104_164304/session_info.json
+# Session corrente con dati reali
+Get-Content data/reports/sessions/20260105_085740/session_info.json
 
-# Health report reale (markdown)
-Get-Content data/reports/sessions/20260104_164304/health_report.md
+# Report automatici
+Get-Content data/reports/sessions/20260105_085740/automated/automated_test_cycle.json
 
-# Stress test reali
-Get-Content data/reports/sessions/20260104_164304/stress_test.json
-Get-Content data/reports/sessions/20260104_164304/stress_test_2.json
+# Report analisi
+Get-Content data/reports/sessions/20260105_085740/analysis/complete_analysis.json
 
-# Analisi completa reale
-Get-Content data/reports/sessions/20260104_164304/automated_test_cycle.json
+# Report leggibili
+Get-Content data/reports/sessions/20260105_085740/analysis/project_analysis_report.md
 ```
 
 ### 📁 Scripts Organization

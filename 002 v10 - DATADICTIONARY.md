@@ -3,6 +3,7 @@
 **Package:** v10 (naming canonico)  
 **Doc Revision (internal):** r27 — 2026-01-05  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
+**Reports Structure:** `data/reports/sessions/<timestamp>/[automated|analysis]/`  
 **Risk Analysis:** `analysis/reports/comprehensive_risk_analysis_*.json`  
 **Risk Summary:** `analysis/reports/risk_assessment_summary.md`  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  

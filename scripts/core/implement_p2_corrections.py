@@ -54,7 +54,7 @@ def implement_p2_corrections():
                 "slippage_bps": 3
             },
             "execution_model": "T+1_OPEN",
-            "fx_enabled": false
+            "fx_enabled": False
         }
         
         current_config['universe']['bond'] = [bond_etf]
@@ -113,6 +113,7 @@ def implement_p2_corrections():
         WITH daily_returns AS (
             SELECT 
                 symbol,
+                date,
                 (close / LAG(close) OVER (PARTITION BY symbol ORDER BY date) - 1) as daily_return
             FROM market_data 
             WHERE symbol IN ('CSSPX.MI', 'XS2L.MI')

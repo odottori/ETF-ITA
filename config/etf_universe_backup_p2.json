@@ -56,6 +56,23 @@
         "fx_enabled": true,
         "fx_pair": "USDEUR=X"
       }
+    ],
+    "bond": [
+      {
+        "symbol": "AGGH.MI",
+        "name": "iShares Core Global Aggregate Bond EUR Hedged",
+        "dist_policy": "ACC",
+        "ter": 0.1,
+        "currency": "EUR",
+        "tax_category": "OICR_ETF",
+        "aum_eur": 1000000000,
+        "cost_model": {
+          "commission_pct": 0.001,
+          "slippage_bps": 3
+        },
+        "execution_model": "T+1_OPEN",
+        "fx_enabled": false
+      }
     ]
   },
   "risk_management": {
@@ -70,13 +87,19 @@
     "aggressive_scalar_warning": 0.3,
     "aggressive_scalar_critical": 0.1,
     "risk_scalar_floor": 0.15,
-    "xs2l_position_cap": 0.4,
+    "xs2l_position_cap": 0.35,
     "xs2l_stop_loss": -0.15,
     "xs2l_trailing_stop": -0.1,
     "zombie_price_detection": true,
     "synthetic_volatility_zombie": 0.25,
     "cash_interest_rate": 0.02,
-    "cash_interest_monthly": true
+    "cash_interest_monthly": true,
+    "correlation_threshold": 0.7,
+    "concentration_threshold": 0.5,
+    "diversification_breaker_threshold": 0.5,
+    "bond_allocation_min": 0.15,
+    "volatility_target_optimized": 0.2,
+    "p2_guardrails_enabled": true
   },
   "fiscal": {
     "tax_rate_capital": 0.26,

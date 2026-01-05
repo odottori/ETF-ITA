@@ -13,7 +13,7 @@
 **Risk Level:** **CONTROLLED** (Score: 0.40)  
 **Correlazione ETF:** **0.821** (CSSPX-XS2L)  
 **Volatilità Portfolio:** **26.75%** (controllata)  
-**Max Drawdown:** **-59.06%** (protetto)  
+**Max Drawdown:** **-59.06%** (XS2L asset-level, portfolio-level protetto da risk scalar 0.001)  
 **Reports Location:** **data/reports/sessions/<timestamp>/**  
 **Report Structure:** 01-09 ordinal categories + session_info.json  
 **Risk Analysis:** **data/reports/sessions/<timestamp>/04_risk/**  

@@ -67,7 +67,7 @@ def strategy_engine(dry_run=True):
         current_prices = {}
         for symbol, signal_state, risk_scalar, explain_code in current_signals:
             price_data = conn.execute("""
-            SELECT adj_close, adj_close as close, 0 as volume, volatility_20d
+            SELECT adj_close, close, 0 as volume, volatility_20d
             FROM risk_metrics 
             WHERE symbol = ? AND date = (SELECT MAX(date) FROM risk_metrics WHERE symbol = ?)
             """, [symbol, symbol]).fetchone()

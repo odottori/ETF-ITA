@@ -15,7 +15,7 @@
 | EP | Script/Command | Output principale | Cross-Ref | Status |
 |---|---|---|---|---|
 | EP-01 | `scripts/core/setup_db.py` | Crea `data/etf_data.duckdb` + schema | DD-2..DD-12 | ✅ DONE |
-| EP-02 | `scripts/core/load_trading_calendar.py` | Popola `trading_calendar` | DD-3.1 | ✅ DONE |
+| EP-02 | `scripts/core/load_trading_calendar.py` | Popola `trading_calendar` (2020-2026) | DD-3.1 | ✅ DONE |
 | EP-03 | `scripts/core/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | ✅ DONE |
 | EP-04 | `scripts/core/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | ✅ DONE |
 | EP-05 | `scripts/core/compute_signals.py` | segnali + snapshot | DD-6 | ✅ DONE |
@@ -30,7 +30,8 @@
 | 🔍 | `analysis/scripts/comprehensive_risk_analysis.py` | risk analysis completo | Risk Assessment | ✅ DONE |
 | 🤖 | `analysis/scripts/complete_system_validation.py` | system validation completa | System Test | ✅ DONE |
 | 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | ✅ DONE |
-| 🔍 | `scripts/archive/complete_system_test.py` | assessment completo | Sistema | ✅ DONE |
+| 🛡️ | `scripts/core/check_price_convention.py` | sanity check price convention | Rule Enforcement | ✅ DONE |
+| 🧾 | `scripts/core/implement_tax_logic.py` | implementazione logica tax_category | Fiscal Logic | ✅ DONE |
 
 ### REPORTS SYSTEMA
 - **Session Structure**: `data/reports/sessions/<timestamp>/[01-09_ordinal]/`
@@ -48,7 +49,7 @@
 
 ### ✅ **ENTRYPOINT COMPLETATI (12/13)**
 - **EP-01**: Database setup completo
-- **EP-02**: Trading calendar BIT 2020-2025
+- **EP-02**: Trading calendar BIT 2020-2026 (254 giorni trading 2026)
 - **EP-03**: Data ingestion con quality gates
 - **EP-04**: Health check e integrity
 - **EP-05**: Signal engine completo
@@ -140,43 +141,35 @@
   - validazione baseline EUR/ACC
   - reporting violazioni
 
----
-
-## 🎉 **FASE 1 COMPLETATA CON SUCCESSO**
 - [🟢] Evento `INTEREST` mensile su cash_balance (fiscal_ledger)
 - DoD: calcolo documentato; rounding a 0.01 EUR; inclusione nel report KPI.
 
-### TL-2.1 Categoria fiscale strumento (CRITICO)
-- [🔴] Implementare `tax_category` (default `OICR_ETF`) e logica:
-  - `OICR_ETF`: gain tassato pieno 26% (no zainetto)
-  - `ETC_ETN_STOCK`: gain può compensare zainetto
-- DoD: unit test su caso gain ETF con zainetto presente → nessuna compensazione.
+### TL-2.1 Categoria fiscale (OICR_ETF vs ETC/ETN)
+- [🟢] **COMPLETATO** `scripts/core/implement_tax_logic.py` (logica tax_category)
+- DoD: test con gain ETF + zainetto presente → nessuna compensazione.
 
 ### TL-2.2 Zainetto: scadenza corretta 31/12 (anno+4)
-- [🔴] `expires_at = 31/12/(year(realize)+4)` su `tax_loss_buckets`
+- [🟢] **COMPLETATO** `scripts/core/implement_tax_logic.py` (expires_at formula)
 - DoD: test con realize 05/01/2026 → expires 31/12/2030.
 
 ### TL-2.3 close vs adj_close (coerenza)
-- [🔴] Segnali su `adj_close`; ledger valuation su `close`
+- [🟢] **COMPLETATO** `scripts/core/check_price_convention.py` (sanity check)
 - DoD: test che impedisce uso `adj_close` in valuation ledger (query/flag).
 
 ### TL-2.4 Zombie/stale prices (health + risk metrics)
-- [🔴] In health_check: rilevare close ripetuto + volume=0 su giorno open → flag "ZOMBIE"
+- [🟢] **COMPLETATO** `scripts/core/zombie_exclusion_enforcer.py` (esclusione KPI)
 - DoD: risk metrics escludono giorni ZOMBIE dal calcolo della volatilità.
 
 ### TL-2.5 Run Package completo (manifest/kpi/summary)
-- [🔴] EP-09 deve produrre tutti gli artefatti obbligatori
+- [🟢] **COMPLETATO** `EP-09` produce manifest/kpi/summary completi
 - DoD: mancanza file → exit!=0; manifest include config_hash e data_fingerprint.
 
 ### TL-2.6 Spike threshold per simbolo (max_daily_move_pct)
-- [🔴] Aggiungere `max_daily_move_pct` (default 0.15) in `etf_universe.json` e/o `symbol_registry`
-- [🔴] In ingestion: usare la soglia specifica per scartare spike > soglia e loggare la soglia usata
+- [🟢] **COMPLETATO** `scripts/core/spike_detector.py` (threshold dinamici)
 - DoD: test su simbolo con soglia più stretta (es. 10%) e su simbolo default 15%.
 
 ### TL-2.7 Benchmark after-tax corretto (INDEX vs ETF)
-- [🔴] Il reporting deve distinguere `benchmark_kind`:
-  - `INDEX`: no tassazione simulata (solo friction proxy)
-  - `ETF`: tassazione simulata coerente con `tax_category`
+- [🟢] **COMPLETATO** `manifest_*.json` con `benchmark_kind: INDEX`
 - DoD: KPI benchmark non distorti; `manifest.json` esplicita `benchmark_kind`.
 
 ---
@@ -226,13 +219,13 @@
 - **TL-1.6**: EUR/ACC gate 
 
 ### REALISMO FISCALE COMPLETO
-- **TL-2.1**: Categoria fiscale 
-- **TL-2.2**: Zainetto scadenza 
-- **TL-2.3**: close vs adj_close 
-- **TL-2.4**: Zombie prices 
-- **TL-2.5**: Run Package 
-- **TL-2.6**: Spike threshold 
-- **TL-2.7**: Benchmark after-tax 
+- **TL-2.1**: Categoria fiscale ✅
+- **TL-2.2**: Zainetto scadenza ✅
+- **TL-2.3**: close vs adj_close ✅
+- **TL-2.4**: Zombie prices ✅
+- **TL-2.5**: Run Package ✅
+- **TL-2.6**: Spike threshold ✅
+- **TL-2.7**: Benchmark after-tax ✅ 
 
 ### SMART RETAIL COMPLETO
 - **TL-3.1**: Inerzia tax-friction 

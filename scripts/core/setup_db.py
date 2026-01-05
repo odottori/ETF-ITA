@@ -113,16 +113,19 @@ def setup_database():
         )
         """)
         
-        # Tabella corporate_actions (opzionale)
+        # Tabella symbol_registry
         conn.execute("""
-        CREATE TABLE IF NOT EXISTS corporate_actions (
-            id INTEGER PRIMARY KEY,
-            symbol VARCHAR NOT NULL,
-            action_date DATE NOT NULL,
-            action_type VARCHAR NOT NULL,
-            description TEXT,
-            raw_data TEXT,
-            processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS symbol_registry (
+            symbol VARCHAR PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE,
+            status VARCHAR DEFAULT 'ACTIVE',
+            category VARCHAR NOT NULL,
+            currency VARCHAR NOT NULL,
+            distribution_policy VARCHAR DEFAULT 'ACC',
+            tax_category VARCHAR DEFAULT 'OICR_ETF',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
         

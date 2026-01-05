@@ -14,6 +14,7 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
+from implement_risk_controls import check_stop_loss_trailing_stop, calculate_portfolio_value, calculate_target_weights, calculate_current_weights
 
 def strategy_engine(dry_run=True):
     """Motore strategia con dry-run"""
@@ -67,7 +68,7 @@ def strategy_engine(dry_run=True):
         current_prices = {}
         for symbol, signal_state, risk_scalar, explain_code in current_signals:
             price_data = conn.execute("""
-            SELECT adj_close, close, 0 as volume, volatility_20d
+            SELECT adj_close, adj_close as close, 0 as volume, volatility_20d
             FROM risk_metrics 
             WHERE symbol = ? AND date = (SELECT MAX(date) FROM risk_metrics WHERE symbol = ?)
             """, [symbol, symbol]).fetchone()
@@ -80,10 +81,67 @@ def strategy_engine(dry_run=True):
                     'volatility_20d': price_data[3]
                 }
         
-        # 4. Genera ordini
-        print(" Generazione ordini...")
+        # 4. Calcola portfolio value reale da ledger
+        print(" Calcolo portfolio value da ledger...")
+        portfolio_value = calculate_portfolio_value(conn)
+        print(f" Portfolio value attuale: €{portfolio_value:,.2f}")
         
+        # 5. Calcola pesi target e attuali
+        target_weights = calculate_target_weights(config, portfolio_value)
+        current_weights = calculate_current_weights(conn, portfolio_value)
+        
+        print(f" Portfolio value attuale: €{portfolio_value:,.2f}")
+        print(f" Pesi target: {target_weights}")
+        print(f" Pesi attuali: {current_weights}")
+        
+        # 6. Deterministic rebalancing based on weight deviation
+        rebalance_threshold = 0.05  # 5% deviation threshold
         orders = []
+        
+        print(" Analisi rebalancing deterministico...")
+        for symbol in target_weights:
+            target_weight = target_weights[symbol]
+            current_weight = current_weights.get(symbol, 0.0)
+            weight_deviation = abs(target_weight - current_weight)
+            
+            print(f"  {symbol}: target {target_weight:.3f} vs actual {current_weight:.3f} (dev: {weight_deviation:.3f})")
+            
+            # Force rebalance if deviation > threshold AND no conflicting signal
+            if weight_deviation > rebalance_threshold:
+                # Check if there's a conflicting signal for this symbol
+                symbol_signal = next((s for s in current_signals if s[0] == symbol), None)
+                if symbol_signal and symbol_signal[1] in ['RISK_ON', 'RISK_OFF']:
+                    print(f"    ⚠️  {symbol}: Signal {symbol_signal[1]} takes precedence over rebalancing")
+                    continue
+                
+                target_position_value = portfolio_value * target_weight
+                current_position_value = portfolio_value * current_weight
+                
+                if symbol in current_prices:
+                    current_price = current_prices[symbol]['close']
+                    target_qty = target_position_value / current_price
+                    current_qty = positions_dict.get(symbol, {}).get('qty', 0)
+                    
+                    qty_diff = target_qty - current_qty
+                    
+                    if abs(qty_diff) > 0:  # Only trade if meaningful difference
+                        action = 'BUY' if qty_diff > 0 else 'SELL'
+                        orders.append({
+                            'symbol': symbol,
+                            'action': action,
+                            'qty': abs(qty_diff),
+                            'price': current_price,
+                            'reason': f'REBALANCE_{weight_deviation:.1%}_DEVIATION',
+                            'expected_alpha_est': 0.0,
+                            'fees_est': 0.0,  # Will be calculated below
+                            'tax_friction_est': 0.0,  # Will be calculated below
+                            'do_nothing_score': -1.0,  # Force rebalancing
+                            'recommendation': 'TRADE'
+                        })
+                        print(f"    🔄 REBALANCE {symbol}: {action} {abs(qty_diff):.0f} shares")
+        
+        # 7. Process signals for remaining positions
+        print(" Elaborazione segnali...")
         
         for symbol, signal_state, risk_scalar, explain_code in current_signals:
             if symbol not in current_prices:
@@ -93,8 +151,49 @@ def strategy_engine(dry_run=True):
             current_price = current_prices[symbol]['close']
             current_vol = current_prices[symbol]['volatility_20d']
             
+            # 4.1 Check stop-loss/trailing stop BEFORE signal processing
+            stop_action, stop_reason = check_stop_loss_trailing_stop(config, symbol, current_price, positions_dict)
+            
+            if stop_action == 'SELL':
+                # Stop-loss/trailing stop triggered - force sell
+                if symbol in positions_dict:
+                    qty = positions_dict[symbol]['qty']
+                    
+                    # Costi vendita
+                    position_value = qty * current_price
+                    commission_pct = config['universe']['core'][0]['cost_model']['commission_pct']
+                    commission = position_value * commission_pct
+                    if position_value < 1000:
+                        commission = max(5.0, commission)
+                    
+                    slippage_bps = max(2, current_vol * 0.5)
+                    slippage = position_value * (slippage_bps / 10000)
+                    
+                    # Tax su gain
+                    avg_price = positions_dict[symbol]['avg_price']
+                    if current_price > avg_price:
+                        realized_gain = (current_price - avg_price) * qty
+                        tax_estimate = realized_gain * 0.26
+                    else:
+                        tax_estimate = 0.0
+                    
+                    orders.append({
+                        'symbol': symbol,
+                        'action': 'SELL',
+                        'qty': qty,
+                        'price': current_price,
+                        'reason': stop_reason,
+                        'expected_alpha_est': 0.0,
+                        'fees_est': commission + slippage,
+                        'tax_friction_est': tax_estimate,
+                        'do_nothing_score': 0.0,
+                        'recommendation': 'FORCE_SELL'
+                    })
+                    print(f"🛑 {symbol}: STOP LOSS TRIGGERED - {stop_reason}")
+                continue
+            
             # Calcola posizione target
-            portfolio_value = 20000.0  # TODO: calcolare da ledger
+            # portfolio_value = 20000.0  # TODO: calcolare da ledger - NOW IMPLEMENTED
             
             if signal_state == 'RISK_ON':
                 # Position sizing basato su risk scalar

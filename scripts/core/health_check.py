@@ -210,20 +210,21 @@ def health_check():
         print(f"\n TRADING CALENDAR COHERENCE")
         print("-" * 40)
         
-        # Verifica coerenza calendar vs market data
+        # Verifica coerenza calendar vs market data (solo fino a oggi)
         coherence_check = conn.execute("""
         WITH calendar_days AS (
             SELECT date FROM trading_calendar 
             WHERE venue = 'BIT' AND is_open = TRUE
+            AND date <= CURRENT_DATE
         ),
         market_days AS (
             SELECT DISTINCT date FROM market_data
+            WHERE date <= CURRENT_DATE
         ),
         missing_data AS (
             SELECT c.date FROM calendar_days c
             LEFT JOIN market_days m ON c.date = m.date
             WHERE m.date IS NULL
-            LIMIT 10
         )
         SELECT COUNT(*) as total_missing FROM missing_data
         """).fetchone()[0]

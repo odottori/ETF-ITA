@@ -79,17 +79,21 @@ def enhanced_risk_management():
         for symbol, vol, price, volume, prev_close, regime, scalar in vol_analysis:
             print(f"      {symbol}: vol {vol:.1%} → regime {regime} → scalar {scalar:.2f}")
             
-            # Update risk scalar in signals table
+            # Update risk scalar in signals table (IDEMPOTENT)
             if regime != 'NORMAL':
                 update_query = """
                 UPDATE signals 
-                SET risk_scalar = ? * risk_scalar,
-                    explain_code = explain_code || '_AGGRESSIVE_VOL'
+                SET risk_scalar = ?,
+                    explain_code = CASE 
+                        WHEN POSITION('_AGGRESSIVE_VOL' IN explain_code) > 0 
+                        THEN explain_code 
+                        ELSE explain_code || '_AGGRESSIVE_VOL' 
+                    END
                 WHERE symbol = ? 
                 AND date = (SELECT MAX(date) FROM signals)
                 """
                 conn.execute(update_query, [scalar, symbol])
-                print(f"         ✅ Risk scalar aggiornato per {symbol}")
+                print(f"         ✅ Risk scalar aggiornato per {symbol} (idempotent)")
         
         # 2. Zombie Price Detection
         print("\n2️⃣ DETECTING ZOMBIE PRICES (Illiquid ETFs)")
@@ -147,18 +151,22 @@ def enhanced_risk_management():
                 print(f"      {symbol}: {status} ({count} giorni) - vol medio: {avg_vol:.0f}")
                 zombie_affected_symbols.append(symbol)
                 
-                # Applica zombie price guardrail
+                # Applica zombie price guardrail (IDEMPOTENT)
                 if status == 'ZOMBIE_3_DAYS':
                     # Forza risk scalar a 0 per zombie prices
                     guardrail_query = """
                     UPDATE signals 
                     SET risk_scalar = 0.0,
-                        explain_code = 'ZOMBIE_PRICE_GUARD_' || explain_code
+                        explain_code = CASE 
+                            WHEN POSITION('ZOMBIE_PRICE_GUARD' IN explain_code) > 0 
+                            THEN explain_code 
+                            ELSE 'ZOMBIE_PRICE_GUARD_' || explain_code 
+                        END
                     WHERE symbol = ? 
                     AND date = (SELECT MAX(date) FROM signals)
                     """
                     conn.execute(guardrail_query, [symbol])
-                    print(f"         🛑 ZOMBIE GUARD: Risk scalar = 0 per {symbol}")
+                    print(f"         🛑 ZOMBIE GUARD: Risk scalar = 0 per {symbol} (idempotent)")
         
         if not zombie_affected_symbols:
             print("      ✅ Nessun zombie price detected")
@@ -261,15 +269,20 @@ def enhanced_risk_management():
                 UPDATE signals 
                 SET risk_scalar = LEAST(risk_scalar, ?),
                     explain_code = CASE 
-                        WHEN ? = 'CRITICAL_DD' THEN 'XS2L_CRITICAL_DD_GUARD'
-                        WHEN ? = 'WARNING_DD' THEN 'XS2L_WARNING_DD_GUARD'
-                        ELSE explain_code
+                        WHEN POSITION('XS2L_CRITICAL_DD_GUARD' IN explain_code) > 0 
+                        OR POSITION('XS2L_WARNING_DD_GUARD' IN explain_code) > 0
+                        THEN explain_code 
+                        ELSE CASE 
+                            WHEN ? = 'CRITICAL_DD' THEN 'XS2L_CRITICAL_DD_GUARD'
+                            WHEN ? = 'WARNING_DD' THEN 'XS2L_WARNING_DD_GUARD'
+                            ELSE explain_code
+                        END
                     END
                 WHERE symbol = 'XS2L.MI'
                 AND date = (SELECT MAX(date) FROM signals)
                 """
                 conn.execute(protection_query, [dd_scalar, dd_status, dd_status])
-                print(f"         🛡️ XS2L drawdown protection applicata")
+                print(f"         🛡️ XS2L drawdown protection applicata (idempotent)")
         
         # 5. Report finale
         print("\n5️⃣ ENHANCED RISK MANAGEMENT SUMMARY")

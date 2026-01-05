@@ -168,11 +168,11 @@ def stress_test():
             return False
         
         # 5th percentile Max Drawdown check
-        if max_dd_5th > -0.25:  # 25% max drawdown
-            print(f"️ HIGH RISK: 5th percentile MaxDD > 25% ({max_dd_5th:.1%})")
+        if max_dd_5th <= -0.25:  # 25% max drawdown
+            print(f"️ HIGH RISK: 5th percentile MaxDD <= 25% ({max_dd_5th:.1%})")
             print("   ️ Consider reducing position size or increasing diversification")
         else:
-            print(" ACCEPTABLE RISK: 5th percentile MaxDD <= 25%")
+            print(" ACCEPTABLE RISK: 5th percentile MaxDD > 25%")
         
         # Sharpe ratio analysis corretto
         if cagr_std > 0:  # Solo se varianza non zero

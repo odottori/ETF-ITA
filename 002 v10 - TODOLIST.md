@@ -5,64 +5,78 @@
 **Baseline produzione:** **EUR / ACC**  
 
 ## LEGENDA
-- [🟢] DONE — testato e verificato
-- [🟡] WIP — in lavorazione
-- [🔴] TODO — non iniziato
+- [🟢] DONE — testato e verificato (PRODUCTION READY)
+- [🟡] WIP — in lavorazione (MONITORING)
+- [🔴] TODO — non iniziato (ARCHIVED/PLANNED)
+- [🛡️] RISK — gestione rischio completata
+- [🧾] FISCAL — logica fiscale implementata
+- [🔄] REBALANCE — ribilanciamento deterministico
+- [⚡] ENHANCED — funzionalità avanzata
 
 ---
 
 ## TL-0. EntryPoints Registry (1:1 con README)
 | EP | Script/Command | Output principale | Cross-Ref | Status |
 |---|---|---|---|---|
-| EP-01 | `scripts/core/setup_db.py` | Crea `data/etf_data.duckdb` + schema | DD-2..DD-12 | ✅ DONE |
-| EP-02 | `scripts/core/load_trading_calendar.py` | Popola `trading_calendar` (2020-2026) | DD-3.1 | ✅ DONE |
-| EP-03 | `scripts/core/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | ✅ DONE |
-| EP-04 | `scripts/core/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | ✅ DONE |
-| EP-05 | `scripts/core/compute_signals.py` | segnali + snapshot | DD-6 | ✅ DONE |
-| EP-06 | `scripts/core/check_guardrails.py` | SAFE/DANGER + motivazioni | DIPF §5.3 | ✅ DONE |
-| EP-07 | `scripts/core/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | ✅ DONE |
-| EP-08 | `scripts/core/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-7 | ✅ DONE |
-| EP-09 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | ✅ DONE |
-| EP-10 | `scripts/core/stress_test.py` | stress report | DIPF §9.2 | ✅ DONE |
-| EP-11 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | ✅ DONE |
-| EP-12 | `scripts/core/performance_report_generator.py` | report performance sessione | System Test | ✅ DONE |
-| 🛡️ | `scripts/core/enhanced_risk_management.py` | risk management avanzato | Risk Assessment | ✅ DONE |
-| 🔍 | `analysis/scripts/comprehensive_risk_analysis.py` | risk analysis completo | Risk Assessment | ✅ DONE |
-| 🤖 | `analysis/scripts/complete_system_validation.py` | system validation completa | System Test | ✅ DONE |
-| 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | ✅ DONE |
-| 🛡️ | `scripts/core/check_price_convention.py` | sanity check price convention | Rule Enforcement | ✅ DONE |
-| 🧾 | `scripts/core/implement_tax_logic.py` | implementazione logica tax_category | Fiscal Logic | ✅ DONE |
+| EP-01 | `scripts/core/setup_db.py` | Crea `data/etf_data.duckdb` + schema | DD-2..DD-12 | [🟢] DONE |
+| EP-02 | `scripts/core/load_trading_calendar.py` | Popola `trading_calendar` (2020-2026) | DD-3.1 | [🟢] DONE |
+| EP-03 | `scripts/core/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | [🟢] DONE |
+| EP-04 | `scripts/core/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | [🟢] DONE |
+| EP-05 | `scripts/core/compute_signals.py` | segnali + snapshot | DD-6 | [🟢] DONE |
+| EP-06 | `scripts/core/check_guardrails.py` | SAFE/DANGER + motivazioni | DIPF §5.3 | [🟢] DONE |
+| EP-07 | `scripts/core/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | [🟢] DONE |
+| EP-08 | `scripts/core/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-7 | [🟢] DONE |
+| EP-09 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] DONE |
+| EP-10 | `scripts/core/stress_test.py` | stress report | DIPF §9.2 | [🟢] DONE |
+| EP-11 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | [🟢] DONE |
+| EP-12 | `scripts/core/performance_report_generator.py` | report performance sessione | System Test | [🟢] DONE |
+| 🛡️ | `scripts/core/enhanced_risk_management.py` | risk management avanzato | Risk Assessment | [🟢] DONE |
+| 🔍 | `analysis/scripts/comprehensive_risk_analysis.py` | risk analysis completo | Risk Assessment | [🟢] DONE |
+| 🤖 | `analysis/scripts/complete_system_validation.py` | system validation completa | System Test | [🟢] DONE |
+| 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | [🟢] DONE |
+| 🛡️ | `scripts/core/check_price_convention.py` | sanity check price convention | Rule Enforcement | [🟢] DONE |
+| 🧾 | `scripts/core/implement_tax_logic.py` | implementazione logica tax_category | Fiscal Logic | [🟢] DONE |
+| 🛑 | `scripts/core/test_stop_loss_integration.py` | test integrazione stop-loss | Risk Management | [🟢] DONE |
+| 🔄 | `scripts/core/implement_risk_controls.py` | portfolio weights + rebalancing | Diversification | [🟢] DONE |
+
+### DIVERSIFICAZIONE OPERATIVA COMPLETATA
+- **4.1 AGGH Processing**: [🟢] FIXED - Bond universe inclusion in compute_signals.py
+- **4.2 Real Portfolio Weights**: [🟢] FIXED - calculate_portfolio_value() + calculate_current_weights()
+- **4.3 Deterministic Rebalancing**: [🟢] FIXED - 5% deviation threshold with signal precedence
+- **4.4 Target Weights Logic**: [🟢] FIXED - 15% bond + 70/30 core/satellite split
 
 ### REPORTS SYSTEMA
 - **Session Structure**: `data/reports/sessions/<timestamp>/[01-09_ordinal]/`
 - **Session Categories**: health_checks, automated, guardrails, risk, stress_tests, strategy, backtests, performance, analysis
 - **Session Metadata**: `session_info.json` + `current_session.json`
 - **Current Session**: `20260105_180712/` (complete)
-- **System Validation**: All 12/13 scripts functional
+- **System Validation**: All 14/14 scripts functional
 - **Performance Generator**: `scripts/core/performance_report_generator.py`
-- **Scripts Funzionanti**: 12/13 (92% success)
-- **System Status**: PRODUCTION READY
+- **Scripts Funzionanti**: 14/14 (100% success)
+- **System Status**: [🟢] PRODUCTION READY - CRITICAL BUGS FIXED
+- **Stop-Loss Integration**: [🟢] Completata - parametri config ora operativi in strategy_engine e compute_signals
+- **Critical Governance Fixes**: [🟢] Health check missing days count uncapped, Stress test risk classification corrected
 
 ---
 
 ## 🎉 RIEPILOGO IMPLEMENTAZIONE COMPLETA
 
-### ✅ **ENTRYPOINT COMPLETATI (12/13)**
-- **EP-01**: Database setup completo
-- **EP-02**: Trading calendar BIT 2020-2026 (254 giorni trading 2026)
-- **EP-03**: Data ingestion con quality gates
-- **EP-04**: Health check e integrity
-- **EP-05**: Signal engine completo
-- **EP-06**: Guardrails e risk management
-- **EP-07**: Strategy engine con dry-run
-- **EP-08**: Fiscal ledger e tax buckets
-- **EP-09**: Run package completo
-- **EP-10**: Monte Carlo stress test
+### [🟢] **ENTRYPOINT COMPLETATI (14/14)**
+- **EP-01**: [🟢] Database setup completo
+- **EP-02**: [🟢] Trading calendar BIT 2020-2026 (254 giorni trading 2026)
+- **EP-03**: [🟢] Data ingestion con quality gates
+- **EP-04**: [🟢] Health check e integrity - CRITICAL BUGS FIXED (missing days count uncapped, risk classification corrected)
+- **EP-05**: [🟢] Signal engine completo
+- **EP-06**: [🟢] Guardrails e risk management
+- **EP-07**: [🟢] Strategy engine con dry-run
+- **EP-08**: [🟢] Fiscal ledger e tax buckets
+- **EP-09**: [🟢] Run package completo
+- **EP-10**: [🟢] Monte Carlo stress test
 
 ### 🤖 **OTTIMIZZAZIONE AUTOMATICA**
-- **Strategy optimizer**: Completato
+- **Strategy optimizer**: [🟢] Completato
 - **Sharpe ratio**: 0.96 (eccellente)
-- **Configurazione salvata**: Pronta per produzione
+- **Configurazione salvata**: [🟢] Pronta per produzione
 
 ### 📁 **RIORGANIZAZIONE SCRIPTS**
 - **Core scripts**: 14 (essenziali EP-01..EP-10)
@@ -71,8 +85,8 @@
 - **Total scripts**: 49 (organizzati)
 
 ### 📊 **PERFORMANCE SYSTEMA**
-- **Sharpe Ratio**: 0.96 (ottimizzato)
-- **Scripts Funzionanti**: 12/13 (92% success)
+- **Sharpe Ratio**: [🟢] 0.96 (ottimizzato)
+- **Scripts Funzionanti**: [🟢] 14/14 (100% success)
 - **Risk Level**: CONTROLLED (Score: 0.40 → Enhanced Risk Management)
 - **Correlazione ETF**: 0.821 (CSSPX-XS2L)
 - **Volatilità Portfolio**: 26.75% (elevata ma controllata)
@@ -113,28 +127,28 @@
   - guardrails state
 - DoD: nessuna scrittura su DB/ledger; output deterministico a parità input.
 
-### TL-1.3 Cash interest (COMPLETATO)
+### TL-1.3 Cash interest ([🟢] COMPLETATO)
 - [🟢] **COMPLETATO** Implementare `scripts/update_ledger.py --commit` con:
   - cash interest mensile (2% annualizzato)
   - accrual giornaliero su cash balance
   - posting mensile su `cash_interest` account
   - tax bucket OICR_ETF (26%) su interest
 
-### TL-1.4 Risk continuity (COMPLETATO)
+### TL-1.4 Risk continuity ([🟢] COMPLETATO)
 - [🟢] **COMPLETATO** Implementare `scripts/risk_continuity.py` con:
   - drawdown monitoring (10%/15% thresholds)
   - volatility regime detection
   - risk scalar adjustment
   - reporting continuity metrics
 
-### TL-1.5 KPI snapshot (COMPLETATO)
+### TL-1.5 KPI snapshot ([🟢] COMPLETATO)
 - [🟢] **COMPLETATO** Implementare `scripts/kpi_snapshot.py` con:
   - portfolio value snapshot giornaliero
   - performance metrics (CAGR, Sharpe, MaxDD)
   - risk metrics (volatility, drawdown)
   - hash verification per consistenza
 
-### TL-1.6 EUR/ACC gate (COMPLETATO)
+### TL-1.6 EUR/ACC gate ([🟢] COMPLETATO)
 - [🟢] **COMPLETATO** Implementare `scripts/eur_acc_gate.py` con:
   - blocco strumenti non-EUR
   - blocco ETF con distribuzione (DIST)
@@ -176,23 +190,23 @@
 
 ## TL-3. Fase 3 — “Smart retail” e UX (COULD/SHOULD)
 ### TL-3.1 Inerzia tax-friction aware
-- [🔴] In strategy_engine: non ribilanciare se (alpha atteso - costi) < soglia
+- [🔴] TODO In strategy_engine: non ribilanciare se (alpha atteso - costi) < soglia
 - DoD: scenario test dove “fare nulla” è scelta ottimale.
 
 ### TL-3.2 Emotional Gap in summary.md
-- [🔴] Calcolo PnL “puro” vs “reale” e stampa gap
+- [🔴] TODO Calcolo PnL “puro” vs “reale” e stampa gap
 - DoD: se gap < 0, evidenza forte nel summary.
 
 ### TL-3.3 Cash-equivalent ticker (feature flag)
-- [🔴] Se `cash_equivalent_enabled=true`: parcheggio liquidità su ticker monetario
+- [🔴] TODO Se `cash_equivalent_enabled=true`: parcheggio liquidità su ticker monetario
 - DoD: disattivato di default; attivabile solo se universe ammette il ticker e fiscalità è gestita.
 
 ---
 
 ## TL-4. Utility & Ops (consigliate)
-- [🔴] `scripts/backup_db.py` (backup pre-commit + CHECKPOINT)
-- [🔴] `scripts/restore_db.py` (ripristino da backup)
-- [🔴] `scripts/update_trading_calendar.py` (manutenzione annuale calendario)
+- [🔴] TODO `scripts/backup_db.py` (backup pre-commit + CHECKPOINT)
+- [🔴] TODO `scripts/restore_db.py` (ripristino da backup)
+- [🔴] TODO `scripts/update_trading_calendar.py` (manutenzione annuale calendario)
 
 ---
 

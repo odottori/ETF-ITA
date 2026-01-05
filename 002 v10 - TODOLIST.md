@@ -1,7 +1,7 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r26 — 2026-01-04  
+**Doc Revision (internal):** r27 — 2026-01-05  
 **Baseline produzione:** **EUR / ACC**  
 
 ## LEGENDA
@@ -25,6 +25,7 @@
 | EP-09 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | ✅ DONE |
 | EP-10 | `scripts/core/stress_test.py` | stress report | DIPF §9.2 | ✅ DONE |
 | EP-11 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | ✅ DONE |
+| 🔍 | `analysis/scripts/comprehensive_risk_analysis.py` | risk analysis completo | Risk Assessment | ✅ DONE |
 | 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | ✅ DONE |
 | 🔍 | `scripts/archive/complete_system_test.py` | assessment completo | Sistema | ✅ DONE |
 
@@ -32,6 +33,8 @@
 - **Health Check**: `data/reports/analysis/health_report_20260104_164700.md`
 - **Stress Test**: `data/reports/analysis/stress_test_20260104_172824.json`
 - **Automated Test**: `data/reports/analysis/automated_test_cycle_20260104_173315.json`
+- **Risk Analysis**: `analysis/reports/comprehensive_risk_analysis_20260105_091552.json`
+- **Risk Summary**: `analysis/reports/risk_assessment_summary.md`
 - **Performance Generator**: `scripts/core/performance_report_generator.py`
 
 ---
@@ -63,10 +66,15 @@
 
 ### 📊 **PERFORMANCE SYSTEMA**
 - **Sharpe Ratio**: 0.96 (ottimizzato)
+- **Risk Level**: HIGH (Score: 0.530)
+- **Correlazione ETF**: 0.821 (CSSPX-XS2L)
+- **Volatilità Portfolio**: 26.75% (elevata)
+- **Max Drawdown**: -59.06% (critico)
 - **Issues Integrity**: 75 (85.3% weekend/festivi)
 - **Stato Sistema**: COMPLETATO
 - **Pronto per**: Produzione
 - **Reports Location**: data/reports/analysis/
+- **Risk Analysis**: analysis/reports/
 
 ### 🔍 **TEST COMPLETO SISTEMA**
 - **System test**: 9/10 PASS (90%)

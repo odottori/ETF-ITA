@@ -3,7 +3,7 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r26 — 2026-01-04 |
+| **Doc Revision (internal)** | r27 — 2026-01-05 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
 
 ---
@@ -120,6 +120,12 @@ Se manca un file obbligatorio: la run è **FAIL** (exit code ≠ 0).
 
 ```
 ETF_ITA_project/
+├── analysis/
+│   ├── scripts/
+│   │   └── comprehensive_risk_analysis.py
+│   └── reports/
+│       ├── comprehensive_risk_analysis_20260105_091552.json
+│       └── risk_assessment_summary.md
 ├── config/
 │   └── etf_universe.json
 ├── data/
@@ -153,6 +159,44 @@ py scripts/utility/check_issues.py              # Check dettagliato health issue
 py scripts/utility/clear_signals.py             # Pulizia tabella signals
 py scripts/utility/final_system_status.py      # Report completo stato sistema
 py scripts/utility/performance_report_generator.py # Report performance completo
+```
+
+### 🔍 Risk Analysis Reports
+
+**📁 Risk Analysis Structure:**
+```
+analysis/
+├── scripts/
+│   └── comprehensive_risk_analysis.py  # Analisi rischio completa
+└── reports/
+    ├── comprehensive_risk_analysis_20260105_091552.json  # Dati completi
+    └── risk_assessment_summary.md  # Sintesi esecutiva
+```
+
+**🎯 Risk Analysis Results:**
+- **Risk Level:** HIGH (Score: 0.530)
+- **Correlazione CSSPX-XS2L:** 0.821 (molto alta)
+- **Volatilità Portfolio:** 26.75% (elevata)
+- **Max Drawdown:** -59.06% (critico)
+- **Sharpe Ratio:** 0.924
+
+**🚀 Comandi Risk Analysis:**
+```powershell
+# Analisi rischio completa
+py analysis/scripts/comprehensive_risk_analysis.py
+# Output: analysis/reports/comprehensive_risk_analysis_<timestamp>.json
+
+# Report sintesi
+# Output: analysis/reports/risk_assessment_summary.md
+```
+
+**🎯 Accesso Rapido Risk Analysis:**
+```powershell
+# Report completo rischio
+Get-Content analysis/reports/comprehensive_risk_analysis_20260105_091552.json
+
+# Sintesi esecutiva
+Get-Content analysis/reports/risk_assessment_summary.md
 ```
 
 ### 📊 Performance Reports

@@ -1,1 +1,20 @@
-{"settings": {"start_capital": 20000.0, "currency": "EUR", "risk_free_rate": 0.03, "max_data_gap_days": 3, "revision_tol_pct": 0.005, "volatility_target": 0.15, "inertia_threshold": 0.001, "cash_interest_rate": 0.02, "cash_interest_monthly": true}, "universe": {"core": [{"symbol": "CSSPX.MI", "name": "iShares Core S&P 500", "dist_policy": "ACC", "ter": 0.07, "currency": "EUR", "tax_category": "OICR_ETF", "aum_eur": 500000000, "cost_model": {"commission_pct": 0.001, "slippage_bps": 5}, "execution_model": "T+1_OPEN", "fx_enabled": false}], "satellite": [{"symbol": "XS2L.MI", "name": "Xtrackers S&P 500 2x", "dist_policy": "ACC", "ter": 0.35, "currency": "EUR", "tax_category": "OICR_ETF", "aum_eur": 500000000, "cost_model": {"commission_pct": 0.001, "slippage_bps": 8}, "execution_model": "T+1_OPEN", "fx_enabled": false}], "benchmark": [{"symbol": "^GSPC", "name": "S&P 500 Index", "dist_policy": "N/A", "currency": "USD", "tax_category": "INDEX", "execution_model": "N/A", "fx_enabled": true, "fx_pair": "USDEUR=X"}]}, "risk_management": {"stop_loss_satellite": -0.07, "trailing_stop_satellite": -0.1, "satellite_weight_target": 0.3, "satellite_weight_upper": 0.35, "spy_guard_enabled": true, "volatility_breaker": 0.25, "risk_scalar_floor": 0.1, "cash_interest_rate": 0.02, "cash_interest_monthly": true}, "fiscal": {"tax_rate_capital": 0.26, "tax_loss_carry_years": 4}}
+{"settings": {"start_capital": 20000.0, "currency": "EUR", "risk_free_rate": 0.03, "max_data_gap_days": 3, "revision_tol_pct": 0.005, "volatility_target": 0.15, "inertia_threshold": 0.001, "cash_interest_rate": 0.02, "cash_interest_monthly": true}, "universe": {"core": [{"symbol": "CSSPX.MI", "name": "iShares Core S&P 500", "dist_policy": "ACC", "ter": 0.07, "currency": "EUR", "tax_category": "OICR_ETF", "aum_eur": 500000000, "cost_model": {"commission_pct": 0.001, "slippage_bps": 5}, "execution_model": "T+1_OPEN", "fx_enabled": false}], "satellite": [{"symbol": "XS2L.MI", "name": "Xtrackers S&P 500 2x", "dist_policy": "ACC", "ter": 0.35, "currency": "EUR", "tax_category": "OICR_ETF", "aum_eur": 500000000, "cost_model": {"commission_pct": 0.001, "slippage_bps": 8}, "execution_model": "T+1_OPEN", "fx_enabled": false}], "benchmark": [{"symbol": "^GSPC", "name": "S&P 500 Index", "dist_policy": "N/A", "currency": "USD", "tax_category": "INDEX", "execution_model": "N/A", "fx_enabled": true, "fx_pair": "USDEUR=X"}]}, "risk_management": {
+  "stop_loss_satellite": -0.15,
+  "trailing_stop_satellite": -0.1,
+  "satellite_weight_target": 0.3,
+  "satellite_weight_upper": 0.4,
+  "spy_guard_enabled": true,
+  "volatility_breaker": 0.20,
+  "volatility_warning": 0.15,
+  "volatility_critical": 0.20,
+  "aggressive_scalar_warning": 0.3,
+  "aggressive_scalar_critical": 0.1,
+  "risk_scalar_floor": 0.15,
+  "xs2l_position_cap": 0.4,
+  "xs2l_stop_loss": -0.15,
+  "xs2l_trailing_stop": -0.10,
+  "zombie_price_detection": true,
+  "synthetic_volatility_zombie": 0.25,
+  "cash_interest_rate": 0.02,
+  "cash_interest_monthly": true
+}, "fiscal": {"tax_rate_capital": 0.26, "tax_loss_carry_years": 4}}

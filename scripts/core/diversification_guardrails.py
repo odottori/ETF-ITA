@@ -214,7 +214,7 @@ def calculate_diversification_metrics():
         # Salva audit log
         try:
             from session_manager import get_session_manager
-            sm = get_session_manager()
+            sm = get_session_manager(script_name='diversification_guardrails')
             audit_file = sm.add_report_to_session('analysis', audit_data, 'json')
             print(f"   📋 Audit log salvato: {audit_file}")
         except ImportError:

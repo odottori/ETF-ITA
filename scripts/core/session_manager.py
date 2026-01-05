@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
 Session Manager - ETF Italia Project v10
-Gestione centralizzata delle sessioni con singola session per run
+Gestione centralizzata delle sessioni con logica ordinale
+
+LOGICA:
+- health_check (01) → Crea nuova sessione
+- altri script → Usano sessione esistente
+- Ogni report ha timestamp unico nella stessa sessione
 """
 
 import os
@@ -10,18 +15,36 @@ from datetime import datetime
 from pathlib import Path
 
 class SessionManager:
-    def __init__(self, base_reports_dir=None):
+    def __init__(self, base_reports_dir=None, script_name=None):
         if base_reports_dir is None:
             base_reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports', 'sessions')
         
         self.base_reports_dir = Path(base_reports_dir)
         self.current_session = None
+        self.script_name = script_name
         
-        # Carica sessione esistente o creane una nuova
+        # Logica: health_check crea nuova sessione, altri usano esistente
         self._load_or_create_session()
         
     def _load_or_create_session(self):
-        """Carica sessione esistente da file o creane una nuova"""
+        """Logica: health_check crea nuova sessione, altri usano esistente"""
+        if self.script_name == 'health_check':
+            # Primo script: crea nuova sessione
+            self.create_session()
+        else:
+            # Altri script: carica sessione esistente
+            self._load_latest_session()
+        
+        # Salva la sessione corrente
+        session_file = self.base_reports_dir.parent / 'current_session.json'
+        with open(session_file, 'w') as f:
+            json.dump({
+                'current_session': self.current_session,
+                'created_at': datetime.now().isoformat()
+            }, f, indent=2)
+    
+    def _load_latest_session(self):
+        """Carica l'ultima sessione esistente"""
         session_file = self.base_reports_dir.parent / 'current_session.json'
         
         if session_file.exists():
@@ -29,19 +52,12 @@ class SessionManager:
                 with open(session_file, 'r') as f:
                     session_data = json.load(f)
                     self.current_session = session_data['current_session']
-                    return
+                return
             except:
                 pass
         
-        # Se non esiste o c'è errore, creane una nuova
+        # Fallback: crea nuova sessione se non esiste
         self.create_session()
-        
-        # Salva la sessione corrente
-        with open(session_file, 'w') as f:
-            json.dump({
-                'current_session': self.current_session,
-                'created_at': datetime.now().isoformat()
-            }, f, indent=2)
         
     def create_session(self, test_mode=False):
         """Crea una nuova sessione con timestamp"""
@@ -56,11 +72,12 @@ class SessionManager:
             '01_health_checks': 'health_checks',
             '02_automated': 'automated', 
             '03_guardrails': 'guardrails',
-            '04_stress_tests': 'stress_tests',
-            '05_strategy': 'strategy',
-            '06_backtests': 'backtests',
-            '07_performance': 'performance',
-            '08_analysis': 'analysis'
+            '04_risk': 'risk',
+            '05_stress_tests': 'stress_tests',
+            '06_strategy': 'strategy',
+            '07_backtests': 'backtests',
+            '08_performance': 'performance',
+            '09_analysis': 'analysis'
         }
         
         # In test mode, crea solo le cartelle essenziali
@@ -118,6 +135,7 @@ class SessionManager:
             'automated_test_cycle': 'automated',
             'stress_test': 'stress_tests',
             'guardrails': 'guardrails',
+            'risk_management': 'risk',
             'backtest': 'backtests',
             'performance': 'performance'
         }
@@ -177,11 +195,11 @@ class SessionManager:
 # Singleton globale
 _session_manager = None
 
-def get_session_manager():
+def get_session_manager(script_name=None):
     """Restituisce l'istanza singleton del session manager"""
     global _session_manager
     if _session_manager is None:
-        _session_manager = SessionManager()
+        _session_manager = SessionManager(script_name=script_name)
     return _session_manager
 
 def get_test_session_manager():

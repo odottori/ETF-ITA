@@ -233,7 +233,7 @@ def run_p2_risk_analysis():
         # Salva report
         try:
             from session_manager import get_session_manager
-            sm = get_session_manager()
+            sm = get_session_manager(script_name='p2_risk_analysis')
             report_file = sm.add_report_to_session('analysis', results, 'json')
             print(f"\n📋 Report completo salvato: {report_file}")
         except ImportError:

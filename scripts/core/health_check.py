@@ -26,7 +26,7 @@ def health_check():
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     
     # Inizializza session manager
-    session_manager = get_session_manager()
+    session_manager = get_session_manager(script_name='health_check')
     
     conn = duckdb.connect(db_path)
     

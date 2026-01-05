@@ -25,7 +25,7 @@ def check_guardrails():
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     # Inizializza session manager
-    session_manager = get_session_manager()
+    session_manager = get_session_manager(script_name='check_guardrails')
     
     # Carica configurazione
     with open(config_path, 'r') as f:

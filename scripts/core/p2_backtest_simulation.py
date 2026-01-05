@@ -133,27 +133,27 @@ def run_backtest_simulation():
             portfolio_returns_array = np.array(portfolio_returns)
             
             # Total return
-            total_return = (portfolio_values[-1] / portfolio_values[0]) - 1
+            total_return = float((portfolio_values[-1] / portfolio_values[0]) - 1)
             
             # Annualized metrics
             trading_days = len(portfolio_returns)
             years = trading_days / 252
             
-            annual_return = (1 + total_return) ** (1/years) - 1 if years > 0 else 0
-            annual_vol = np.std(portfolio_returns_array) * np.sqrt(252)
-            sharpe_ratio = (annual_return - 0.02) / annual_vol if annual_vol > 0 else 0
+            annual_return = float((1 + total_return) ** (1/years) - 1 if years > 0 else 0)
+            annual_vol = float(np.std(portfolio_returns_array) * np.sqrt(252))
+            sharpe_ratio = float((annual_return - 0.02) / annual_vol if annual_vol > 0 else 0)
             
             # Drawdown analysis
             peak = np.maximum.accumulate(portfolio_values)
             drawdown = (portfolio_values - peak) / peak
-            max_drawdown = np.min(drawdown)
+            max_drawdown = float(np.min(drawdown))
             
             # Calcola giorni di drawdown
-            dd_days = np.sum(drawdown < -0.1)  # Giorni con DD > -10%
+            dd_days = int(np.sum(drawdown < -0.1))  # Giorni con DD > -10%
             
             # Risk metrics
-            var_95 = np.percentile(portfolio_returns_array, 5)  # 5th percentile
-            skewness = calculate_skewness(portfolio_returns_array)
+            var_95 = float(np.percentile(portfolio_returns_array, 5))  # 5th percentile
+            skewness = float(calculate_skewness(portfolio_returns_array))
             
             results[scenario_id] = {
                 'scenario': scenario['name'],
@@ -168,8 +168,8 @@ def run_backtest_simulation():
                     'dd_days_10pct': dd_days,
                     'var_95_daily': var_95,
                     'skewness': skewness,
-                    'final_value': portfolio_values[-1],
-                    'trading_days': trading_days
+                    'final_value': float(portfolio_values[-1]),
+                    'trading_days': int(trading_days)
                 }
             }
             
@@ -230,7 +230,7 @@ def run_backtest_simulation():
         for scenario_id, result in results.items():
             perf = result['performance']
             # Score = Sharpe - (max_drawdown * 2)  # Penalità drawdown
-            risk_adjusted_scores[scenario_id] = perf['sharpe_ratio'] - (perf['max_drawdown'] * 2)
+            risk_adjusted_scores[scenario_id] = float(perf['sharpe_ratio'] - (perf['max_drawdown'] * 2))
         
         best_risk_adj_scenario = max(risk_adjusted_scores.keys(), key=risk_adjusted_scores.get)
         best_risk_adj = results[best_risk_adj_scenario]

@@ -29,3 +29,10 @@ data/backup/*/
 # OS
 .DS_Store
 Thumbs.db
+
+# Session reports in root (should be in docs/session_reports/)
+*_Report.md
+*_Report.json
+P2_*.md
+Enhanced_*.md
+PRODUCTION_*.md

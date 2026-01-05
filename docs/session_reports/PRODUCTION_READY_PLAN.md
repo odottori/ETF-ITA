@@ -119,6 +119,12 @@
 **Risultato:** XS2L.MI target ridotto a 10.5% (vs 15% baseline) per DD -59.1%  
 **Files:** `scripts/core/vol_targeting_simple.py` creato
 
+### ✅ P2.3: Enhanced Risk Management (NEW)
+**Stato:** COMPLETATO ✅  
+**Azione:** Risk scalar aggressivo per volatilità >15-20% e zombie price guardrails  
+**Risultato:** XS2L.MI risk scalar ridotto da 1.0 a 0.001 (99.9% riduzione)  
+**Files:** `scripts/core/enhanced_risk_management.py` creato, `config/etf_universe.json` aggiornato
+
 ---
 
 ## MILESTONE RAGGIUNTI
@@ -127,4 +133,4 @@
 - **P1 Complete (100%)**: Fiscalità edge cases completamente implementati  
 - **P2 Complete (100%)**: Guardrails fattoriali completamente implementati
 
-**Stato corrente:** Production-Ready v10.3.5 (P0+P1+P2 100% completati)
+**Stato corrente:** Production-Ready v10.4.0 (P0+P1+P2 100% completati + Enhanced Risk Management)

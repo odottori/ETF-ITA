@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def automated_test_cycle():
     """Ciclo automatico di test mirati"""
     
-    print("🔄 AUTOMATED TEST CYCLE - ETF Italia Project v10")
+    print(" AUTOMATED TEST CYCLE - ETF Italia Project v10")
     print("=" * 60)
     
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
@@ -25,10 +25,10 @@ def automated_test_cycle():
     conn = duckdb.connect(db_path)
     
     try:
-        print("🔍 Inizio ciclo test mirati...")
+        print(" Inizio ciclo test mirati...")
         
         # 1. Test 1: Analisi Volatility Estrema
-        print(f"\n📊 TEST 1: ANALISI VOLATILITY ESTREMA")
+        print(f"\n TEST 1: ANALISI VOLATILITY ESTREMA")
         
         # Calcola returns prima
         returns_query = """
@@ -56,7 +56,7 @@ def automated_test_cycle():
         
         volatility_analysis = conn.execute(returns_query).fetchall()
         
-        print(f"   📈 Volatility Analysis (2010-2026):")
+        print(f"    Volatility Analysis (2010-2026):")
         for symbol, vol, ret, compound_ret, points in volatility_analysis:
             print(f"      {symbol}:")
             print(f"        Volatility: {vol:.2%}")
@@ -66,7 +66,7 @@ def automated_test_cycle():
             print(f"        Vol/Return Ratio: {vol/abs(ret) if ret != 0 else 0:.2f}")
         
         # 2. Test 2: Position Sizing Optimization
-        print(f"\n📊 TEST 2: POSITION SIZING OPTIMIZATION")
+        print(f"\n TEST 2: POSITION SIZING OPTIMIZATION")
         
         # Simula diversi position sizing
         sizing_tests = [
@@ -76,7 +76,7 @@ def automated_test_cycle():
         ]
         
         for test in sizing_tests:
-            print(f"   📊 {test['name']} Strategy:")
+            print(f"    {test['name']} Strategy:")
             print(f"      Max Position: {test['max_position']:.0%}")
             print(f"      Vol Limit: {test['vol_limit']:.0%}")
             
@@ -91,7 +91,7 @@ def automated_test_cycle():
                 print(f"      Expected Vol: {expected_vol:.0%}")
         
         # 3. Test 3: Risk Management Optimization
-        print(f"\n📊 TEST 3: RISK MANAGEMENT OPTIMIZATION")
+        print(f"\n TEST 3: RISK MANAGEMENT OPTIMIZATION")
         
         # Analisi drawdown storici
         drawdown_analysis = conn.execute("""
@@ -118,7 +118,7 @@ def automated_test_cycle():
         ORDER BY symbol
         """).fetchall()
         
-        print(f"   📉 Drawdown Analysis (2020-2026):")
+        print(f"    Drawdown Analysis (2020-2026):")
         for symbol, max_dd, dd10, dd20, dd30, total in drawdown_analysis:
             print(f"      {symbol}:")
             print(f"        Max Drawdown: {max_dd:.2%}")
@@ -127,7 +127,7 @@ def automated_test_cycle():
             print(f"        Days > -30%: {dd30} ({dd30/total*100:.1f}%)")
         
         # 4. Test 4: Signal Effectiveness
-        print(f"\n📊 TEST 4: SIGNAL EFFECTIVENESS")
+        print(f"\n TEST 4: SIGNAL EFFECTIVENESS")
         
         # Calcola returns prima
         signal_query = """
@@ -154,7 +154,7 @@ def automated_test_cycle():
         
         signal_analysis = conn.execute(signal_query).fetchall()
         
-        print(f"   📈 Signal Analysis (2020-2026):")
+        print(f"    Signal Analysis (2020-2026):")
         for signal, count, avg_ret, vol in signal_analysis:
             if signal and avg_ret is not None:
                 sharpe = avg_ret / vol if vol != 0 else 0
@@ -165,7 +165,7 @@ def automated_test_cycle():
                 print(f"        Sharpe: {sharpe:.3f}")
         
         # 5. Test 5: Cost Impact Analysis
-        print(f"\n📊 TEST 5: COST IMPACT ANALYSIS")
+        print(f"\n TEST 5: COST IMPACT ANALYSIS")
         
         # Simula impact dei costi
         base_return = 0.2282  # 22.82% CAGR attuale
@@ -180,7 +180,7 @@ def automated_test_cycle():
             annual_cost = (cost['commission'] * 2) + (cost['slippage'] * 2) + cost['ter']
             net_return = base_return - annual_cost
             
-            print(f"   💰 {cost['name']} Costs:")
+            print(f"    {cost['name']} Costs:")
             print(f"      Commission: {cost['commission']:.2%}")
             print(f"      Slippage: {cost['slippage']:.2%}")
             print(f"      TER: {cost['ter']:.2%}")
@@ -189,7 +189,7 @@ def automated_test_cycle():
             print(f"      Cost Impact: {annual_cost/base_return:.1%}")
         
         # 6. Test 6: Regime Detection
-        print(f"\n📊 TEST 6: REGIME DETECTION")
+        print(f"\n TEST 6: REGIME DETECTION")
         
         # Calcola monthly returns prima
         regime_query = """
@@ -231,7 +231,7 @@ def automated_test_cycle():
         
         regime_analysis = conn.execute(regime_query).fetchall()
         
-        print(f"   📊 Regime Analysis (2020-2026):")
+        print(f"    Regime Analysis (2020-2026):")
         for symbol, avg_ret, vol, sharpe, months in regime_analysis:
             print(f"      {symbol}:")
             print(f"        Avg Monthly Return: {avg_ret:.2%}")
@@ -240,7 +240,7 @@ def automated_test_cycle():
             print(f"        Months: {months}")
         
         # 7. Generazione report test
-        print(f"\n📊 GENERAZIONE REPORT TEST")
+        print(f"\n GENERAZIONE REPORT TEST")
         
         test_results = {
             "timestamp": datetime.now().isoformat(),
@@ -274,33 +274,33 @@ def automated_test_cycle():
         with open(report_file, 'w') as f:
             json.dump(test_results, f, indent=2)
         
-        print(f"   📄 Report salvato: {report_file}")
+        print(f"    Report salvato: {report_file}")
         
         # 8. Raccomandazioni ottimizzazione
-        print(f"\n💡 RACCOMANDAZIONI OTTIMIZZAZIONE:")
+        print(f"\n RACCOMANDAZIONI OTTIMIZZAZIONE:")
         
-        print(f"   🎯 VOLATILITY MANAGEMENT:")
+        print(f"    VOLATILITY MANAGEMENT:")
         print(f"      • Volatility estrema (37%) richiede position sizing dinamico")
         print(f"      • Implementare volatility targeting: 15-20% max")
         print(f"      • Ridurre posizione quando vol > 25%")
         
-        print(f"   📉 DRAWDOWN CONTROL:")
+        print(f"    DRAWDOWN CONTROL:")
         print(f"      • Max drawdown -90% inaccettabile")
         print(f"      • Implementare stop-loss a -15/-20%")
         print(f"      • Usare trailing stop per proteggere gains")
         
-        print(f"   📈 SIGNAL OPTIMIZATION:")
+        print(f"    SIGNAL OPTIMIZATION:")
         print(f"      • Analizzare effectiveness segnali RISK_ON")
         print(f"      • Implementare regime-based adjustments")
         print(f"      • Aggiungere mean reversion per diversificazione")
         
-        print(f"   💰 COST OPTIMIZATION:")
-        print(f"      • Commission: 0.1% → 0.05% (50% reduction)")
-        print(f"      • Slippage: 5bps → 3bps (40% reduction)")
-        print(f"      • TER: 7% → 5% (29% reduction)")
+        print(f"    COST OPTIMIZATION:")
+        print(f"      • Commission: 0.1% to 0.05% (50% reduction)")
+        print(f"      • Slippage: 5bps to 3bps (40% reduction)")
+        print(f"      • TER: 7% to 5% (29% reduction)")
         print(f"      • Impact previsto: +2-3% CAGR netto")
         
-        print(f"   🔧 RISK MANAGEMENT:")
+        print(f"    RISK MANAGEMENT:")
         print(f"      • Position sizing: 50-70% max (vs 100%)")
         print(f"      • Vol limit: 15-20% (vs 37%)")
         print(f"      • Stop-loss: -15/-20% (vs none)")
@@ -308,7 +308,7 @@ def automated_test_cycle():
         return True
         
     except Exception as e:
-        print(f"❌ Errore test cycle: {e}")
+        print(f" Errore test cycle: {e}")
         return False
         
     finally:

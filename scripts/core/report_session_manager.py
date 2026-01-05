@@ -54,7 +54,7 @@ class ReportSessionManager:
         with open(metadata_file, 'w') as f:
             json.dump(session_metadata, f, indent=2)
         
-        print(f"📁 Session created: {session_id}")
+        print(f" Session created: {session_id}")
         print(f"   Directory: {session_dir}")
         
         return session_id, session_dir
@@ -95,7 +95,7 @@ class ReportSessionManager:
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        print(f"📄 Report added: {report_filename}")
+        print(f" Report added: {report_filename}")
         return report_path
     
     def get_latest_session(self, session_type=None):
@@ -143,7 +143,7 @@ class ReportSessionManager:
 def demo_session_manager():
     """Demo del session manager"""
     
-    print("🔧 REPORT SESSION MANAGER - ETF Italia Project v10")
+    print(" REPORT SESSION MANAGER - ETF Italia Project v10")
     print("=" * 60)
     
     manager = ReportSessionManager()
@@ -161,14 +161,14 @@ def demo_session_manager():
     manager.add_report_to_session(session_id, "performance_summary", performance_data)
     
     # Lista sessioni
-    print(f"\n📋 Sessions disponibili:")
+    print(f"\n Sessions disponibili:")
     for session in manager.list_sessions():
-        print(f"   📁 {session['session_id']}")
+        print(f"    {session['session_id']}")
         print(f"      Type: {session['session_type']}")
         print(f"      Reports: {session['reports_count']}")
         print(f"      Created: {session['created_at']}")
     
-    print(f"\n✅ Session demo completed!")
+    print(f"\n Session demo completed!")
 
 if __name__ == "__main__":
     demo_session_manager()

@@ -16,15 +16,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def load_trading_calendar(venue='BIT', csv_file=None):
     """Carica calendario trading da CSV o genera base"""
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     conn = duckdb.connect(db_path)
     
     try:
-        print(f"📅 Caricamento trading calendar per {venue}")
+        print(f" Caricamento trading calendar per {venue}")
         
         if csv_file and os.path.exists(csv_file):
-            print(f"📄 Caricamento da CSV: {csv_file}")
+            print(f" Caricamento da CSV: {csv_file}")
             
             # Carica da CSV (formato: date,is_open)
             conn.execute(f"""
@@ -33,10 +33,10 @@ def load_trading_calendar(venue='BIT', csv_file=None):
             (AUTO_DETECT TRUE, HEADER TRUE)
             """)
             
-            print(f"✅ Calendario caricato da {csv_file}")
+            print(f" Calendario caricato da {csv_file}")
             
         else:
-            print("📄 Generazione calendario base (giorni feriali)")
+            print(" Generazione calendario base (giorni feriali)")
             
             # Genera calendario base per anni 2020-2025
             start_date = '2020-01-01'
@@ -143,26 +143,26 @@ def load_trading_calendar(venue='BIT', csv_file=None):
                 WHERE venue = ? AND date = ?
                 """, [venue, holiday_date])
             
-            print(f"✅ Calendario base generato con {len(italian_holidays)} festivi italiani")
+            print(f" Calendario base generato con {len(italian_holidays)} festivi italiani")
         
         # Verifica caricamento
         count_query = "SELECT COUNT(*) FROM trading_calendar WHERE venue = ?"
         total_days = conn.execute(count_query, [venue]).fetchone()[0]
         open_days = conn.execute(f"{count_query} AND is_open = TRUE", [venue]).fetchone()[0]
         
-        print(f"📊 Statistiche {venue}: {total_days} giorni totali, {open_days} giorni di trading")
+        print(f" Statistiche {venue}: {total_days} giorni totali, {open_days} giorni di trading")
         
         # Verifica anni coperti
         years_query = f"SELECT DISTINCT EXTRACT(YEAR FROM date) as year FROM trading_calendar WHERE venue = ? ORDER BY year"
         years = [row[0] for row in conn.execute(years_query, [venue]).fetchall()]
-        print(f"📅 Anni coperti: {years}")
+        print(f" Anni coperti: {years}")
         
         conn.commit()
-        print("🎉 Trading calendar caricato con successo!")
+        print(" Trading calendar caricato con successo!")
         return True
         
     except Exception as e:
-        print(f"❌ Errore caricamento calendar: {e}")
+        print(f" Errore caricamento calendar: {e}")
         conn.rollback()
         return False
         

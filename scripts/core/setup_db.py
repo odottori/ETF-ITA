@@ -17,10 +17,10 @@ def setup_database():
     """Setup completo del database"""
     
     # Path database
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     # Carica configurazione
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     with open(config_path, 'r') as f:
         config = json.load(f)
     
@@ -28,10 +28,10 @@ def setup_database():
     conn = duckdb.connect(db_path)
     
     try:
-        print(f"🔧 Setup database: {db_path}")
+        print(f"Setup database: {db_path}")
         
         # 1. Creazione tabelle principali
-        print("📋 Creazione tabelle...")
+        print("Creazione tabelle...")
         
         # Tabella market_data (master data)
         conn.execute("""
@@ -159,10 +159,10 @@ def setup_database():
         )
         """)
         
-        print("✅ Tabelle create")
+        print("Tabelle create")
         
         # 2. Creazione indici
-        print("🔍 Creazione indici...")
+        print("Creazione indici...")
         
         indici = [
             "CREATE INDEX IF NOT EXISTS idx_market_data_symbol_date ON market_data(symbol, date)",
@@ -179,10 +179,10 @@ def setup_database():
         for idx in indici:
             conn.execute(idx)
         
-        print("✅ Indici creati")
+        print(" Indici creati")
         
         # 3. Creazione viste (analytics)
-        print("📊 Creazione viste analytics...")
+        print(" Creazione viste analytics...")
         
         # Vista risk_metrics
         conn.execute("""
@@ -259,10 +259,10 @@ def setup_database():
         CROSS JOIN cash_balance cb
         """)
         
-        print("✅ Viste create")
+        print(" Viste create")
         
         # 4. Insert deposito iniziale (CRITICO)
-        print("💰 Insert deposito iniziale...")
+        print(" Insert deposito iniziale...")
         
         start_capital = config['settings']['start_capital']
         today = datetime.now().date()
@@ -276,10 +276,10 @@ def setup_database():
         VALUES (?, ?, 'DEPOSIT', 'CASH', ?, 1.0, 0.0, 0.0, 1.0, ?)
         """, [next_id, today, start_capital, f"setup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"])
         
-        print(f"✅ Deposito iniziale di €{start_capital:,.2f} inserito")
+        print(f" Deposito iniziale di €{start_capital:,.2f} inserito")
         
         # 5. Setup trading calendar base (BIT)
-        print("📅 Setup trading calendar base...")
+        print(" Setup trading calendar base...")
         
         # Inserisci giorni feriali Italiani come aperti (semplificato)
         start_date = '2020-01-01'
@@ -293,20 +293,20 @@ def setup_database():
         FROM generate_series('{start_date}'::DATE, '{end_date}'::DATE, INTERVAL '1 day')
         """)
         
-        print("✅ Trading calendar base creato")
+        print(" Trading calendar base creato")
         
         # Commit finale
         conn.commit()
-        print("🎉 Database setup completato con successo!")
+        print(" Database setup completato con successo!")
         
         # Verifica
         result = conn.execute("SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_schema = 'main'").fetchone()
-        print(f"📋 Database contiene {result[0]} tabelle")
+        print(f" Database contiene {result[0]} tabelle")
         
         return True
         
     except Exception as e:
-        print(f"❌ Errore durante setup database: {e}")
+        print(f" Errore durante setup database: {e}")
         conn.rollback()
         return False
         

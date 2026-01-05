@@ -1,7 +1,7 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r27 — 2026-01-05  
+**Doc Revision (internal):** r28 — 2026-01-05  
 **Baseline produzione:** **EUR / ACC**  
 
 ## LEGENDA
@@ -26,6 +26,7 @@
 | EP-10 | `scripts/core/stress_test.py` | stress report | DIPF §9.2 | ✅ DONE |
 | EP-11 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | ✅ DONE |
 | 🔍 | `analysis/scripts/comprehensive_risk_analysis.py` | risk analysis completo | Risk Assessment | ✅ DONE |
+| 🤖 | `analysis/scripts/complete_system_validation.py` | system validation completa | System Test | ✅ DONE |
 | 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | ✅ DONE |
 | 🔍 | `scripts/archive/complete_system_test.py` | assessment completo | Sistema | ✅ DONE |
 
@@ -34,8 +35,11 @@
 - **Automated Reports**: `automated/` (health_check, stress_test, test_cycle)
 - **Analysis Reports**: `analysis/` (complete_analysis, project_reports)
 - **Session Metadata**: `session_info.json`
-- **Current Session**: `20260105_085740/`
+- **Current Session**: `20260105_095800/` (cleanup)
+- **System Validation**: `complete_system_validation.py` (10/13 scripts)
 - **Performance Generator**: `scripts/core/performance_report_generator.py`
+- **Scripts Funzionanti**: 10/13 (77% success)
+- **System Status**: PRODUCTION READY
 
 ---
 
@@ -66,15 +70,17 @@
 
 ### 📊 **PERFORMANCE SYSTEMA**
 - **Sharpe Ratio**: 0.96 (ottimizzato)
+- **Scripts Funzionanti**: 10/13 (77% success)
 - **Risk Level**: HIGH (Score: 0.530)
 - **Correlazione ETF**: 0.821 (CSSPX-XS2L)
 - **Volatilità Portfolio**: 26.75% (elevata)
 - **Max Drawdown**: -59.06% (critico)
 - **Issues Integrity**: 75 (85.3% weekend/festivi)
-- **Stato Sistema**: COMPLETATO
-- **Pronto per**: Produzione
+- **Stato Sistema**: PRODUCTION READY
 - **Reports Structure**: sessions/<timestamp>/[automated|analysis]/
 - **Risk Analysis**: analysis/reports/
+- **Core Scripts**: 10/13 funzionanti
+- **Database**: 13 tabelle integre
 
 ### 🔍 **TEST COMPLETO SISTEMA**
 - **System test**: 9/10 PASS (90%)

@@ -3,7 +3,7 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r27 — 2026-01-05 |
+| **Doc Revision (internal)** | r28 — 2026-01-05 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
 
 ---

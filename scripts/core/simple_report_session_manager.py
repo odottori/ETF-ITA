@@ -49,7 +49,7 @@ class SimpleReportSessionManager:
         with open(info_file, 'w') as f:
             json.dump(session_info, f, indent=2)
         
-        print(f"📁 Session created: {timestamp}")
+        print(f" Session created: {timestamp}")
         print(f"   Directory: {session_dir}")
         
         return timestamp, session_dir
@@ -101,7 +101,7 @@ class SimpleReportSessionManager:
         with open(info_file, 'w') as f:
             json.dump(session_info, f, indent=2)
         
-        print(f"📄 Report added: {report_filename} ({file_extension})")
+        print(f" Report added: {report_filename} ({file_extension})")
         return report_path
     
     def _get_default_extension(self, report_type):
@@ -216,7 +216,7 @@ class SimpleReportSessionManager:
 def demo_simple_session_manager():
     """Demo del simple session manager"""
     
-    print("🔧 SIMPLE REPORT SESSION MANAGER - ETF Italia Project v10")
+    print(" SIMPLE REPORT SESSION MANAGER - ETF Italia Project v10")
     print("=" * 60)
     
     manager = SimpleReportSessionManager()
@@ -234,13 +234,13 @@ def demo_simple_session_manager():
     manager.add_report_to_session(timestamp, "performance_summary", performance_data)
     
     # Lista sessioni
-    print(f"\n📋 Sessions disponibili:")
+    print(f"\n Sessions disponibili:")
     for session in manager.list_sessions():
-        print(f"   📁 {session['timestamp']}")
+        print(f"    {session['timestamp']}")
         print(f"      Reports: {session['reports_count']}")
         print(f"      Created: {session['created_at']}")
     
-    print(f"\n✅ Simple session demo completed!")
+    print(f"\n Simple session demo completed!")
 
 if __name__ == "__main__":
     demo_simple_session_manager()

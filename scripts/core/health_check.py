@@ -17,12 +17,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def health_check():
     """Health check completo del sistema"""
     
-    print("🔍 HEALTH CHECK - ETF Italia Project v10")
+    print(" HEALTH CHECK - ETF Italia Project v10")
     print("=" * 60)
     
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
-    reports_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'reports')
+    reports_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports')
     
     # Assicurati che esista cartella reports
     os.makedirs(reports_path, exist_ok=True)
@@ -49,10 +49,10 @@ def health_check():
             'system_integrity': {}
         }
         
-        print(f"📊 Health check simboli: {symbols}")
+        print(f" Health check simboli: {symbols}")
         
         # 1. System Integrity Check
-        print("\n🔧 SYSTEM INTEGRITY CHECK")
+        print("\n SYSTEM INTEGRITY CHECK")
         print("-" * 40)
         
         # Verifica tabelle richieste
@@ -67,9 +67,9 @@ def health_check():
         if missing_tables:
             health_report['issues'].append(f"Missing tables: {missing_tables}")
             health_report['overall_status'] = 'CRITICAL'
-            print(f"❌ Tabelle mancanti: {missing_tables}")
+            print(f" Tabelle mancanti: {missing_tables}")
         else:
-            print("✅ Tutte le tabelle richieste presenti")
+            print(" Tutte le tabelle richieste presenti")
         
         # Verifica viste
         required_views = ['risk_metrics', 'portfolio_summary']
@@ -79,16 +79,16 @@ def health_check():
         missing_views = [v for v in required_views if v not in existing_views]
         if missing_views:
             health_report['warnings'].append(f"Missing views: {missing_views}")
-            print(f"⚠️ Viste mancanti: {missing_views}")
+            print(f"️ Viste mancanti: {missing_views}")
         else:
-            print("✅ Viste analytics presenti")
+            print(" Viste analytics presenti")
         
         # 2. Data Quality Check per simbolo
-        print(f"\n📊 DATA QUALITY CHECK")
+        print(f"\n DATA QUALITY CHECK")
         print("-" * 40)
         
         for symbol in symbols:
-            print(f"\n📈 {symbol}")
+            print(f"\n {symbol}")
             
             symbol_health = {
                 'status': 'HEALTHY',
@@ -118,8 +118,8 @@ def health_check():
                 'unique_dates': unique_dates
             }
             
-            print(f"  📅 Periodo: {first_date} → {last_date}")
-            print(f"  📊 Records: {total_records}")
+            print(f"   Periodo: {first_date} → {last_date}")
+            print(f"   Records: {total_records}")
             
             # Zero/negative check
             zero_check = conn.execute("""
@@ -130,7 +130,7 @@ def health_check():
             if zero_check > 0:
                 symbol_health['issues'].append(f"Zero/negative values: {zero_check}")
                 symbol_health['status'] = 'WARNING'
-                print(f"  ⚠️ Zero/negative: {zero_check}")
+                print(f"  ️ Zero/negative: {zero_check}")
             
             # Consistency check
             consistency_check = conn.execute("""
@@ -141,7 +141,7 @@ def health_check():
             if consistency_check > 0:
                 symbol_health['issues'].append(f"Inconsistent OHLC: {consistency_check}")
                 symbol_health['status'] = 'WARNING'
-                print(f"  ⚠️ Inconsistent OHLC: {consistency_check}")
+                print(f"  ️ Inconsistent OHLC: {consistency_check}")
             
             # Zombie price detection
             zombie_check = conn.execute("""
@@ -158,7 +158,7 @@ def health_check():
             
             if zombie_check > 0:
                 symbol_health['warnings'].append(f"Zombie prices: {zombie_check}")
-                print(f"  ⚠️ Zombie prices: {zombie_check}")
+                print(f"  ️ Zombie prices: {zombie_check}")
             
             # Spike detection recenti
             spike_check = conn.execute("""
@@ -176,7 +176,7 @@ def health_check():
             
             if spike_check > 0:
                 symbol_health['warnings'].append(f"Recent spikes >15%: {spike_check}")
-                print(f"  ⚠️ Recent spikes: {spike_check}")
+                print(f"  ️ Recent spikes: {spike_check}")
             
             # Gap detection
             gap_check = conn.execute("""
@@ -193,20 +193,20 @@ def health_check():
             
             if gap_check > 0:
                 symbol_health['warnings'].append(f"Large gaps (>5 days): {gap_check}")
-                print(f"  ⚠️ Large gaps: {gap_check}")
+                print(f"  ️ Large gaps: {gap_check}")
             
             # Status finale simbolo
             if symbol_health['status'] == 'HEALTHY' and not symbol_health['warnings']:
-                print(f"  ✅ {symbol}: HEALTHY")
+                print(f"   {symbol}: HEALTHY")
             elif symbol_health['status'] == 'WARNING':
-                print(f"  ⚠️ {symbol}: WARNING")
+                print(f"  ️ {symbol}: WARNING")
             else:
-                print(f"  ❌ {symbol}: ISSUES")
+                print(f"   {symbol}: ISSUES")
             
             health_report['symbol_status'][symbol] = symbol_health
         
         # 3. Trading Calendar Coherence
-        print(f"\n📅 TRADING CALENDAR COHERENCE")
+        print(f"\n TRADING CALENDAR COHERENCE")
         print("-" * 40)
         
         # Verifica coerenza calendar vs market data
@@ -229,12 +229,12 @@ def health_check():
         
         if coherence_check > 0:
             health_report['warnings'].append(f"Calendar coherence issues: {coherence_check} missing days")
-            print(f"⚠️ Giorni calendar senza dati market: {coherence_check}")
+            print(f"️ Giorni calendar senza dati market: {coherence_check}")
         else:
-            print("✅ Trading calendar coerente con market data")
+            print(" Trading calendar coerente con market data")
         
         # 4. Ledger Integrity
-        print(f"\n💰 FISCAL LEDGER INTEGRITY")
+        print(f"\n FISCAL LEDGER INTEGRITY")
         print("-" * 40)
         
         # Verifica deposito iniziale
@@ -246,9 +246,9 @@ def health_check():
         if deposit_check == 0:
             health_report['issues'].append("Missing initial deposit")
             health_report['overall_status'] = 'CRITICAL'
-            print("❌ Manca deposito iniziale")
+            print(" Manca deposito iniziale")
         else:
-            print(f"✅ Deposito iniziale presente")
+            print(f" Deposito iniziale presente")
         
         # Verifica posizioni negative
         negative_positions = conn.execute("""
@@ -264,12 +264,12 @@ def health_check():
         if negative_positions > 0:
             health_report['issues'].append(f"Negative positions: {negative_positions}")
             health_report['overall_status'] = 'CRITICAL'
-            print(f"❌ Posizioni negative: {negative_positions}")
+            print(f" Posizioni negative: {negative_positions}")
         else:
-            print("✅ Nessuna posizione negativa")
+            print(" Nessuna posizione negativa")
         
         # 5. Recent Activity Check
-        print(f"\n📈 RECENT ACTIVITY CHECK")
+        print(f"\n RECENT ACTIVITY CHECK")
         print("-" * 40)
         
         # Ultima ingestion
@@ -281,15 +281,15 @@ def health_check():
             days_since = (datetime.now() - last_ingestion).days
             if days_since > 7:
                 health_report['warnings'].append(f"Last ingestion {days_since} days ago")
-                print(f"⚠️ Ultima ingestion: {days_since} giorni fa")
+                print(f"️ Ultima ingestion: {days_since} giorni fa")
             else:
-                print(f"✅ Ultima ingestion: {days_since} giorni fa")
+                print(f" Ultima ingestion: {days_since} giorni fa")
         else:
             health_report['warnings'].append("No ingestion records found")
-            print("⚠️ Nessun record ingestion")
+            print("️ Nessun record ingestion")
         
         # 6. Overall Status con severity riallineata
-        print(f"\n🎯 OVERALL STATUS")
+        print(f"\n OVERALL STATUS")
         print("=" * 40)
         
         # Controlla severity issues
@@ -311,14 +311,14 @@ def health_check():
             health_report['overall_status'] = 'HEALTHY'
         
         if health_report['overall_status'] == 'HEALTHY':
-            print("✅ SYSTEM HEALTHY - Ready for production")
+            print(" SYSTEM HEALTHY - Ready for production")
         elif health_report['overall_status'] == 'WARNING':
-            print("⚠️ SYSTEM WARNING - Review recommended")
+            print("️ SYSTEM WARNING - Review recommended")
         elif health_report['overall_status'] == 'DEGRADED':
-            print("🟡 SYSTEM DEGRADED - Risk Continuity investigation required")
-            print("   🟡 Data quality issues detected - review before production")
+            print(" SYSTEM DEGRADED - Risk Continuity investigation required")
+            print("    Data quality issues detected - review before production")
         else:
-            print("❌ SYSTEM CRITICAL - Issues require attention")
+            print(" SYSTEM CRITICAL - Issues require attention")
         
         # 7. Generate Report
         generate_health_report(health_report, reports_path)
@@ -326,7 +326,7 @@ def health_check():
         return health_report
         
     except Exception as e:
-        print(f"❌ Errore health check: {e}")
+        print(f" Errore health check: {e}")
         return {'status': 'ERROR', 'error': str(e)}
         
     finally:
@@ -337,28 +337,28 @@ def generate_health_report(report, reports_path):
     
     report_file = os.path.join(reports_path, f"health_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
     
-    content = f"""# 📋 Health Check Report
+    content = f"""#  Health Check Report
 
 **Timestamp:** {report['timestamp']}  
 **Overall Status:** {report['overall_status']}
 
 ---
 
-## 🎯 Executive Summary
+##  Executive Summary
 
 {get_status_emoji(report['overall_status'])} **System Status:** {report['overall_status']}
 
 ---
 
-## 🔧 System Integrity
+##  System Integrity
 
-- **Required Tables:** ✅ All present
-- **Analytics Views:** ✅ All present
-- **Database Connection:** ✅ Healthy
+- **Required Tables:**  All present
+- **Analytics Views:**  All present
+- **Database Connection:**  Healthy
 
 ---
 
-## 📊 Symbol Status
+##  Symbol Status
 
 """
     
@@ -372,60 +372,60 @@ def generate_health_report(report, reports_path):
         if status['issues']:
             content += "- **Issues:**\n"
             for issue in status['issues']:
-                content += f"  - ⚠️ {issue}\n"
+                content += f"  - ️ {issue}\n"
         
         if status['warnings']:
             content += "- **Warnings:**\n"
             for warning in status['warnings']:
-                content += f"  - ⚠️ {warning}\n"
+                content += f"  - ️ {warning}\n"
         
         content += "\n"
     
     content += f"""---
 
-## 🚨 Issues
+##  Issues
 
 """
     
     if report['issues']:
         for issue in report['issues']:
-            content += f"- ❌ {issue}\n"
+            content += f"-  {issue}\n"
     else:
-        content += "- ✅ No critical issues\n"
+        content += "-  No critical issues\n"
     
     content += f"""
 
-## ⚠️ Warnings
+## ️ Warnings
 
 """
     
     if report['warnings']:
         for warning in report['warnings']:
-            content += f"- ⚠️ {warning}\n"
+            content += f"- ️ {warning}\n"
     else:
-        content += "- ✅ No warnings\n"
+        content += "-  No warnings\n"
     
     content += f"""
 
 ---
 
-## 📈 Recommendations
+##  Recommendations
 
 """
     
     if report['overall_status'] == 'HEALTHY':
-        content += "- ✅ System ready for production\n"
-        content += "- ✅ All checks passed\n"
+        content += "-  System ready for production\n"
+        content += "-  All checks passed\n"
     elif report['overall_status'] == 'WARNING':
-        content += "- ⚠️ Review warnings before production\n"
-        content += "- ⚠️ Monitor system closely\n"
+        content += "- ️ Review warnings before production\n"
+        content += "- ️ Monitor system closely\n"
     elif report['overall_status'] == 'DEGRADED':
-        content += "- 🟡 SYSTEM DEGRADED - Data quality issues detected\n"
-        content += "- 🟡 Risk Continuity investigation required\n"
-        content += "- 🟡 Review before production deployment\n"
+        content += "-  SYSTEM DEGRADED - Data quality issues detected\n"
+        content += "-  Risk Continuity investigation required\n"
+        content += "-  Review before production deployment\n"
     else:
-        content += "- ❌ Address critical issues immediately\n"
-        content += "- ❌ System not ready for production\n"
+        content += "-  Address critical issues immediately\n"
+        content += "-  System not ready for production\n"
     
     content += f"""
 
@@ -437,20 +437,20 @@ def generate_health_report(report, reports_path):
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write(content)
     
-    print(f"\n📄 Report salvato: {report_file}")
+    print(f"\n Report salvato: {report_file}")
 
 def get_status_emoji(status):
     """Ritorna emoji per status"""
     if status == 'HEALTHY':
-        return '✅'
+        return ''
     elif status == 'WARNING':
-        return '⚠️'
+        return '️'
     elif status == 'DEGRADED':
-        return '🟡'
+        return ''
     elif status == 'CRITICAL':
-        return '❌'
+        return ''
     else:
-        return '❓'
+        return ''
 
 if __name__ == "__main__":
     health_check()

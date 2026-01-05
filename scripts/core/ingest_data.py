@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def get_config():
     """Carica configurazione"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -32,7 +32,7 @@ def download_stooq_data(symbol, start_date, end_date):
         # Stooq API - formato CSV con data range
         url = f"https://stooq.com/q/l/?s={stooq_symbol}&i=d"
         
-        print(f"   🔄 Tentativo download Stooq per {symbol}...")
+        print(f"    Tentativo download Stooq per {symbol}...")
         response = requests.get(url, timeout=30)
         
         if response.status_code == 200 and response.text.strip():
@@ -69,14 +69,14 @@ def download_stooq_data(symbol, start_date, end_date):
                     df = pd.DataFrame(data)
                     df.set_index('Date', inplace=True)
                     df.sort_index(inplace=True)
-                    print(f"   ✅ Stooq: {len(df)} record scaricati (range filtrato)")
+                    print(f"    Stooq: {len(df)} record scaricati (range filtrato)")
                     return df
         
-        print(f"   ❌ Stooq: nessun dato disponibile")
+        print(f"    Stooq: nessun dato disponibile")
         return None
         
     except Exception as e:
-        print(f"   ❌ Errore Stooq: {e}")
+        print(f"    Errore Stooq: {e}")
         return None
 
 def validate_data_quality(df, symbol):
@@ -131,7 +131,7 @@ def ingest_data():
     """Ingestione completa dati di mercato"""
     
     config = get_config()
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     # Genera run_id
     run_id = f"ingest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -139,7 +139,7 @@ def ingest_data():
     conn = duckdb.connect(db_path)
     
     try:
-        print(f"🔄 Ingestion dati - Run ID: {run_id}")
+        print(f" Ingestion dati - Run ID: {run_id}")
         
         # Raccolta simboli da universe
         symbols = []
@@ -147,14 +147,14 @@ def ingest_data():
         symbols.extend([etf['symbol'] for etf in config['universe']['satellite']])
         symbols.extend([etf['symbol'] for etf in config['universe']['benchmark']])
         
-        print(f"📊 Simboli da processare: {symbols}")
+        print(f" Simboli da processare: {symbols}")
         
         total_accepted = 0
         total_rejected = 0
         all_rejection_reasons = []
         
         for symbol in symbols:
-            print(f"\n📈 Processando {symbol}...")
+            print(f"\n Processando {symbol}...")
             
             try:
                 # Download dati yfinance
@@ -177,29 +177,29 @@ def ingest_data():
                 
                 # Se YF fallisce o dati insufficienti, prova Stooq
                 if hist.empty or len(hist) < 10:
-                    print(f"   ⚠️ YF dati insufficienti ({len(hist)} record)")
+                    print(f"   ️ YF dati insufficienti ({len(hist)} record)")
                     stooq_data = download_stooq_data(symbol, start_date, end_date)
                     if stooq_data is not None and not stooq_data.empty:
                         hist = stooq_data
-                        print(f"   ✅ Usati dati Stooq: {len(hist)} record")
+                        print(f"    Usati dati Stooq: {len(hist)} record")
                     else:
-                        print(f"   ❌ Nessun dato disponibile da nessuna fonte")
+                        print(f"    Nessun dato disponibile da nessuna fonte")
                         continue
                 
                 # Validazione quality gates
                 validation_results, valid_df = validate_data_quality(hist, symbol)
                 
-                print(f"   📊 Records: {validation_results['total_records']} totali, "
+                print(f"    Records: {validation_results['total_records']} totali, "
                       f"{validation_results['accepted_records']} accettati, "
                       f"{validation_results['rejected_records']} respinti")
                 
                 if validation_results['rejection_reasons']:
-                    print(f"   ⚠️ Rejection reasons: {', '.join(validation_results['rejection_reasons'])}")
+                    print(f"   ️ Rejection reasons: {', '.join(validation_results['rejection_reasons'])}")
                     all_rejection_reasons.extend(validation_results['rejection_reasons'])
                 
                 # Se troppi respinti (>15%), prova Stooq per recuperare
                 if validation_results['rejected_records'] > 0 and validation_results['rejected_records'] / validation_results['total_records'] > 0.15:
-                    print(f"   🔄 Troppe rejections ({validation_results['rejected_records']}/{validation_results['total_records']}), provo Stooq...")
+                    print(f"    Troppe rejections ({validation_results['rejected_records']}/{validation_results['total_records']}), provo Stooq...")
                     stooq_fallback = download_stooq_data(symbol, start_date, end_date)
                     
                     if stooq_fallback is not None and not stooq_fallback.empty:
@@ -207,7 +207,7 @@ def ingest_data():
                         stooq_validation, stooq_valid = validate_data_quality(stooq_fallback, symbol)
                         
                         if stooq_validation['accepted_records'] > validation_results['accepted_records']:
-                            print(f"   ✅ Stooq migliore: {stooq_validation['accepted_records']} vs {validation_results['accepted_records']}")
+                            print(f"    Stooq migliore: {stooq_validation['accepted_records']} vs {validation_results['accepted_records']}")
                             valid_df = stooq_valid
                             validation_results = stooq_validation
                             all_rejection_reasons.append(f"Used Stooq fallback for {symbol}")
@@ -257,13 +257,13 @@ def ingest_data():
                     WHERE symbol = ?
                     """, [symbol])
                     
-                    print(f"   ✅ {symbol}: {len(valid_df)} record inseriti in market_data")
+                    print(f"    {symbol}: {len(valid_df)} record inseriti in market_data")
                 
                 total_accepted += validation_results['accepted_records']
                 total_rejected += validation_results['rejected_records']
                 
             except Exception as e:
-                print(f"   ❌ Errore processamento {symbol}: {e}")
+                print(f"    Errore processamento {symbol}: {e}")
                 all_rejection_reasons.append(f"{symbol}: {str(e)}")
                 continue
         
@@ -290,14 +290,14 @@ def ingest_data():
         
         conn.commit()
         
-        print(f"\n🎉 Ingestion completata!")
-        print(f"📊 Totali: {total_accepted} record accettati, {total_rejected} record respinti")
-        print(f"🔍 Run ID: {run_id}")
+        print(f"\n Ingestion completata!")
+        print(f" Totali: {total_accepted} record accettati, {total_rejected} record respinti")
+        print(f" Run ID: {run_id}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Errore ingestion: {e}")
+        print(f" Errore ingestion: {e}")
         conn.rollback()
         return False
         

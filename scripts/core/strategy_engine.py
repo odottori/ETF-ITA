@@ -17,11 +17,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def strategy_engine(dry_run=True):
     """Motore strategia con dry-run"""
     
-    print("🤖 STRATEGY ENGINE - ETF Italia Project v10")
+    print(" STRATEGY ENGINE - ETF Italia Project v10")
     print("=" * 60)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     # Carica configurazione
     with open(config_path, 'r') as f:
@@ -31,7 +31,7 @@ def strategy_engine(dry_run=True):
     
     try:
         # 1. Ottieni segnali correnti
-        print("📊 Caricamento segnali correnti...")
+        print(" Caricamento segnali correnti...")
         
         current_signals = conn.execute("""
         SELECT symbol, signal_state, risk_scalar, explain_code
@@ -41,11 +41,11 @@ def strategy_engine(dry_run=True):
         """).fetchall()
         
         if not current_signals:
-            print("❌ Nessun segnale disponibile")
+            print(" Nessun segnale disponibile")
             return False
         
         # 2. Ottieni posizioni correnti
-        print("💰 Analisi posizioni correnti...")
+        print(" Analisi posizioni correnti...")
         
         positions = conn.execute("""
         SELECT 
@@ -61,7 +61,7 @@ def strategy_engine(dry_run=True):
         positions_dict = {symbol: {'qty': qty, 'avg_price': avg_price} for symbol, qty, avg_buy_price in positions}
         
         # 3. Ottieni prezzi correnti
-        print("📈 Caricamento prezzi correnti...")
+        print(" Caricamento prezzi correnti...")
         
         current_prices = {}
         for symbol, _ in current_signals:
@@ -80,13 +80,13 @@ def strategy_engine(dry_run=True):
                 }
         
         # 4. Genera ordini
-        print("📋 Generazione ordini...")
+        print(" Generazione ordini...")
         
         orders = []
         
         for symbol, signal_state, risk_scalar, explain_code in current_signals:
             if symbol not in current_prices:
-                print(f"⚠️ {symbol}: Nessun prezzo disponibile")
+                print(f"️ {symbol}: Nessun prezzo disponibile")
                 continue
             
             current_price = current_prices[symbol]['close']
@@ -209,7 +209,7 @@ def strategy_engine(dry_run=True):
                 })
         
         # 5. Output ordini
-        print(f"📊 Ordini generati: {len(orders)}")
+        print(f" Ordini generati: {len(orders)}")
         
         orders_summary = {
             'timestamp': datetime.now().isoformat(),
@@ -227,24 +227,24 @@ def strategy_engine(dry_run=True):
         
         # 6. Salva su file
         if dry_run:
-            orders_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'orders.json')
+            orders_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'orders.json')
             with open(orders_file, 'w') as f:
                 json.dump(orders_summary, f, indent=2)
             
-            print(f"📄 Ordini salvati in: {orders_file}")
+            print(f" Ordini salvati in: {orders_file}")
             
             # Stampa riepilogo
-            print(f"\n📋 RIEPILOGO ORDINI:")
+            print(f"\n RIEPILOGO ORDINI:")
             for order in orders:
-                emoji = "🟢" if order['action'] == 'BUY' else "🔴" if order['action'] == 'SELL' else "🟡"
+                emoji = "" if order['action'] == 'BUY' else "" if order['action'] == 'SELL' else ""
                 print(f"{emoji} {order['symbol']}: {order['action']} {order['qty']:.0f} @ €{order['price']:.2f}")
-                print(f"   📝 {order['reason']} | Costi: €{order['fees_est'] + order['tax_friction_est']:.2f}")
-                print(f"   🎯 {order['recommendation']} | Do-nothing: {order['do_nothing_score']:.3f}")
+                print(f"    {order['reason']} | Costi: €{order['fees_est'] + order['tax_friction_est']:.2f}")
+                print(f"    {order['recommendation']} | Do-nothing: {order['do_nothing_score']:.3f}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Errore strategy engine: {e}")
+        print(f" Errore strategy engine: {e}")
         return False
         
     finally:

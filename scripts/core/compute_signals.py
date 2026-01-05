@@ -18,11 +18,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def compute_signals():
     """Calcola segnali per universo ETF"""
     
-    print("📊 COMPUTE SIGNALS - ETF Italia Project v10")
+    print(" COMPUTE SIGNALS - ETF Italia Project v10")
     print("=" * 60)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     # Carica configurazione
     with open(config_path, 'r') as f:
@@ -35,7 +35,7 @@ def compute_signals():
         conn.execute("BEGIN TRANSACTION")
         
         # 1. Setup Signal Engine
-        print("🔧 Setup Signal Engine...")
+        print(" Setup Signal Engine...")
         
         # Crea tabella signals se non esiste
         conn.execute("""
@@ -59,20 +59,20 @@ def compute_signals():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_date_symbol ON signals(date, symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_state ON signals(signal_state)")
         
-        print("✅ Signal Engine ready")
+        print(" Signal Engine ready")
         
         # 2. Ottieni simboli universe
         symbols = []
         symbols.extend([etf['symbol'] for etf in config['universe']['core']])
         symbols.extend([etf['symbol'] for etf in config['universe']['satellite']])
         
-        print(f"📊 Processing symbols: {symbols}")
+        print(f" Processing symbols: {symbols}")
         
         # 3. Calcola segnali per ogni simbolo
         total_signals = 0
         
         for symbol in symbols:
-            print(f"\n📈 Computing signals for {symbol}")
+            print(f"\n Computing signals for {symbol}")
             
             # Ottieni dati recenti con metriche
             metrics_query = """
@@ -92,7 +92,7 @@ def compute_signals():
             df = conn.execute(metrics_query, [symbol]).fetchdf()
             
             if df.empty:
-                print(f"   ⚠️ No data available for {symbol}")
+                print(f"   ️ No data available for {symbol}")
                 continue
             
             # Calcola segnali per ogni data
@@ -213,11 +213,11 @@ def compute_signals():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, signals_to_insert)
                 
-                print(f"   ✅ {symbol}: {len(signals_data)} signals computed")
+                print(f"    {symbol}: {len(signals_data)} signals computed")
                 total_signals += len(signals_data)
         
         # 4. Report segnali correnti
-        print(f"\n📊 CURRENT SIGNALS SNAPSHOT")
+        print(f"\n CURRENT SIGNALS SNAPSHOT")
         print("-" * 40)
         
         current_signals_query = """
@@ -233,14 +233,14 @@ def compute_signals():
         for signal in current_signals:
             symbol, state, scalar, explain, sma, vol, spy_guard, regime = signal
             
-            emoji = "🟢" if state == "RISK_ON" else "🔴" if state == "RISK_OFF" else "🟡"
-            guard_emoji = "🛡️" if spy_guard else ""
+            emoji = "" if state == "RISK_ON" else "" if state == "RISK_OFF" else ""
+            guard_emoji = "️" if spy_guard else ""
             
             print(f"{emoji} {symbol}: {state} (scalar: {scalar:.3f}) {guard_emoji}")
-            print(f"   📝 {explain} | Vol: {vol:.1%} | Regime: {regime}")
+            print(f"    {explain} | Vol: {vol:.1%} | Regime: {regime}")
         
         # 5. Summary statistics
-        print(f"\n📈 SIGNALS SUMMARY")
+        print(f"\n SIGNALS SUMMARY")
         print("-" * 40)
         
         summary_query = """
@@ -256,11 +256,11 @@ def compute_signals():
         summary = conn.execute(summary_query).fetchall()
         
         for state, count, avg_scalar in summary:
-            emoji = "🟢" if state == "RISK_ON" else "🔴" if state == "RISK_OFF" else "🟡"
+            emoji = "" if state == "RISK_ON" else "" if state == "RISK_OFF" else ""
             print(f"{emoji} {state}: {count} signals (avg scalar: {avg_scalar:.3f})")
         
-        print(f"\n🎉 SIGNALS COMPUTATION COMPLETED")
-        print(f"📊 Total signals processed: {total_signals}")
+        print(f"\n SIGNALS COMPUTATION COMPLETED")
+        print(f" Total signals processed: {total_signals}")
         
         # Commit transazione
         conn.commit()
@@ -268,7 +268,7 @@ def compute_signals():
         return True
         
     except Exception as e:
-        print(f"❌ Errore compute signals: {e}")
+        print(f" Errore compute signals: {e}")
         try:
             conn.rollback()
         except:

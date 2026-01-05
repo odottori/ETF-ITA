@@ -15,20 +15,20 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def sanity_check():
     """Controllo integrità bloccante"""
     
-    print("🔍 SANITY CHECK - ETF Italia Project v10")
+    print(" SANITY CHECK - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     conn = duckdb.connect(db_path)
     
     try:
         issues = []
         
-        print("🔍 Verifica integrità sistema...")
+        print(" Verifica integrità sistema...")
         
         # 1. Posizioni negative
-        print("\n1️⃣ Verifica posizioni negative...")
+        print("\n1. Verifica posizioni negative...")
         
         negative_positions = conn.execute("""
         SELECT symbol, SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
@@ -39,15 +39,15 @@ def sanity_check():
         """).fetchall()
         
         if negative_positions:
-            print("❌ POSIZIONI NEGATIVE TROVATE:")
+            print(" POSIZIONI NEGATIVE TROVATE:")
             for symbol, qty in negative_positions:
                 print(f"  {symbol}: {qty:.0f}")
                 issues.append(f"Posizione negativa: {symbol}")
         else:
-            print("✅ Nessuna posizione negativa")
+            print(" Nessuna posizione negativa")
         
         # 2. Cash negativo
-        print("\n2️⃣ Verifica cash balance...")
+        print("\n2. Verifica cash balance...")
         
         cash_balance = conn.execute("""
         SELECT COALESCE(SUM(CASE 
@@ -61,13 +61,13 @@ def sanity_check():
         """).fetchone()[0]
         
         if cash_balance < 0:
-            print(f"❌ CASH BALANCE NEGATIVO: €{cash_balance:,.2f}")
+            print(f" CASH BALANCE NEGATIVO: €{cash_balance:,.2f}")
             issues.append(f"Cash negativo: €{cash_balance:,.2f}")
         else:
-            print(f"✅ Cash balance: €{cash_balance:,.2f}")
+            print(f" Cash balance: €{cash_balance:,.2f}")
         
         # 3. PMC coerenti
-        print("\n3️⃣ Verifica PMC...")
+        print("\n3. Verifica PMC...")
         
         pmc_issues = conn.execute("""
         SELECT COUNT(*) FROM fiscal_ledger 
@@ -75,13 +75,13 @@ def sanity_check():
         """).fetchone()[0]
         
         if pmc_issues > 0:
-            print(f"❌ PMC NEGATIVI: {pmc_issues}")
+            print(f" PMC NEGATIVI: {pmc_issues}")
             issues.append(f"PMC negativi: {pmc_issues}")
         else:
-            print("✅ PMC coerenti")
+            print(" PMC coerenti")
         
         # 4. Date coerenti
-        print("\n4️⃣ Verifica date...")
+        print("\n4. Verifica date...")
         
         future_dates = conn.execute("""
         SELECT COUNT(*) FROM fiscal_ledger 
@@ -89,13 +89,13 @@ def sanity_check():
         """).fetchone()[0]
         
         if future_dates > 0:
-            print(f"❌ DATE FUTURE: {future_dates}")
+            print(f" DATE FUTURE: {future_dates}")
             issues.append(f"Date future: {future_dates}")
         else:
-            print("✅ Date coerenti")
+            print(" Date coerenti")
         
         # 5. Invarianti contabili
-        print("\n5️⃣ Verifica invarianti contabili...")
+        print("\n5. Verifica invarianti contabili...")
         
         # Verifica equity = cash + positions
         total_cash = cash_balance
@@ -119,14 +119,14 @@ def sanity_check():
         
         # Verifica se ci sono discrepanze
         if total_equity < 0:
-            print(f"❌ EQUITY NEGATIVA: €{total_equity:,.2f}")
+            print(f" EQUITY NEGATIVA: €{total_equity:,.2f}")
             issues.append(f"Equity negativa: €{total_equity:,.2f}")
         else:
-            print(f"✅ Equity: €{total_equity:,.2f}")
+            print(f" Equity: €{total_equity:,.2f}")
             print(f"   Cash: €{total_cash:,.2f} | Positions: €{total_positions:,.2f}")
         
         # 6. Data consistency
-        print("\n6️⃣ Verifica consistenza dati...")
+        print("\n6. Verifica consistenza dati...")
         
         # Verifica gap su giorni trading
         trading_gaps = conn.execute("""
@@ -140,28 +140,28 @@ def sanity_check():
         """).fetchone()[0]
         
         if trading_gaps > 0:
-            print(f"⚠️ TRADING GAPS: {trading_gaps} giorni mancanti")
+            print(f"️ TRADING GAPS: {trading_gaps} giorni mancanti")
             issues.append(f"Trading gaps: {trading_gaps}")
         else:
-            print("✅ Dati trading completi")
+            print(" Dati trading completi")
         
         # 7. Summary
-        print(f"\n📋 SANITY CHECK SUMMARY:")
+        print(f"\n SANITY CHECK SUMMARY:")
         print(f"Issues trovati: {len(issues)}")
         
         if issues:
-            print(f"\n❌ ISSUES DETECTED:")
+            print(f"\n ISSUES DETECTED:")
             for i, issue in enumerate(issues, 1):
                 print(f"  {i}. {issue}")
             
-            print(f"\n🚨 SANITY CHECK FAILED - Sistema non coerente")
+            print(f"\n SANITY CHECK FAILED - Sistema non coerente")
             return False
         else:
-            print(f"\n✅ SANITY CHECK PASSED - Sistema coerente")
+            print(f"\n SANITY CHECK PASSED - Sistema coerente")
             return True
         
     except Exception as e:
-        print(f"❌ Errore sanity check: {e}")
+        print(f" Errore sanity check: {e}")
         return False
         
     finally:

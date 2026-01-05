@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def stress_test():
     """Esegue stress test con Monte Carlo"""
     
-    print("🔥 STRESS TEST - ETF Italia Project v10")
+    print(" STRESS TEST - ETF Italia Project v10")
     print("=" * 60)
     
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
@@ -59,23 +59,23 @@ def stress_test():
         # Calcola portfolio returns (equal weight)
         portfolio_returns = df_returns.mean(axis=1).values
         
-        print(f"📊 Dati caricati: {len(portfolio_returns)} giorni ({df_returns.index[0].date()} → {df_returns.index[-1].date()})")
-        print(f"📊 Simboli: {list(df_returns.columns)}")
+        print(f"Dati caricati: {len(portfolio_returns)} giorni ({df_returns.index[0].date()} to {df_returns.index[-1].date()})")
+        print(f"Simboli: {list(df_returns.columns)}")
         
         # Sanity check dati
         if len(portfolio_returns) < 252:  # Meno di 1 anno di dati
-            print("⚠️ WARNING: Meno di 1 anno di dati storici")
+            print("WARNING: Meno di 1 anno di dati storici")
         
         # Check varianza portfolio returns
         portfolio_std = np.std(portfolio_returns)
         if portfolio_std == 0:
-            print("❌ ERROR: Varianza zero nei rendimenti - dati non validi")
+            print(" ERROR: Varianza zero nei rendimenti - dati non validi")
             return False
         
-        print(f"📊 Portfolio daily return std: {portfolio_std:.4f}")
+        print(f" Portfolio daily return std: {portfolio_std:.4f}")
         
         # 2. Monte Carlo Simulation
-        print(f"\n🎲 Monte Carlo Simulation (1000 iterazioni)...")
+        print(f"\n Monte Carlo Simulation (1000 iterazioni)...")
         
         n_simulations = 1000
         results = []
@@ -118,10 +118,10 @@ def stress_test():
         # Debug: stampa alcuni CAGR sample per verificare varianza
         if len(results) >= 5:
             sample_cagrs = [r['cagr'] for r in results[:5]]
-            print(f"🔍 DEBUG: Sample CAGRs: {[f'{c:.4f}' for c in sample_cagrs]}")
+            print(f" DEBUG: Sample CAGRs: {[f'{c:.4f}' for c in sample_cagrs]}")
         
         # 3. Analisi risultati
-        print(f"\n📊 Monte Carlo Results Analysis:")
+        print(f"\n Monte Carlo Results Analysis:")
         
         cagr_values = [r['cagr'] for r in results]
         max_dd_values = [r['max_dd'] for r in results]
@@ -150,24 +150,24 @@ def stress_test():
         print(f"  95th percentile: {max_dd_95th:.2%}")
         
         # 4. Risk Assessment
-        print(f"\n🎯 Risk Assessment:")
+        print(f"\n Risk Assessment:")
         
         # Sanity check per risultati impossibili
         if max_dd_mean == 0 and max_dd_std == 0:
-            print("❌ CRITICAL: Max Drawdown identico zero in tutte le simulazioni")
-            print("   ❌ Questo indica un bug nel calcolo o dati non validi")
+            print(" CRITICAL: Max Drawdown identico zero in tutte le simulazioni")
+            print("    Questo indica un bug nel calcolo o dati non validi")
             return False
         
         if cagr_std == 0:
-            print("❌ CRITICAL: Varianza CAGR zero - risultati non validi")
+            print(" CRITICAL: Varianza CAGR zero - risultati non validi")
             return False
         
         # 5th percentile Max Drawdown check
         if max_dd_5th > -0.25:  # 25% max drawdown
-            print(f"⚠️ HIGH RISK: 5th percentile MaxDD > 25% ({max_dd_5th:.1%})")
-            print("   ⚠️ Consider reducing position size or increasing diversification")
+            print(f"️ HIGH RISK: 5th percentile MaxDD > 25% ({max_dd_5th:.1%})")
+            print("   ️ Consider reducing position size or increasing diversification")
         else:
-            print("✅ ACCEPTABLE RISK: 5th percentile MaxDD ≤ 25%")
+            print(" ACCEPTABLE RISK: 5th percentile MaxDD <= 25%")
         
         # Sharpe ratio analysis corretto
         if cagr_std > 0:  # Solo se varianza non zero
@@ -177,22 +177,22 @@ def stress_test():
             
             # Sanity check Sharpe
             if sharpe_mean > 10:  # Sharpe irrealisticamente alto
-                print(f"⚠️ WARNING: Sharpe irrealisticamente alto ({sharpe_mean:.2f})")
-                print("   ⚠️ Possibile errore nel calcolo varianza")
+                print(f"️ WARNING: Sharpe irrealisticamente alto ({sharpe_mean:.2f})")
+                print("   ️ Possibile errore nel calcolo varianza")
             elif sharpe_mean < 0.5:
-                print(f"📈 Sharpe Ratio (mean): {sharpe_mean:.2f}")
-                print("⚠️ LOW SHARPE: Consider strategy optimization")
+                print(f" Sharpe Ratio (mean): {sharpe_mean:.2f}")
+                print("️ LOW SHARPE: Consider strategy optimization")
             elif sharpe_mean > 1.0:
-                print(f"📈 Sharpe Ratio (mean): {sharpe_mean:.2f}")
-                print("✅ EXCELLENT SHARPE: Strategy appears robust")
+                print(f" Sharpe Ratio (mean): {sharpe_mean:.2f}")
+                print(" EXCELLENT SHARPE: Strategy appears robust")
             else:
-                print(f"📈 Sharpe Ratio (mean): {sharpe_mean:.2f}")
+                print(f" Sharpe Ratio (mean): {sharpe_mean:.2f}")
         else:
             sharpe_mean = 0
-            print("❌ Sharpe non calcolabile: varianza zero")
+            print(" Sharpe non calcolabile: varianza zero")
         
         # 5. Stress Test Report
-        print(f"\n📋 Stress Test Report:")
+        print(f"\n Stress Test Report:")
         
         stress_report = {
             'timestamp': datetime.now().isoformat(),
@@ -234,20 +234,20 @@ def stress_test():
             
             # Aggiungi stress test alla sessione
             session_manager.add_report_to_session(timestamp, "stress_test", stress_report, "json")
-            print(f"📄 Stress test salvato in session: {timestamp}")
+            print(f" Stress test salvato in session: {timestamp}")
             
         except ImportError:
             # Fallback a vecchio metodo
-            reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'reports')
+            reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports')
             os.makedirs(reports_dir, exist_ok=True)
             
             stress_file = os.path.join(reports_dir, f"stress_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
             with open(stress_file, 'w') as f:
                 json.dump(stress_report, f, indent=2)
-            print(f"📄 Stress test report salvato: {stress_file}")
+            print(f" Stress test report salvato: {stress_file}")
         
         # 6. Raccomandazioni
-        print(f"\n💡 Raccomandazioni:")
+        print(f"\n Raccomandazioni:")
         
         if max_dd_5th > -0.25:
             print("  • Ridurre sizing per posizione")
@@ -264,12 +264,12 @@ def stress_test():
             print("  * Considera Kelly Criterion sizing")
             print("  • Riduci turnover")
         
-        print(f"\n✅ Stress test completato")
+        print(f"\n Stress test completato")
         
         return True
         
     except Exception as e:
-        print(f"❌ Errore stress test: {e}")
+        print(f" Errore stress test: {e}")
         return False
         
     finally:

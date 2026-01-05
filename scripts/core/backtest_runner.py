@@ -17,11 +17,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def backtest_runner():
     """Esegue backtest completo con Run Package"""
     
-    print("🏃 BACKTEST RUNNER - ETF Italia Project v10")
+    print(" BACKTEST RUNNER - ETF Italia Project v10")
     print("=" * 60)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
     # Carica configurazione
     with open(config_path, 'r') as f:
@@ -31,35 +31,35 @@ def backtest_runner():
     
     try:
         # 1. Sanity Check bloccante
-        print("🔍 Sanity Check...")
+        print(" Sanity Check...")
         if not sanity_check(conn):
-            print("❌ SANITY CHECK FAILED - Backtest interrotto")
+            print(" SANITY CHECK FAILED - Backtest interrotto")
             return False
         
-        print("✅ Sanity check passed")
+        print(" Sanity check passed")
         
         # 2. Genera Run ID
         run_id = f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         run_timestamp = datetime.now().isoformat()
         
-        print(f"📋 Run ID: {run_id}")
+        print(f" Run ID: {run_id}")
         
         # 3. Crea cartella report
-        reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'reports', run_id)
+        reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports', run_id)
         os.makedirs(reports_dir, exist_ok=True)
         
         # 4. Calcola KPI portfolio
-        print("📊 Calcolo KPI portfolio...")
+        print(" Calcolo KPI portfolio...")
         
         kpi_data = calculate_kpi(conn, config)
         
         # 5. Calcola KPI benchmark
-        print("📈 Calcolo KPI benchmark...")
+        print(" Calcolo KPI benchmark...")
         
         benchmark_data = calculate_benchmark_kpi(conn, config)
         
         # 6. Genera Run Package
-        print("📦 Generazione Run Package...")
+        print(" Generazione Run Package...")
         
         run_package = {
             'manifest': {
@@ -109,10 +109,10 @@ def backtest_runner():
         with open(summary_file, 'w', encoding='utf-8') as f:
             f.write(run_package['summary'])
         
-        print(f"📄 Run Package salvato in: {reports_dir}")
+        print(f" Run Package salvato in: {reports_dir}")
         
         # 8. Stampa riepilogo
-        print(f"\n📊 BACKTEST RESULTS:")
+        print(f"\n BACKTEST RESULTS:")
         print(f"Run ID: {run_id}")
         print(f"CAGR Portfolio: {kpi_data['cagr']:.2%}")
         print(f"Max Drawdown: {kpi_data['max_dd']:.2%}")
@@ -121,16 +121,16 @@ def backtest_runner():
         print(f"Turnover: {kpi_data['turnover']:.2%}")
         
         if benchmark_data:
-            print(f"\n📈 BENCHMARK COMPARISON:")
+            print(f"\n BENCHMARK COMPARISON:")
             print(f"CAGR Benchmark: {benchmark_data['cagr']:.2%}")
             print(f"Alpha: {kpi_data['cagr'] - benchmark_data['cagr']:.2%}")
         
-        print(f"\n✅ Backtest completato con successo")
+        print(f"\n Backtest completato con successo")
         
         return True
         
     except Exception as e:
-        print(f"❌ Errore backtest runner: {e}")
+        print(f" Errore backtest runner: {e}")
         return False
         
     finally:
@@ -152,7 +152,7 @@ def sanity_check(conn):
         """).fetchone()[0]
         
         if negative_positions > 0:
-            print(f"❌ Posizioni negative trovate: {negative_positions}")
+            print(f" Posizioni negative trovate: {negative_positions}")
             return False
         
         # 2. Cash negativo
@@ -168,7 +168,7 @@ def sanity_check(conn):
         """).fetchone()[0]
         
         if cash_balance < 0:
-            print(f"❌ Cash balance negativo: €{cash_balance:,.2f}")
+            print(f" Cash balance negativo: €{cash_balance:,.2f}")
             return False
         
         # 3. PMC coerenti
@@ -178,7 +178,7 @@ def sanity_check(conn):
         """).fetchone()[0]
         
         if pmc_issues > 0:
-            print(f"❌ PMC negativi trovati: {pmc_issues}")
+            print(f" PMC negativi trovati: {pmc_issues}")
             return False
         
         # 4. Date coerenti
@@ -188,13 +188,13 @@ def sanity_check(conn):
         """).fetchone()[0]
         
         if future_dates > 0:
-            print(f"❌ Date future trovate: {future_dates}")
+            print(f" Date future trovate: {future_dates}")
             return False
         
         return True
         
     except Exception as e:
-        print(f"❌ Errore sanity check: {e}")
+        print(f" Errore sanity check: {e}")
         return False
 
 def calculate_kpi(conn, config):
@@ -270,7 +270,7 @@ def calculate_kpi(conn, config):
         }
         
     except Exception as e:
-        print(f"❌ Errore calcolo KPI: {e}")
+        print(f" Errore calcolo KPI: {e}")
         return {
             'cagr': 0.0,
             'max_dd': 0.0,
@@ -354,7 +354,7 @@ def calculate_benchmark_kpi(conn, config):
         }
         
     except Exception as e:
-        print(f"❌ Errore calcolo benchmark KPI: {e}")
+        print(f" Errore calcolo benchmark KPI: {e}")
         return {
             'cagr': 0.0,
             'max_dd': 0.0,
@@ -390,7 +390,7 @@ def calculate_data_fingerprint(conn):
         return fingerprint
         
     except Exception as e:
-        print(f"❌ Errore calcolo data fingerprint: {e}")
+        print(f" Errore calcolo data fingerprint: {e}")
         return "unknown"
 
 def calculate_kpi_hash(portfolio_kpi, benchmark_kpi):
@@ -405,13 +405,13 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
     
     alpha = portfolio_kpi['cagr'] - benchmark_kpi['cagr']
     
-    summary = f"""# 📋 Backtest Report - {run_id}
+    summary = f"""#  Backtest Report - {run_id}
 
 **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 ---
 
-## 📊 Performance Summary
+##  Performance Summary
 
 ### Portfolio Performance
 - **CAGR:** {portfolio_kpi['cagr']:.2%}
@@ -427,7 +427,7 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
 
 ---
 
-## 📈 Risk Analysis
+##  Risk Analysis
 
 ### Drawdown Analysis
 - **Maximum Drawdown:** {portfolio_kpi['max_dd']:.2%}
@@ -440,7 +440,7 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
 
 ---
 
-## 📋 Trading Activity
+##  Trading Activity
 
 ### Position Changes
 - **Total Trades:** TBD
@@ -454,7 +454,7 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
 
 ---
 
-## 💰 Financial Summary
+##  Financial Summary
 
 ### Portfolio Value
 - **Initial Capital:** €20,000.00
@@ -469,7 +469,7 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
 
 ---
 
-## 🎯 Conclusions
+##  Conclusions
 
 ### Strengths
 - [ ] Robust risk management framework

@@ -38,9 +38,9 @@ def load_trading_calendar(venue='BIT', csv_file=None):
         else:
             print(" Generazione calendario base (giorni feriali)")
             
-            # Genera calendario base per anni 2020-2025
+            # Genera calendario base per anni 2020-2026 (P0.1)
             start_date = '2020-01-01'
-            end_date = '2025-12-31'
+            end_date = '2026-12-31'  # Esteso a 2026 per production readiness
             
             # Pulisci dati esistenti per questo venue
             conn.execute("DELETE FROM trading_calendar WHERE venue = ?", [venue])
@@ -133,6 +133,20 @@ def load_trading_calendar(venue='BIT', csv_file=None):
                 ('2025-12-08', 'Immacolata'),
                 ('2025-12-25', 'Natale'),
                 ('2025-12-26', 'Santo Stefano'),
+                
+                # Festivi 2026 (P0.1)
+                ('2026-01-01', 'Capodanno'),
+                ('2026-01-06', 'Epifania'),
+                ('2026-04-05', 'Pasqua'),
+                ('2026-04-06', 'Pasquetta'),
+                ('2026-04-25', 'Liberazione'),
+                ('2026-05-01', 'Lavoro'),
+                ('2026-06-02', 'Repubblica'),
+                ('2026-08-15', 'Ferragosto'),
+                ('2026-11-01', 'Ognissanti'),
+                ('2026-12-08', 'Immacolata'),
+                ('2026-12-25', 'Natale'),
+                ('2026-12-26', 'Santo Stefano'),
             ]
             
             # Aggiorna festivi

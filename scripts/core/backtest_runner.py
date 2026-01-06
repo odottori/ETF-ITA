@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
+from sequence_runner import run_sequence_from
 
 def backtest_runner():
     """Esegue backtest completo con Run Package"""
@@ -500,5 +501,12 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
     return summary
 
 if __name__ == "__main__":
+    # Esegui backtest_runner e poi continua con la sequenza
     success = backtest_runner()
-    sys.exit(0 if success else 1)
+    
+    if success:
+        # Continua con la sequenza: performance_report_generator, analyze_schema_drift
+        run_sequence_from('backtest_runner')
+    else:
+        print("❌ Backtest runner fallito - sequenza interrotta")
+        sys.exit(1)

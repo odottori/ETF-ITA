@@ -12,6 +12,9 @@ from datetime import datetime
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from session_manager import get_session_manager
+from sequence_runner import run_sequence_from
+
 def generate_performance_report():
     """Genera report performance della sessione corrente"""
     
@@ -102,5 +105,12 @@ def generate_performance_report():
         return False
 
 if __name__ == "__main__":
+    # Esegui performance_report_generator e poi continua con la sequenza
     success = generate_performance_report()
-    sys.exit(0 if success else 1)
+    
+    if success:
+        # Continua con la sequenza: analyze_schema_drift
+        run_sequence_from('performance_report_generator')
+    else:
+        print("❌ Performance report generator fallito - sequenza interrotta")
+        sys.exit(1)

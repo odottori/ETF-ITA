@@ -110,19 +110,31 @@ def calculate_target_weights(config, portfolio_value):
     return weights
 
 def apply_position_caps(config, weights):
-    """Applica position caps per symbol"""
+    """Applica position caps per symbol senza violare i limiti"""
     capped_weights = weights.copy()
     
     # XS2L specific cap
     xs2l_cap = config['risk_management'].get('xs2l_position_cap', 0.35)
     if 'XS2L.MI' in capped_weights:
+        original_weight = capped_weights['XS2L.MI']
         capped_weights['XS2L.MI'] = min(capped_weights['XS2L.MI'], xs2l_cap)
+        
+        # Ridistribuisci il peso eccedente agli altri asset proporzionalmente
+        excess_weight = original_weight - capped_weights['XS2L.MI']
+        if excess_weight > 0:
+            other_symbols = [s for s in capped_weights if s != 'XS2L.MI']
+            if other_symbols:
+                total_other_weight = sum(capped_weights[s] for s in other_symbols)
+                for symbol in other_symbols:
+                    if total_other_weight > 0:
+                        proportion = capped_weights[symbol] / total_other_weight
+                        capped_weights[symbol] += excess_weight * proportion
     
-    # Ricalcola pesi rimanenti
-    total_capped = sum(capped_weights.values())
-    if total_capped > 0:
+    # Normalizza solo se necessario (per piccoli errori di arrotondamento)
+    total_weight = sum(capped_weights.values())
+    if abs(total_weight - 1.0) > 0.001:  # Tolleranza 0.1%
         for symbol in capped_weights:
-            capped_weights[symbol] = capped_weights[symbol] / total_capped
+            capped_weights[symbol] = capped_weights[symbol] / total_weight
     
     return capped_weights
 

@@ -1,12 +1,15 @@
-# 📚 DATADICTIONARY (ETF_ITA)
+# DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r32 — 2026-01-06  
+**Doc Revision (internal):** r34 — 2026-01-06  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
 **Reports Structure:** `data/reports/sessions/<timestamp>/[01_health_checks|02_automated|03_guardrails|04_risk|05_stress_tests|06_strategy|07_backtests|08_performance|09_analysis]/`  
 **Risk Analysis:** `data/reports/sessions/<timestamp>/04_risk/risk_management_*.json`  
 **Risk Summary:** `data/reports/sessions/<timestamp>/08_performance/performance_*.json`  
-**System Status:** **PRODUCTION READY v10.7**  
+**System Status:** **PRODUCTION READY v10.7.2**  
+| **Strategy Engine:** **CRITICAL FIXES COMPLETATI** (bug risolti) |
+| **Fiscal Engine:** **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
+| **Guardrails:** **CRITICAL BUGS RISOLTI** (NameError + price coherence) | 
 **Scripts Funzionanti:** **13/13** (100% success)  
 **Closed Loop:** **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  
@@ -37,7 +40,7 @@ Questa sezione elenca gli oggetti database principali.
 - `staging_data` - Area staging per validazione
 - `signals` - Segnali strategia
 - `fiscal_ledger` - Ledger fiscale PMC
-- `tax_loss_buckets` - Bucket perdite fiscali
+- `tax_loss_carryforward` - Zainetto minusvalenze per categoria fiscale
 - `trade_journal` - Journal operazioni
 - `metric_snapshot` - Snapshot metriche
 - `benchmark_snapshot` - Snapshot benchmark
@@ -250,25 +253,27 @@ Registro operazioni e stato contabile.
 - `pmc_eur`: Calcolato come prezzo medio ponderato continuo
 - Arrotondamenti a 2 decimali in query fiscali
 
-### DD-7.2 `tax_loss_buckets`
-Minusvalenze "redditi diversi" riportabili (lean FIFO).
+### DD-7.2 `tax_loss_carryforward`
+Minusvalenze "redditi diversi" riportabili per categoria fiscale (DIPF §6.2).
 
 | Colonna | Tipo | Note |
 |---|---|---|
-| bucket_id | BIGINT | PK |
-| created_at | TIMESTAMP | data realizzo |
-| expires_at | DATE | **31/12** (anno+4) |
-| amount_eur | DOUBLE | residuo compensabile |
-| source_trade_id | BIGINT | link a fiscal_ledger.id |
-| last_updated | TIMESTAMP | |
+| id | INTEGER | PK auto-increment |
+| symbol | VARCHAR | Simbolo origine loss (audit trail) |
+| realize_date | DATE | Data realizzo loss |
+| loss_amount | DOUBLE | Importo loss (negativo) |
+| used_amount | DOUBLE | Importo già utilizzato (>= 0) |
+| expires_at | DATE | Scadenza 31/12/(anno+4) |
+| tax_category | VARCHAR | Categoria fiscale (OICR_ETF/ETC_ETN_STOCK) |
+| created_at | TIMESTAMP | default now() |
 
----
+**Note implementazione:**
+- Query zainetto per `tax_category`, non per simbolo
+- OICR_ETF: gain tassati pieni 26%, loss accumulate ma non compensabili
+- ETC_ETN_STOCK: compensazione possibile per categoria
+- Scadenza conforme normativa italiana: 31/12 quarto anno successivo
 
-## DD-8. Trade journaling & attribution
-
-### DD-8.1 `trade_journal`
-Tabella audit trail per tracing completo da segnale a esecuzione.  
-**🆕 Integrata con execute_orders.py per closed loop.**
+### DD-7.3 `trade_journal`
 
 | Colonna | Tipo | Note |
 |---|---|---|
@@ -394,3 +399,54 @@ Campi minimi consigliati:
 - elenco ordini (BUY/SELL/HOLD) con qty, symbol, reason, `explain_code`
 - stime: `expected_alpha_est`, `fees_est`, `tax_friction_est`
 - `do_nothing_score` e `recommendation` (`HOLD`/`TRADE`)
+
+**🆕 Strutture dati corrette (v10.7.1):**
+```json
+{
+  "orders": [
+    {
+      "symbol": "XS2L.MI",
+      "action": "BUY",
+      "qty": 50,
+      "price": 12.30,
+      "reason": "RISK_ON_MOMENTUM_0.8",
+      "expected_alpha_est": 1.66,
+      "fees_est": 5.20,
+      "tax_friction_est": 0.00,
+      "do_nothing_score": 0.0012,
+      "recommendation": "TRADE"
+    }
+  ]
+}
+```
+
+**🆕 positions_dict structure (corretta):**
+```python
+positions_dict = {
+    'XS2L.MI': {
+        'qty': 50,
+        'avg_buy_price': 12.30  # NON 'avg_price'
+    }
+}
+```
+
+**🆕 apply_position_caps output:**
+```python
+capped_weights = {
+    'IEAC.MI': 0.325,  # Ridistribuito proporzionalmente
+    'XS2L.MI': 0.350,  # Cap rispettato (max 0.35)
+    'EIMI.MI': 0.325   # Peso eccedente ridistribuito
+}
+# Somma = 1.0, cap garantiti
+```
+
+**🆕 expected_alpha modellistico:**
+```python
+# Base: 8% annual
+base_alpha = 0.08
+# Adjust per risk scalar e volatilità
+risk_adjusted_alpha = base_alpha * risk_scalar * vol_adjustment
+# Converti in daily
+daily_alpha = (1 + risk_adjusted_alpha) ** (1/252) - 1
+expected_alpha = position_value * daily_alpha
+```

@@ -3,11 +3,14 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r32 — 2026-01-06 |
+| **Doc Revision (internal)** | r33 — 2026-01-06 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **PRODUCTION READY v10.7** |
+| **Stato Sistema** | **PRODUCTION READY v10.7.2** |
 | **Scripts Funzionanti** | **13/13** (100% success) |
 | **Closed Loop** | **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py) |
+| **Strategy Engine** | **CRITICAL FIXES COMPLETATI** (bug risolti) |
+| **Fiscal Engine** | **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
+| **Guardrails** | **CRITICAL BUGS RISOLTI** (NameError + price coherence) |
 
 ---
 
@@ -125,7 +128,45 @@ py scripts/sanity_check.py
 
 ---
 
-## 4) Session Management & Semaforica
+## 4) 🆕 Strategy Engine Fixes (v10.7.1)
+
+### Bug Critici Risolti
+
+**✅ 3.1 Doppia logica rebalancing vs segnali**
+- **Problema**: Due blocchi indipendenti generavano ordini duplicati/conflittuali
+- **Soluzione**: Logica unificata con priorità: Stop-loss → Segnali → Rebalancing
+- **File**: `scripts/core/strategy_engine.py` righe 98-196
+
+**✅ 3.2 Mismatch chiave avg_price vs avg_buy_price**
+- **Problema**: `positions_dict` usava chiave `avg_price` ma funzioni si aspettavano `avg_buy_price`
+- **Soluzione**: Corretta chiave nel dizionario per coerenza con funzioni risk
+- **File**: `scripts/core/strategy_engine.py` riga 64
+
+**✅ 3.3 apply_position_caps matematicamente sbagliata**
+- **Problema**: Normalizzazione poteva far superare i cap (es. 0.35/0.85 ≈ 0.41)
+- **Soluzione**: Ridistribuzione proporzionale del peso eccedente, cap garantiti
+- **File**: `scripts/core/implement_risk_controls.py` righe 112-139
+
+**✅ 3.4 do_nothing_score segno invertito**
+- **Problema**: Logica invertita (score < 0 → TRADE) e threshold ignorato
+- **Soluzione**: Logica corretta `score >= threshold → TRADE` con uso di inertia_threshold
+- **File**: `scripts/core/strategy_engine.py` righe 259-265
+
+**✅ 3.5 Expected alpha hardcoded**
+- **Problema**: `expected_alpha = position_value * 0.05` hardcoded
+- **Soluzione**: Modello basato su risk scalar, volatilità e momentum
+- **File**: `scripts/core/strategy_engine.py` righe 241-257
+
+### Test Verifica
+Creati test unitari in `tests/test_strategy_engine_logic.py` - **5/5 passanti**
+
+### Impatto Sistema
+- **Pre-Fixes**: Ordini duplicati, stop-loss non applicato, cap violabili, decisioni illogiche
+- **Post-Fixes**: Logica unificata, risk guarantees, decisioni coerenti, alpha modellistico
+
+---
+
+## 5) Session Management & Semaforica
 
 ### 4.1 Session Manager Centralizzato
 

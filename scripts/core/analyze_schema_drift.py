@@ -13,6 +13,8 @@ from datetime import datetime
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from session_manager import get_session_manager
+
 def analyze_schema_drift():
     """Analizza drift tra DATADICTIONARY e schema reale"""
     

@@ -89,7 +89,7 @@ def check_guardrails():
                 print(f"  Ratio: {spy_data[0]/spy_data[1]:.3f}")
                 
                 guardrails_status['alerts'].append("Spy Guard active - bear market detected")
-                guardrails['recommendations'].append("Consider defensive positioning or cash allocation")
+                guardrails_status['recommendations'].append("Consider defensive positioning or cash allocation")
                 
                 # Controlla segnali RISK_ON
                 risk_on_signals = conn.execute("""
@@ -101,7 +101,7 @@ def check_guardrails():
                 if risk_on_signals > 0:
                     guardrails_status['overall_status'] = 'DANGER'
                     print(f" {risk_on_signals} RISK_ON signals despite Spy Guard")
-                    guardrails['recommendations'].append("Review signal logic - Spy Guard should override RISK_ON")
+                    guardrails_status['recommendations'].append("Review signal logic - Spy Guard should override RISK_ON")
             else:
                 print(" Spy Guard OK (S&P 500 > SMA 200)")
         else:
@@ -131,30 +131,42 @@ def check_guardrails():
         # 4. Position Concentration Check
         print(f"\n Position Concentration Check:")
         
+        # Usa prezzi di chiusura correnti per valorizzazione coerente
         positions = conn.execute("""
-        SELECT 
-            symbol,
-            SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as qty,
-            SUM(CASE WHEN type = 'BUY' THEN qty * price ELSE -qty * price END) as position_value
-        FROM fiscal_ledger 
-        WHERE type IN ('BUY', 'SELL')
-        GROUP BY symbol
-        HAVING SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) != 0
+        WITH current_prices AS (
+            SELECT symbol, close as current_price
+            FROM market_data 
+            WHERE date = (SELECT MAX(date) FROM market_data)
+        ),
+        position_summary AS (
+            SELECT 
+                fl.symbol,
+                SUM(CASE WHEN fl.type = 'BUY' THEN fl.qty ELSE -fl.qty END) as qty,
+                cp.current_price,
+                SUM(CASE WHEN fl.type = 'BUY' THEN fl.qty ELSE -fl.qty END) * cp.current_price as market_value
+            FROM fiscal_ledger fl
+            JOIN current_prices cp ON fl.symbol = cp.symbol
+            WHERE fl.type IN ('BUY', 'SELL')
+            GROUP BY fl.symbol, cp.current_price
+            HAVING SUM(CASE WHEN fl.type = 'BUY' THEN fl.qty ELSE -fl.qty END) != 0
+        )
+        SELECT symbol, qty, current_price, market_value
+        FROM position_summary
         """).fetchall()
         
         if positions:
-            total_value = sum(pos[2] for pos in positions)
+            total_value = sum(pos[3] for pos in positions)  # market_value è indice 3
             
-            for symbol, qty, value in positions:
-                concentration = value / total_value if total_value > 0 else 0
+            for symbol, qty, current_price, market_value in positions:
+                concentration = market_value / total_value if total_value > 0 else 0
                 if concentration > 0.4:  # 40% max allocation
-                    print(f" HIGH CONCENTRATION: {symbol}: {concentration:.1%}")
+                    print(f" HIGH CONCENTRATION: {symbol}: {concentration:.1%} (qty: {qty}, price: €{current_price:.2f})")
                     guardrails_status['warnings'].append(f"High concentration: {symbol} {concentration:.1%}")
-        
-            max_concentration = max(pos[2] / total_value if total_value > 0 else 0 for pos in positions)
+            
+            max_concentration = max(pos[3] / total_value if total_value > 0 else 0 for pos in positions)
             if max_concentration > 0.6:
                 guardrails_status['overall_status'] = 'DANGER'
-                guardrails['recommendations'].append("Consider rebalancing to reduce concentration risk")
+                guardrails_status['recommendations'].append("Consider rebalancing to reduce concentration risk")
         else:
             print(" No positions to check")
         
@@ -206,7 +218,7 @@ def check_guardrails():
                 print(f"  {symbol}: {changes} changes")
                 if changes > 3:
                     guardrails_status['warnings'].append(f"Frequent signal changes: {symbol} {changes} changes")
-                    guardrails['recommendations'].append(f"Review signal logic for {symbol}")
+                    guardrails_status['recommendations'].append(f"Review signal logic for {symbol}")
         else:
             print(" Stable signals")
         

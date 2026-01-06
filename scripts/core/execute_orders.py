@@ -115,7 +115,7 @@ def execute_orders(orders_file=None, commit=False):
             
             total_fees = commission + slippage
             
-            # 5.3 Calcola tax per vendite
+            # 5.3 Calcola tax per vendite con logica zainetto
             tax_paid = 0.0
             if action == 'SELL':
                 # Calcola realized gain per tax
@@ -129,8 +129,37 @@ def execute_orders(orders_file=None, commit=False):
                     avg_price = avg_buy_price[0]
                     if price > avg_price:
                         realized_gain = (price - avg_price) * qty
-                        tax_paid = realized_gain * 0.26  # 26% capital gains
-                        print(f"    Tax estimate: €{tax_paid:.2f}")
+                        
+                        # Usa logica fiscale completa con zainetto
+                        from implement_tax_logic import calculate_tax
+                        tax_result = calculate_tax(realized_gain, symbol, datetime.now().date(), conn)
+                        tax_paid = tax_result['tax_amount']
+                        
+                        print(f"    Gain: €{realized_gain:.2f}, Tax: €{tax_paid:.2f}")
+                        print(f"    {tax_result['explanation']}")
+                        
+                        # Se usato zainetto, aggiornalo
+                        if tax_result['zainetto_used'] > 0:
+                            from update_tax_loss_carryforward import update_zainetto_usage
+                            update_zainetto_usage(
+                                symbol, 
+                                tax_result['tax_category'], 
+                                tax_result['zainetto_used'], 
+                                datetime.now().date(), 
+                                conn
+                            )
+                    else:
+                        # Loss: crea zainetto
+                        loss_amount = (price - avg_price) * qty  # Negativo
+                        if loss_amount < -0.01:  # Soglia minima
+                            from implement_tax_logic import create_tax_loss_carryforward
+                            zainetto_record = create_tax_loss_carryforward(
+                                symbol, datetime.now().date(), loss_amount, conn
+                            )
+                            print(f"    Loss: €{loss_amount:.2f} -> zainetto creato")
+                            print(f"    Scadenza: {zainetto_record['expires_at']}")
+                        else:
+                            print(f"    Loss minimo: €{loss_amount:.2f} (sotto soglia)")
             
             # 5.4 Arrotondamenti finanziari
             qty = Decimal(str(qty)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)

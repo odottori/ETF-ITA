@@ -1,8 +1,10 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r32 — 2026-01-06  
+**Doc Revision (internal):** r33 — 2026-01-06  
 **Baseline produzione:** **EUR / ACC**  
+**System Status:** **PRODUCTION READY v10.7.1**  
+**Strategy Engine:** **CRITICAL FIXES COMPLETATI**  
 
 ## LEGENDA
 - [🟢] DONE — testato e verificato (PRODUCTION READY)
@@ -36,6 +38,9 @@
 | 🤖 | `scripts/archive/auto_strategy_optimizer.py` | configurazione ottimale | Performance | [🟢] DONE |
 | 🛡️ | `scripts/core/check_price_convention.py` | sanity check price convention | Rule Enforcement | [🟢] DONE |
 | 🧾 | `scripts/core/implement_tax_logic.py` | implementazione logica tax_category | Fiscal Logic | [🟢] DONE |
+| 🧾 | `scripts/core/update_tax_loss_carryforward.py` | aggiornamento used_amount zainetto | Fiscal Logic | [🟢] DONE |
+| 🧾 | `scripts/core/execute_orders.py` | integrazione logica fiscale completa | Fiscal Logic | [🟢] DONE |
+| 🧾 | `tests/test_tax_integration.py` | test completo integrazione fiscale | Fiscal Logic | [🟢] DONE |
 | 🛑 | `scripts/core/test_stop_loss_integration.py` | test integrazione stop-loss | Risk Management | [🟢] DONE |
 | 🔄 | `scripts/core/implement_risk_controls.py` | portfolio weights + rebalancing | Diversification | [🟢] DONE |
 
@@ -44,6 +49,28 @@
 - **4.2 Real Portfolio Weights**: [🟢] FIXED - calculate_portfolio_value() + calculate_current_weights()
 - **4.3 Deterministic Rebalancing**: [🟢] FIXED - 5% deviation threshold with signal precedence
 - **4.4 Target Weights Logic**: [🟢] FIXED - 15% bond + 70/30 core/satellite split
+
+### 🆕 STRATEGY ENGINE CRITICAL FIXES (v10.7.1) - COMPLETATI
+- **3.1 Doppia logica rebalancing vs segnali**: [🟢] FIXED - Logica unificata con priorità Stop-loss → Segnali → Rebalancing
+- **3.2 Mismatch chiave avg_price vs avg_buy_price**: [🟢] FIXED - Corretta chiave per coerenza funzioni risk
+- **3.3 apply_position_caps matematicamente sbagliata**: [🟢] FIXED - Ridistribuzione proporzionale, cap garantiti
+- **3.4 do_nothing_score segno invertito**: [🟢] FIXED - Logica corretta score >= threshold → TRADE
+- **3.5 Expected alpha hardcoded**: [🟢] FIXED - Modello basato su risk scalar, volatilità e momentum
+
+### 🆕 FISCAL ENGINE CRITICAL FIXES (v10.7.2) - COMPLETATI
+- **F.1 Zainetto per simbolo invece che categoria**: [🟢] FIXED - Query corrette WHERE tax_category = ?
+- **F.2 Logica fiscale non integrata**: [🟢] FIXED - execute_orders.py ora usa calculate_tax() e create_tax_loss_carryforward()
+- **F.3 Incoerenza OICR_ETF vs compensazione**: [🟢] FIXED - Documentato che ETF gain tassati pieni, loss accumulate ma non utilizzabili
+- **F.4 Mancanza aggiornamento used_amount**: [🟢] FIXED - Nuovo update_tax_loss_carryforward.py con logica FIFO
+- **F.5 Test integrazione mancante**: [🟢] FIXED - test_tax_integration.py verifica completa coerenza DIPF §6.2
+
+**Test Verifica**: [🟢] DONE - `tests/test_tax_integration.py` (5/5 passanti)
+**Documentazione**: [🟢] DONE - Logica conforme DIPF §6.2 per retail italiano
+**Impatto Sistema**: Fiscal engine ora conforme, integrato e production-ready
+
+**Test Verifica**: [🟢] DONE - `tests/test_strategy_engine_logic.py` (5/5 passanti)
+**Documentazione**: [🟢] DONE - `docs/STRATEGY_ENGINE_FIXES_SUMMARY.md`
+**Impatto Sistema**: Strategy engine ora robusto, deterministico e production-ready
 
 ### REPORTS SYSTEMA
 - **Session Structure**: `data/reports/sessions/<timestamp>/[01-09_ordinal]/`

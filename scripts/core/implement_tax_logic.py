@@ -25,22 +25,26 @@ def calculate_tax(gain_amount, symbol, realize_date, conn):
     else:
         tax_category = tax_category_result[0]
     
-    # 2. Per OICR_ETF: nessuna compensazione zainetto
+    # 2. Per OICR_ETF: nessuna compensazione zainetto, gain tassati pieni
     if tax_category == 'OICR_ETF':
         tax_amount = gain_amount * 0.26  # Tassazione piena 26%
         zainetto_used = 0.0
         explanation = f"OICR_ETF: tassazione piena 26% (no compensazione zainetto)"
+        
+        # NOTA: Le loss OICR_ETF vengono comunque accumulate nello zainetto
+        # per coerenza audit ma non sono utilizzabili per compensare gain OICR_ETF
+        # Diventeranno utilizzabili solo con strumenti ETC_ETN_STOCK
     
     # 3. Per ETC/ETN/STOCK: compensazione zainetto possibile
     else:
-        # Cerca zainetto disponibile non scaduto
+        # Cerca zainetto disponibile non scaduto per categoria fiscale
         zainetto_available = conn.execute("""
             SELECT COALESCE(SUM(loss_amount), 0) as available_loss
             FROM tax_loss_carryforward 
-            WHERE symbol = ? 
+            WHERE tax_category = ? 
             AND used_amount < ABS(loss_amount)
             AND expires_at > ?
-        """, [symbol, realize_date]).fetchone()[0]
+        """, [tax_category, realize_date]).fetchone()[0]
         
         if zainetto_available < 0:  # C'è zainetto disponibile
             # Compensa il gain con lo zainetto
@@ -66,7 +70,7 @@ def calculate_tax(gain_amount, symbol, realize_date, conn):
     }
 
 def create_tax_loss_carryforward(symbol, realize_date, loss_amount, conn):
-    """Crea record zainetto con scadenza corretta"""
+    """Crea record zainetto con scadenza corretta per categoria fiscale"""
     
     # 1. Ottieni tax_category
     tax_category_result = conn.execute("""
@@ -80,7 +84,7 @@ def create_tax_loss_carryforward(symbol, realize_date, loss_amount, conn):
     expiry_year = realize_year + 4
     expires_at = datetime(expiry_year, 12, 31).date()
     
-    # 3. Inserisci record zainetto
+    # 3. Inserisci record zainetto per categoria fiscale
     next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM tax_loss_carryforward").fetchone()[0]
     
     conn.execute("""
@@ -94,7 +98,8 @@ def create_tax_loss_carryforward(symbol, realize_date, loss_amount, conn):
         'realize_date': realize_date,
         'loss_amount': loss_amount,
         'expires_at': expires_at,
-        'tax_category': tax_category
+        'tax_category': tax_category,
+        'note': f'Zainetto creato per categoria {tax_category}, utilizzabile solo con strumenti compatibili'
     }
 
 def test_tax_logic():

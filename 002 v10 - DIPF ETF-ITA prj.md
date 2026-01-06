@@ -1,8 +1,8 @@
-# 📋 DIPF - Design & Implementation Plan Framework (ETF_ITA)
+# DIPF - Design & Implementation Plan Framework (ETF_ITA)
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r32 — 2026-01-06  
+**Doc Revision (internal):** r34 — 2026-01-06  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
 **Stato Documento:** 🟢 CANONICO — PRODUCTION READY  
@@ -18,11 +18,13 @@
 **Reports Location:** **data/reports/sessions/<timestamp>/**  
 **Report Structure:** 01-09 ordinal categories + session_info.json  
 **Risk Analysis:** **data/reports/sessions/<timestamp>/04_risk/**  
-**System Status:** **PRODUCTION READY v10.7**
+**System Status:** **PRODUCTION READY v10.7.2**  
+| **Strategy Engine:** **CRITICAL FIXES COMPLETATI** (bug risolti) |
+| **Fiscal Engine:** **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
+| **Guardrails:** **CRITICAL BUGS RISOLTI** (NameError + price coherence) | 
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
 
 ---
-
 ## 0. Executive Summary (Visione d’insieme)
 
 ### 0.1 Missione
@@ -211,6 +213,52 @@ Output richiesto in `orders.json` (EP-07):
 - `recommendation` = `HOLD` / `TRADE` (decisione proposta dal motore)
 
 Cross-Ref: DATADICTIONARY DD-12.4, TODOLIST TL-1.2 e TL-3.1.
+
+### 4.6 🆕 Strategy Engine Critical Fixes (v10.7.1)
+
+**Problemi risolti per production readiness:**
+
+**✅ Bug 3.1 - Doppia logica rebalancing vs segnali**
+- **Issue**: Due blocchi indipendenti generavano ordini duplicati/conflittuali
+- **Root cause**: Mancanza di priorità tra rebalancing e segnali
+- **Fix**: Logica unificata con gerarchia: Stop-loss → Segnali RISK_ON/OFF → Rebalancing (solo se nessun segnale attivo)
+- **File**: `scripts/core/strategy_engine.py` righe 98-196
+- **Impact**: Eliminazione ordini duplicati, determinismo garantito
+
+**✅ Bug 3.2 - Mismatch chiave avg_price vs avg_buy_price**
+- **Issue**: `positions_dict` usava chiave `avg_price` ma funzioni risk si aspettavano `avg_buy_price`
+- **Root cause**: Incoerenza naming tra costruzione dizionario e utilizzo
+- **Fix**: Corretta chiave a `avg_buy_price` per coerenza con funzioni stop-loss/tax
+- **File**: `scripts/core/strategy_engine.py` riga 64
+- **Impact**: Stop-loss e tax estimate ora funzionanti
+
+**✅ Bug 3.3 - apply_position_caps matematicamente sbagliata**
+- **Issue**: Normalizzazione poteva violare i cap (es. 0.35/0.85 ≈ 0.41)
+- **Root cause**: Algoritmo di normalizzazione non garantiva i limiti
+- **Fix**: Ridistribuzione proporzionale peso eccedente, normalizzazione solo per errori < 0.1%
+- **File**: `scripts/core/implement_risk_controls.py` righe 112-139
+- **Impact**: Cap di posizione matematicamente garantiti
+
+**✅ Bug 3.4 - do_nothing_score segno invertito**
+- **Issue**: Logica invertita (score < 0 → TRADE) e inertia_threshold ignorato
+- **Root cause**: Logica economica errata e parametro non utilizzato
+- **Fix**: Logica corretta `score >= threshold → TRADE` con uso di inertia_threshold
+- **File**: `scripts/core/strategy_engine.py` righe 259-265
+- **Impact**: Decisioni trading economicamente coerenti
+
+**✅ Bug 3.5 - Expected alpha hardcoded**
+- **Issue**: `expected_alpha = position_value * 0.05` hardcoded
+- **Root cause**: Mancanza di modello modellistico per alpha estimation
+- **Fix**: Modello basato su risk scalar, volatilità inversa e momentum
+- **File**: `scripts/core/strategy_engine.py` righe 241-257
+- **Impact**: Alpha dinamico e realistico basato su condizioni di mercato
+
+**Validazione:**
+- Test unitari creati in `tests/test_strategy_engine_logic.py`
+- **5/5 test passanti**
+- Sistema ora **Production Ready** con strategy engine robusto
+
+Cross-Ref: docs/STRATEGY_ENGINE_FIXES_SUMMARY.md
 
 ---
 

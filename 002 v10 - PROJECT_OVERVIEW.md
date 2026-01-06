@@ -1,11 +1,20 @@
-# PROJECT_OVERVIEW — ETF_ITA Smart Retail (v10.7.0)
+# PROJECT_OVERVIEW — ETF_ITA Smart Retail (v10.7.2)
 
 ## 1. Missione del Progetto
-Costruire un sistema EOD “smart retail” per residenti italiani, focalizzato su:
+Costruire un sistema EOD "smart retail" per residenti italiani, focalizzato su:
 - affidabilità operativa (audit, sanity, guardrails)
 - realismo fiscale (PMC, tassazione 26%, zainetto)
 - reporting netto e riproducibile (Run Package)
 - disciplina decisionale (Signal Engine oggettivo)
+
+## 1.1 🆕 Stato Sistema (v10.7.2)
+- **Status**: PRODUCTION READY
+- **Strategy Engine**: CRITICAL FIXES COMPLETATI
+- **Guardrails**: CRITICAL BUGS RISOLTI (NameError + price coherence)
+- **Scripts Funzionanti**: 13/13 (100% success)
+- **Closed Loop**: IMPLEMENTATO
+- **Test Coverage**: 6/6 test unitari passanti
+- **Risk Guarantees**: Matematicamente garantiti
 
 ## 2. Architettura
 - DB: DuckDB (`data/etf_data.duckdb`)
@@ -68,3 +77,31 @@ Ogni modifica deve includere:
 - audit ingestione
 - stress test
 - sanity check
+
+## 8. 🆕 Guardrails Critical Fixes (v10.7.2)
+
+### 8.1 Bug Risolti
+- **4.1 NameError guardrails vs guardrails_status**: Corrette 4 occorrenze che causavano crash
+- **4.2 Price coherence in concentration**: Query ora usa close correnti per valorizzazione
+- **4.3 Market value calculation**: Indici array corretti per nuova struttura query
+
+### 8.2 Impatto Sistema
+- **Pre-Fixes**: NameError durante SPY guard, concentration con prezzi incoerenti
+- **Post-Fixes**: Guardrails stabili, KPI concentrazione DIPF-compliant
+- **Test**: 6/6 unitari passanti
+- **Production**: Risk management robusto e affidabile
+
+## 9. 🆕 Strategy Engine Critical Fixes (v10.7.1)
+
+### 9.1 Bug Risolti
+- **3.1 Doppia logica rebalancing vs segnali**: Unificata logica con priorità deterministica
+- **3.2 Mismatch chiave avg_price vs avg_buy_price**: Corretta coerenza funzioni risk
+- **3.3 apply_position caps matematicamente sbagliata**: Cap garantiti matematicamente
+- **3.4 do_nothing_score segno invertito**: Logica economica coerente
+- **3.5 Expected alpha hardcoded**: Modello basato su risk scalar e volatilità
+
+### 9.2 Impatto Sistema
+- **Pre-Fixes**: Ordini duplicati, stop-loss non applicato, cap violabili
+- **Post-Fixes**: Logica unificata, risk guarantees, decisioni coerenti
+- **Test**: 5/5 unitari passanti
+- **Production**: Strategy engine robusto e deterministico

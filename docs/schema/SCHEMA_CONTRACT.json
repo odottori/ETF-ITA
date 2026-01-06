@@ -1,0 +1,301 @@
+{
+  "version": "v003",
+  "created_at": "2026-01-06",
+  "description": "ETF-ITA Project Schema Contract - Baseline vincolante",
+  "tables": {
+    "market_data": {
+      "description": "Dati storici prezzi EOD (OHLCV)",
+      "columns": {
+        "symbol": {
+          "type": "VARCHAR",
+          "pk": true,
+          "description": "Ticker strumento"
+        },
+        "date": {
+          "type": "DATE",
+          "pk": true,
+          "description": "Data prezzo EOD"
+        },
+        "adj_close": {
+          "type": "DOUBLE",
+          "check": "adj_close > 0",
+          "description": "Prezzo adjusted (segnali/returns)"
+        },
+        "close": {
+          "type": "DOUBLE",
+          "check": "close > 0",
+          "description": "Prezzo raw (ledger valuation)"
+        },
+        "high": {
+          "type": "DOUBLE",
+          "check": "high >= 0",
+          "description": "Massimo giornaliero"
+        },
+        "low": {
+          "type": "DOUBLE",
+          "check": "low >= 0",
+          "description": "Minimo giornaliero"
+        },
+        "volume": {
+          "type": "BIGINT",
+          "check": "volume >= 0",
+          "description": "Volume giornaliero"
+        },
+        "source": {
+          "type": "VARCHAR",
+          "default": "YF",
+          "description": "Provider dati"
+        }
+      },
+      "constraints": [
+        "PRIMARY KEY (symbol, date)",
+        "CHECK (high >= low)",
+        "CHECK (high >= close)",
+        "CHECK (low <= close)"
+      ]
+    },
+    "fiscal_ledger": {
+      "description": "Registro operazioni e stato contabile PMC",
+      "columns": {
+        "id": {
+          "type": "INTEGER",
+          "pk": true,
+          "description": "ID univoco operazione"
+        },
+        "date": {
+          "type": "DATE",
+          "description": "Data operazione (EOD model)"
+        },
+        "type": {
+          "type": "VARCHAR",
+          "check": "type IN ('DEPOSIT', 'BUY', 'SELL', 'INTEREST')",
+          "description": "Tipo operazione"
+        },
+        "symbol": {
+          "type": "VARCHAR",
+          "description": "Ticker strumento"
+        },
+        "qty": {
+          "type": "DOUBLE",
+          "description": "Quantità (positive per BUY)"
+        },
+        "price": {
+          "type": "DOUBLE",
+          "check": "price >= 0",
+          "description": "Prezzo unitario (valuta strumento)"
+        },
+        "fees": {
+          "type": "DOUBLE",
+          "default": 0.0,
+          "check": "fees >= 0",
+          "description": "Commissioni"
+        },
+        "tax_paid": {
+          "type": "DOUBLE",
+          "default": 0.0,
+          "check": "tax_paid >= 0",
+          "description": "Imposta pagata"
+        },
+        "pmc_snapshot": {
+          "type": "DOUBLE",
+          "description": "PMC snapshot al momento operazione"
+        },
+        "trade_currency": {
+          "type": "VARCHAR",
+          "default": "EUR",
+          "description": "Valuta trading"
+        },
+        "exchange_rate_used": {
+          "type": "DOUBLE",
+          "default": 1.0,
+          "check": "exchange_rate_used > 0",
+          "description": "Tasso cambio usato"
+        },
+        "price_eur": {
+          "type": "DOUBLE",
+          "description": "Prezzo in EUR"
+        },
+        "run_id": {
+          "type": "VARCHAR",
+          "description": "ID esecuzione"
+        },
+        "run_type": {
+          "type": "VARCHAR",
+          "default": "PRODUCTION",
+          "description": "Tipo run"
+        },
+        "notes": {
+          "type": "VARCHAR",
+          "description": "Note libere"
+        },
+        "created_at": {
+          "type": "TIMESTAMP",
+          "default": "CURRENT_TIMESTAMP",
+          "description": "Timestamp creazione"
+        }
+      }
+    },
+    "signals": {
+      "description": "Segnali strategia oggettivi",
+      "columns": {
+        "id": {
+          "type": "INTEGER",
+          "pk": true,
+          "description": "ID univoco segnale"
+        },
+        "date": {
+          "type": "DATE",
+          "description": "Data segnale"
+        },
+        "symbol": {
+          "type": "VARCHAR",
+          "description": "Strumento"
+        },
+        "signal_state": {
+          "type": "VARCHAR",
+          "description": "RISK_ON/RISK_OFF/HOLD"
+        },
+        "risk_scalar": {
+          "type": "DOUBLE",
+          "description": "Sizing 0..1"
+        },
+        "explain_code": {
+          "type": "VARCHAR",
+          "description": "Codice spiegazione"
+        },
+        "sma_200": {
+          "type": "DOUBLE",
+          "description": "Media mobile 200gg"
+        },
+        "volatility_20d": {
+          "type": "DOUBLE",
+          "description": "Volatilità 20gg"
+        },
+        "spy_guard": {
+          "type": "BOOLEAN",
+          "description": "Guardia S&P 500"
+        },
+        "regime_filter": {
+          "type": "VARCHAR",
+          "description": "Regime volatilità"
+        },
+        "created_at": {
+          "type": "TIMESTAMP",
+          "default": "CURRENT_TIMESTAMP",
+          "description": "Timestamp creazione"
+        }
+      },
+      "indexes": [
+        "CREATE INDEX IF NOT EXISTS idx_signals_date_symbol ON signals(date, symbol)",
+        "CREATE INDEX IF NOT EXISTS idx_signals_state ON signals(signal_state)"
+      ]
+    },
+    "tax_loss_carryforward": {
+      "description": "Zainetto minusvalenze per categoria fiscale",
+      "columns": {
+        "id": {
+          "type": "INTEGER",
+          "pk": true,
+          "description": "ID univoco"
+        },
+        "symbol": {
+          "type": "VARCHAR",
+          "description": "Simbolo origine loss (audit)"
+        },
+        "realize_date": {
+          "type": "DATE",
+          "description": "Data realizzo loss"
+        },
+        "loss_amount": {
+          "type": "DOUBLE",
+          "check": "loss_amount < 0",
+          "description": "Importo loss (negativo)"
+        },
+        "used_amount": {
+          "type": "DOUBLE",
+          "default": 0.0,
+          "check": "used_amount >= 0",
+          "description": "Importo già utilizzato"
+        },
+        "expires_at": {
+          "type": "DATE",
+          "description": "Scadenza 31/12/(anno+4)"
+        },
+        "tax_category": {
+          "type": "VARCHAR",
+          "description": "Categoria fiscale (OICR_ETF/ETC_ETN_STOCK)"
+        },
+        "created_at": {
+          "type": "TIMESTAMP",
+          "default": "CURRENT_TIMESTAMP",
+          "description": "Timestamp creazione"
+        }
+      },
+      "constraints": [
+        "CHECK (used_amount <= ABS(loss_amount))"
+      ]
+    }
+  },
+  "views": {
+    "risk_metrics": {
+      "description": "Metriche rischio per strategy_engine",
+      "guaranteed_columns": [
+        "symbol",
+        "date",
+        "adj_close",
+        "close",
+        "volume",
+        "sma_200",
+        "volatility_20d",
+        "drawdown_pct",
+        "daily_return"
+      ]
+    },
+    "portfolio_summary": {
+      "description": "Vista posizioni e valori portafoglio",
+      "guaranteed_columns": [
+        "symbol",
+        "qty",
+        "avg_buy_price",
+        "current_price",
+        "market_value",
+        "cash",
+        "total_portfolio_value"
+      ]
+    },
+    "execution_prices": {
+      "description": "Prezzi esecuzione per trading realistico",
+      "guaranteed_columns": [
+        "symbol",
+        "date",
+        "execution_price",
+        "volume",
+        "daily_return"
+      ]
+    }
+  },
+  "conventions": {
+    "price_convention": {
+      "signals": "adj_close",
+      "valuation": "close",
+      "description": "DIPF §2.1: adj_close per segnali, close per valorizzazione"
+    },
+    "currency_baseline": {
+      "base": "EUR",
+      "distribution": "ACC",
+      "description": "Baseline EUR/ACC, FX/DIST solo con feature flag"
+    },
+    "naming": {
+      "pk_pattern": "id (INTEGER) per tabelle, (symbol, date) per market_data",
+      "timestamp_pattern": "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+      "boolean_pattern": "BOOLEAN DEFAULT FALSE/TRUE",
+      "check_pattern": "CHECK (column >= 0) per valori non-negativi"
+    },
+    "fiscal_rules": {
+      "zainetto_query": "WHERE tax_category = ? (non per simbolo)",
+      "oicr_etf": "gain tassati pieni 26%, loss accumulate non compensabili",
+      "etc_etn_stock": "compensazione possibile per categoria",
+      "scadenza": "31/12 quarto anno successivo"
+    }
+  }
+}

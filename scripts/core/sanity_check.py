@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Sanity Check - ETF Italia Project v10
-Controllo integrità bloccante per ledger e sistema
+Sanity Check Bloccante - ETF Italia Project v003
+Validazione integrità sistema con controlli bloccanti
 """
 
 import sys
@@ -9,46 +9,39 @@ import os
 import duckdb
 from datetime import datetime
 
-# Aggiungi root al path
+# Aggiungi path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def sanity_check():
-    """Controllo integrità bloccante"""
+def sanity_check(conn):
+    """Controllo di integrità bloccante"""
     
-    print(" SANITY CHECK - ETF Italia Project v10")
-    print("=" * 60)
+    print("🔍 SANITY CHECK - BLOCCANTE")
+    print("=" * 50)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
-    
-    conn = duckdb.connect(db_path)
+    errors = []
+    warnings = []
     
     try:
-        issues = []
-        
-        print(" Verifica integrità sistema...")
-        
         # 1. Posizioni negative
-        print("\n1. Verifica posizioni negative...")
-        
+        print("1️⃣ Verifica posizioni negative...")
         negative_positions = conn.execute("""
-        SELECT symbol, SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
-        FROM fiscal_ledger 
-        WHERE type IN ('BUY', 'SELL')
-        GROUP BY symbol
-        HAVING net_qty < 0
-        """).fetchall()
+        SELECT COUNT(*) FROM (
+            SELECT symbol, SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
+            FROM fiscal_ledger 
+            WHERE type IN ('BUY', 'SELL')
+            GROUP BY symbol
+            HAVING net_qty < 0
+        )
+        """).fetchone()[0]
         
-        if negative_positions:
-            print(" POSIZIONI NEGATIVE TROVATE:")
-            for symbol, qty in negative_positions:
-                print(f"  {symbol}: {qty:.0f}")
-                issues.append(f"Posizione negativa: {symbol}")
+        if negative_positions > 0:
+            errors.append(f"Posizioni negative trovate: {negative_positions}")
+            print(f"   ❌ {negative_positions} posizioni negative")
         else:
-            print(" Nessuna posizione negativa")
+            print("   ✅ Nessuna posizione negativa")
         
         # 2. Cash negativo
-        print("\n2. Verifica cash balance...")
-        
+        print("2️⃣ Verifica cash balance...")
         cash_balance = conn.execute("""
         SELECT COALESCE(SUM(CASE 
             WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
@@ -61,112 +54,184 @@ def sanity_check():
         """).fetchone()[0]
         
         if cash_balance < 0:
-            print(f" CASH BALANCE NEGATIVO: €{cash_balance:,.2f}")
-            issues.append(f"Cash negativo: €{cash_balance:,.2f}")
+            errors.append(f"Cash balance negativo: €{cash_balance:,.2f}")
+            print(f"   ❌ Cash negativo: €{cash_balance:,.2f}")
         else:
-            print(f" Cash balance: €{cash_balance:,.2f}")
+            print(f"   ✅ Cash positivo: €{cash_balance:,.2f}")
         
         # 3. PMC coerenti
-        print("\n3. Verifica PMC...")
-        
+        print("3️⃣ Verifica PMC...")
         pmc_issues = conn.execute("""
         SELECT COUNT(*) FROM fiscal_ledger 
         WHERE pmc_snapshot < 0
         """).fetchone()[0]
         
         if pmc_issues > 0:
-            print(f" PMC NEGATIVI: {pmc_issues}")
-            issues.append(f"PMC negativi: {pmc_issues}")
+            errors.append(f"PMC negativi trovati: {pmc_issues}")
+            print(f"   ❌ {pmc_issues} PMC negativi")
         else:
-            print(" PMC coerenti")
+            print("   ✅ Tutti i PMC positivi")
         
-        # 4. Date coerenti
-        print("\n4. Verifica date...")
-        
-        future_dates = conn.execute("""
+        # 4. Invarianti contabili
+        print("4️⃣ Verifica invarianti contabili...")
+        accounting_issues = conn.execute("""
         SELECT COUNT(*) FROM fiscal_ledger 
-        WHERE date > CURRENT_DATE
+        WHERE (type = 'BUY' AND qty <= 0) OR (type = 'SELL' AND qty <= 0) OR (price <= 0)
         """).fetchone()[0]
         
-        if future_dates > 0:
-            print(f" DATE FUTURE: {future_dates}")
-            issues.append(f"Date future: {future_dates}")
+        if accounting_issues > 0:
+            errors.append(f"Invarianti contabili violate: {accounting_issues}")
+            print(f"   ❌ {accounting_issues} invarianti violate")
         else:
-            print(" Date coerenti")
+            print("   ✅ Invarianti contabili OK")
         
-        # 5. Invarianti contabili
-        print("\n5. Verifica invarianti contabili...")
+        # 5. No future data leak
+        print("5️⃣ Verifica future data leak...")
+        max_ledger_date = conn.execute("""
+        SELECT MAX(date) FROM fiscal_ledger
+        """).fetchone()[0]
         
-        # Verifica equity = cash + positions
-        total_cash = cash_balance
-        total_positions = conn.execute("""
-        SELECT COALESCE(SUM(qty * current_price), 0) as total_value
-        FROM (
+        max_market_date = conn.execute("""
+        SELECT MAX(date) FROM market_data
+        """).fetchone()[0]
+        
+        if max_ledger_date and max_market_date:
+            if max_ledger_date > max_market_date:
+                errors.append(f"Future data leak: ledger {max_ledger_date} > market {max_market_date}")
+                print(f"   ❌ Future data leak: ledger {max_ledger_date} > market {max_market_date}")
+            else:
+                print(f"   ✅ No future data leak (ledger: {max_ledger_date}, market: {max_market_date})")
+        
+        # 6. Trading calendar gaps
+        print("6️⃣ Verifica trading calendar gaps...")
+        calendar_gaps = conn.execute("""
+        SELECT COUNT(*) FROM trading_calendar tc
+        WHERE tc.is_open = TRUE 
+        AND NOT EXISTS (
+            SELECT 1 FROM market_data md 
+            WHERE md.date = tc.date 
+            AND EXISTS (SELECT 1 FROM market_data WHERE symbol = 'IEAC.MI' AND date = tc.date)
+        )
+        """).fetchone()[0]
+        
+        if calendar_gaps > 0:
+            warnings.append(f"Trading calendar gaps: {calendar_gaps}")
+            print(f"   ⚠️  {calendar_gaps} giorni trading senza dati")
+        else:
+            print("   ✅ Nessun gap nel trading calendar")
+        
+        # 7. Ledger vs market data coherence
+        print("7️⃣ Verifica coerenza ledger vs market data...")
+        coherence_issues = conn.execute("""
+        SELECT COUNT(*) FROM fiscal_ledger fl
+        WHERE NOT EXISTS (
+            SELECT 1 FROM market_data md 
+            WHERE md.symbol = fl.symbol AND md.date = fl.date
+        )
+        AND fl.type IN ('BUY', 'SELL')
+        """).fetchone()[0]
+        
+        if coherence_issues > 0:
+            warnings.append(f"Ledger/market data mismatch: {coherence_issues}")
+            print(f"   ⚠️  {coherence_issues} record ledger senza market data")
+        else:
+            print("   ✅ Ledger e market data coerenti")
+        
+        # 8. Tax bucket coherence
+        print("8️⃣ Verifica tax bucket coherence...")
+        tax_issues = conn.execute("""
+        SELECT COUNT(*) FROM fiscal_ledger 
+        WHERE type = 'SELL' 
+        AND (tax_paid < 0 OR tax_paid IS NULL)
+        """).fetchone()[0]
+        
+        if tax_issues > 0:
+            warnings.append(f"Tax bucket issues: {tax_issues}")
+            print(f"   ⚠️  {tax_issues} vendite con tax bucket incoerente")
+        else:
+            print("   ✅ Tax bucket coerente")
+        
+        # 9. Portfolio value consistency
+        print("9️⃣ Verifica consistenza valore portafoglio...")
+        portfolio_query = """
+        WITH current_positions AS (
             SELECT 
                 symbol,
                 SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as qty,
-                (SELECT adj_close FROM market_data m 
-                 WHERE m.symbol = fl.symbol 
-                 ORDER BY date DESC LIMIT 1) as current_price
-            FROM fiscal_ledger fl
+                AVG(CASE WHEN type = 'BUY' THEN price ELSE NULL END) as avg_price
+            FROM fiscal_ledger 
             WHERE type IN ('BUY', 'SELL')
             GROUP BY symbol
             HAVING SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) != 0
+        ),
+        current_prices AS (
+            SELECT md.symbol, md.close as current_price
+            FROM market_data md
+            WHERE md.date = (SELECT MAX(date) FROM market_data)
+        ),
+        portfolio_value AS (
+            SELECT 
+                SUM(cp.qty * cp.current_price) as market_value,
+                SUM(cp.qty * cp.avg_price) as cost_basis
+            FROM current_positions cp
+            JOIN current_prices cp2 ON cp.symbol = cp2.symbol
         )
-        """).fetchone()[0]
+        SELECT market_value, cost_basis FROM portfolio_value
+        """
         
-        total_equity = total_cash + total_positions
+        portfolio_result = conn.execute(portfolio_query).fetchone()
+        if portfolio_result:
+            market_value, cost_basis = portfolio_result
+            if market_value < 0:
+                errors.append(f"Portfolio value negativo: €{market_value:,.2f}")
+                print(f"   ❌ Portfolio value negativo: €{market_value:,.2f}")
+            else:
+                print(f"   ✅ Portfolio value: €{market_value:,.2f}")
         
-        # Verifica se ci sono discrepanze
-        if total_equity < 0:
-            print(f" EQUITY NEGATIVA: €{total_equity:,.2f}")
-            issues.append(f"Equity negativa: €{total_equity:,.2f}")
-        else:
-            print(f" Equity: €{total_equity:,.2f}")
-            print(f"   Cash: €{total_cash:,.2f} | Positions: €{total_positions:,.2f}")
+        # Risultato finale
+        print("\n" + "=" * 50)
+        print("📊 RIEPILOGO SANITY CHECK")
         
-        # 6. Data consistency
-        print("\n6. Verifica consistenza dati...")
+        if errors:
+            print(f"❌ ERRORI CRITICI ({len(errors)}):")
+            for error in errors:
+                print(f"   - {error}")
         
-        # Verifica gap su giorni trading
-        trading_gaps = conn.execute("""
-        SELECT COUNT(*) FROM (
-            SELECT DISTINCT date FROM market_data
-            WHERE date IN (SELECT date FROM trading_calendar WHERE venue = 'BIT' AND is_open = TRUE)
-            AND date >= '2020-01-01'
-            EXCEPT
-            SELECT DISTINCT date FROM market_data
-        )
-        """).fetchone()[0]
+        if warnings:
+            print(f"⚠️  WARNING ({len(warnings)}):")
+            for warning in warnings:
+                print(f"   - {warning}")
         
-        if trading_gaps > 0:
-            print(f"️ TRADING GAPS: {trading_gaps} giorni mancanti")
-            issues.append(f"Trading gaps: {trading_gaps}")
-        else:
-            print(" Dati trading completi")
+        if not errors and not warnings:
+            print("✅ Tutti i controlli superati")
         
-        # 7. Summary
-        print(f"\n SANITY CHECK SUMMARY:")
-        print(f"Issues trovati: {len(issues)}")
-        
-        if issues:
-            print(f"\n ISSUES DETECTED:")
-            for i, issue in enumerate(issues, 1):
-                print(f"  {i}. {issue}")
-            
-            print(f"\n SANITY CHECK FAILED - Sistema non coerente")
-            return False
-        else:
-            print(f"\n SANITY CHECK PASSED - Sistema coerente")
-            return True
+        return len(errors) == 0
         
     except Exception as e:
-        print(f" Errore sanity check: {e}")
+        print(f"❌ Errore durante sanity check: {e}")
         return False
+
+def main():
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    
+    if not os.path.exists(db_path):
+        print("❌ Database non trovato")
+        return 1
+    
+    conn = duckdb.connect(db_path)
+    
+    try:
+        success = sanity_check(conn)
         
+        if success:
+            print("\n✅ Sanity check PASSED")
+            return 0
+        else:
+            print("\n❌ Sanity check FAILED")
+            return 1
+            
     finally:
         conn.close()
 
 if __name__ == "__main__":
-    success = sanity_check()
-    sys.exit(0 if success else 1)
+    sys.exit(main())

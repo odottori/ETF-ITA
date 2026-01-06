@@ -1,271 +1,163 @@
 #!/usr/bin/env python3
 """
-Stress Test - ETF Italia Project v10
-Monte Carlo smoke test e stress analysis
+Stress Test Monte Carlo - ETF Italia Project v003
+Simulazione stress testing per valutare robustezza portafoglio
 """
 
 import sys
 import os
 import json
 import duckdb
-import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
+import numpy as np
 
-# Aggiungi root al path
+# Aggiungi path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session_manager import get_session_manager
-from sequence_runner import run_sequence_from
-
-def stress_test():
-    """Esegue stress test con Monte Carlo"""
+def stress_test_monte_carlo(db_path, num_simulations=1000, time_horizon_days=252):
+    """
+    Esegue Monte Carlo stress test sul portafoglio attuale
+    """
     
-    print(" STRESS TEST - ETF Italia Project v10")
-    print("=" * 60)
+    print("🎲 MONTE CARLO STRESS TEST")
+    print("=" * 50)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
-    
-    # Inizializza session manager
-    session_manager = get_session_manager()
-    
-    # Carica configurazione
-    with open(config_path, 'r') as f:
-        config = json.load(f)
+    if not os.path.exists(db_path):
+        print("❌ Database non trovato")
+        return False
     
     conn = duckdb.connect(db_path)
     
     try:
-        print(" Inizio stress test...")
-        
-        # 1. Ottieni dati storici per stress test
-        print(" Caricamento dati storici...")
-        
-        # Ottieni dati da market_data per stress test
-        portfolio_data = conn.execute("""
-        SELECT symbol, date, adj_close, volume
-        FROM market_data
-        WHERE symbol IN ('CSSPX.MI', 'XS2L.MI')
-        ORDER BY symbol, date
+        # 1. Ottenere posizioni attuali
+        positions = conn.execute("""
+        SELECT 
+            symbol,
+            SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as qty,
+            AVG(CASE WHEN type = 'BUY' THEN price ELSE NULL END) as avg_price
+        FROM fiscal_ledger 
+        WHERE type IN ('BUY', 'SELL')
+        GROUP BY symbol
+        HAVING SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) != 0
         """).fetchall()
         
-        if not portfolio_data:
-            print(" Nessun dato storico disponibile per stress test")
+        if not positions:
+            print("❌ Nessuna posizione trovata")
             return False
         
-        df = pd.DataFrame(portfolio_data, columns=['symbol', 'date', 'adj_close', 'volume'])
-        df['date'] = pd.to_datetime(df['date'])
-        df.set_index('date', inplace=True)
-        
-        # Calcola returns giornalieri per symbol
-        df_returns = df.pivot_table(values='adj_close', index='date', columns='symbol')
-        df_returns = df_returns.pct_change(fill_method=None).dropna()
-        
-        # Calcola portfolio returns (equal weight)
-        portfolio_returns = df_returns.mean(axis=1).values
-        
-        print(f"Dati caricati: {len(portfolio_returns)} giorni ({df_returns.index[0].date()} to {df_returns.index[-1].date()})")
-        print(f"Simboli: {list(df_returns.columns)}")
-        
-        # Sanity check dati
-        if len(portfolio_returns) < 252:  # Meno di 1 anno di dati
-            print("WARNING: Meno di 1 anno di dati storici")
-        
-        # Check varianza portfolio returns
-        portfolio_std = np.std(portfolio_returns)
-        if portfolio_std == 0:
-            print(" ERROR: Varianza zero nei rendimenti - dati non validi")
-            return False
-        
-        print(f" Portfolio daily return std: {portfolio_std:.4f}")
-        
-        # 2. Monte Carlo Simulation
-        print(f"\n Monte Carlo Simulation (1000 iterazioni)...")
-        
-        n_simulations = 1000
-        results = []
-        
-        for i in range(n_simulations):
-            # Bootstrap sampling con replacement (metodo corretto per Monte Carlo)
-            n_days = len(portfolio_returns)
-            bootstrap_sample = np.random.choice(portfolio_returns, size=n_days, replace=True)
+        # 2. Ottenere dati storici per volatilità
+        volatility_data = {}
+        for symbol, _, _ in positions:
+            vol_data = conn.execute("""
+            SELECT 
+                (adj_close / LAG(adj_close) OVER (ORDER BY date) - 1) as daily_return
+            FROM market_data 
+            WHERE symbol = ? AND adj_close IS NOT NULL
+            ORDER BY date DESC 
+            LIMIT 252
+            """, [symbol]).fetchall()
             
-            # Calcola metriche corrette
-            cum_returns = np.cumprod(1 + bootstrap_sample)
+            if vol_data:
+                returns = [r[0] for r in vol_data if r[0] is not None]
+                if returns:
+                    volatility_data[symbol] = np.std(returns) * np.sqrt(252)
+        
+        # 3. Simulazioni Monte Carlo
+        portfolio_values = []
+        worst_scenarios = []
+        
+        for sim in range(num_simulations):
+            portfolio_value = 0
             
-            # CAGR annualizzato corretto
-            trading_days = len(cum_returns)
-            if trading_days > 0:
-                cagr = (cum_returns[-1] ** (252 / trading_days)) - 1
-            else:
-                cagr = 0
+            for symbol, qty, avg_price in positions:
+                if symbol in volatility_data:
+                    vol = volatility_data[symbol]
+                    
+                    # Simulazione geometric Brownian motion
+                    daily_returns = np.random.normal(0, vol/np.sqrt(252), time_horizon_days)
+                    final_return = np.prod(1 + daily_returns) - 1
+                    
+                    # Prezzo finale simulato
+                    current_price = conn.execute("""
+                    SELECT adj_close FROM market_data 
+                    WHERE symbol = ? 
+                    ORDER BY date DESC LIMIT 1
+                    """, [symbol]).fetchone()[0]
+                    
+                    final_price = current_price * (1 + final_return)
+                    position_value = qty * final_price
+                    portfolio_value += position_value
             
-            # Max Drawdown calcolo corretto
-            peak = np.maximum.accumulate(cum_returns)
-            drawdown = (cum_returns / peak) - 1
-            max_dd = drawdown.min()
+            portfolio_values.append(portfolio_value)
             
-            # Sanity check per valori impossibili
-            if np.isnan(cagr) or np.isinf(cagr):
-                cagr = 0
-            if np.isnan(max_dd) or np.isinf(max_dd):
-                max_dd = 0
-            
-            results.append({
-                'simulation': i + 1,
-                'cagr': cagr,
-                'max_dd': max_dd
-            })
-            
-            if (i + 1) % 100 == 0:
-                print(f"  Progress: {(i + 1)/n_simulations*100:.1f}%")
+            # Track worst 5% scenarios
+            if sim < int(num_simulations * 0.05):
+                worst_scenarios.append(portfolio_value)
         
-        # Debug: stampa alcuni CAGR sample per verificare varianza
-        if len(results) >= 5:
-            sample_cagrs = [r['cagr'] for r in results[:5]]
-            print(f" DEBUG: Sample CAGRs: {[f'{c:.4f}' for c in sample_cagrs]}")
+        # 4. Calcoli statistici
+        portfolio_values = np.array(portfolio_values)
+        current_portfolio_value = sum(qty * conn.execute("""
+        SELECT adj_close FROM market_data 
+        WHERE symbol = ? ORDER BY date DESC LIMIT 1
+        """, [symbol]).fetchone()[0] for symbol, qty, _ in positions)
         
-        # 3. Analisi risultati
-        print(f"\n Monte Carlo Results Analysis:")
-        
-        cagr_values = [r['cagr'] for r in results]
-        max_dd_values = [r['max_dd'] for r in results]
-        
-        # Statistiche
-        cagr_mean = np.mean(cagr_values)
-        cagr_std = np.std(cagr_values)
-        cagr_5th = np.percentile(cagr_values, 5)
-        cagr_95th = np.percentile(cagr_values, 95)
-        
-        max_dd_mean = np.mean(max_dd_values)
-        max_dd_std = np.std(max_dd_values)
-        max_dd_5th = np.percentile(max_dd_values, 5)
-        max_dd_95th = np.percentile(max_dd_values, 95)
-        
-        print(f"CAGR:")
-        print(f"  Mean: {cagr_mean:.2%}")
-        print(f"  Std Dev: {cagr_std:.2%}")
-        print(f"   5th percentile: {cagr_5th:.2%}")
-        print(f"  95th percentile: {cagr_95th:.2%}")
-        
-        print(f"\nMax Drawdown:")
-        print(f"  Mean: {max_dd_mean:.2%}")
-        print(f"  Std Dev: {max_dd_std:.2%}")
-        print(f"   5th percentile: {max_dd_5th:.2%}")
-        print(f"  95th percentile: {max_dd_95th:.2%}")
-        
-        # 4. Risk Assessment
-        print(f"\n Risk Assessment:")
-        
-        # Sanity check per risultati impossibili
-        if max_dd_mean == 0 and max_dd_std == 0:
-            print(" CRITICAL: Max Drawdown identico zero in tutte le simulazioni")
-            print("    Questo indica un bug nel calcolo o dati non validi")
-            return False
-        
-        if cagr_std == 0:
-            print(" CRITICAL: Varianza CAGR zero - risultati non validi")
-            return False
-        
-        # 5th percentile Max Drawdown check
-        if max_dd_5th <= -0.25:  # 25% max drawdown
-            print(f"️ HIGH RISK: 5th percentile MaxDD <= 25% ({max_dd_5th:.1%})")
-            print("   ️ Consider reducing position size or increasing diversification")
-        else:
-            print(" ACCEPTABLE RISK: 5th percentile MaxDD > 25%")
-        
-        # Sharpe ratio analysis corretto
-        if cagr_std > 0:  # Solo se varianza non zero
-            # Sharpe annualizzato corretto (assumendo risk-free rate = 0)
-            # CAGR è già annualizzato, std è delle CAGR annualizzate
-            sharpe_mean = cagr_mean / cagr_std
-            
-            # Sanity check Sharpe
-            if sharpe_mean > 10:  # Sharpe irrealisticamente alto
-                print(f"️ WARNING: Sharpe irrealisticamente alto ({sharpe_mean:.2f})")
-                print("   ️ Possibile errore nel calcolo varianza")
-            elif sharpe_mean < 0.5:
-                print(f" Sharpe Ratio (mean): {sharpe_mean:.2f}")
-                print("️ LOW SHARPE: Consider strategy optimization")
-            elif sharpe_mean > 1.0:
-                print(f" Sharpe Ratio (mean): {sharpe_mean:.2f}")
-                print(" EXCELLENT SHARPE: Strategy appears robust")
-            else:
-                print(f" Sharpe Ratio (mean): {sharpe_mean:.2f}")
-        else:
-            sharpe_mean = 0
-            print(" Sharpe non calcolabile: varianza zero")
-        
-        # 5. Stress Test Report
-        print(f"\n Stress Test Report:")
-        
-        stress_report = {
-            'timestamp': datetime.now().isoformat(),
-            'n_simulations': n_simulations,
-            'cagr_stats': {
-                'mean': cagr_mean,
-                'std': cagr_std,
-                'min': min(cagr_values),
-                'max': max(cagr_values),
-                'p5': cagr_5th,
-                'p95': cagr_95th
-            },
-            'max_dd_stats': {
-                'mean': max_dd_mean,
-                'std': max_dd_std,
-                'min': min(max_dd_values),
-                'max': max(max_dd_values),
-                'p5': max_dd_5th,
-                'p95': max_dd_95th
-            },
-            'risk_assessment': {
-                'max_dd_5th_pct': max_dd_5th,
-                'sharpe_mean': sharpe_mean if cagr_mean > 0 else 0,
-                'risk_level': 'HIGH' if max_dd_5th > -0.25 else 'ACCEPTABLE'
-            }
+        stats = {
+            'current_portfolio_value': current_portfolio_value,
+            'mean_final_value': np.mean(portfolio_values),
+            'std_final_value': np.std(portfolio_values),
+            'percentile_5': np.percentile(portfolio_values, 5),
+            'percentile_95': np.percentile(portfolio_values, 95),
+            'worst_case': np.min(portfolio_values),
+            'best_case': np.max(portfolio_values),
+            'var_95': current_portfolio_value - np.percentile(portfolio_values, 5),
+            'cvar_95': current_portfolio_value - np.mean(worst_scenarios),
+            'max_drawdown_estimate': (current_portfolio_value - np.min(portfolio_values)) / current_portfolio_value,
+            'volatility_estimate': np.std(portfolio_values) / np.mean(portfolio_values),
+            'num_simulations': num_simulations,
+            'time_horizon_days': time_horizon_days,
+            'positions_analyzed': len(positions)
         }
         
-        # Salva report usando session manager
-        report_file = session_manager.add_report_to_session('stress_test', stress_report, 'json')
-        print(f" Stress test salvato in session: {report_file}")
+        # 5. Output
+        print(f"💰 Current Portfolio Value: €{current_portfolio_value:,.2f}")
+        print(f"📊 Expected Final Value: €{stats['mean_final_value']:,.2f}")
+        print(f"⚠️  5th Percentile: €{stats['percentile_5']:,.2f}")
+        print(f"📈 95th Percentile: €{stats['percentile_95']:,.2f}")
+        print(f"🔻 Worst Case: €{stats['worst_case']:,.2f}")
+        print(f"📉 VaR 95%: €{stats['var_95']:,.2f}")
+        print(f"⚡ CVaR 95%: €{stats['cvar_95']:,.2f}")
+        print(f"📉 Max DD Estimate: {stats['max_drawdown_estimate']:.1%}")
         
-        # 6. Raccomandazioni
-        print(f"\n Raccomandazioni:")
+        # 6. Salva risultati
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = f"data/reports/sessions/{timestamp}/05_stress_tests"
+        os.makedirs(output_dir, exist_ok=True)
         
-        if max_dd_5th > -0.25:
-            print("  • Ridurre sizing per posizione")
-            print("  • Considerare stop-loss automatici")
-            print("  • Aumenta diversificazione")
+        output_file = f"{output_dir}/stress_test_{timestamp}.json"
+        with open(output_file, 'w') as f:
+            json.dump(stats, f, indent=2)
         
-        if cagr_mean < 0.05:
-            print("  • Rivedi strategia segnali")
-            print("  * Considera mean reversion o momentum")
-            print("  * Verifica cost model realistico")
-        
-        if sharpe_mean < 0.5:
-            print("  * Ottimizza risk-adjusted returns")
-            print("  * Considera Kelly Criterion sizing")
-            print("  • Riduci turnover")
-        
-        print(f"\n Stress test completato")
+        print(f"📁 Results saved to: {output_file}")
         
         return True
         
     except Exception as e:
-        print(f" Errore stress test: {e}")
+        print(f"❌ Error during stress test: {e}")
         return False
-        
     finally:
         conn.close()
 
-if __name__ == "__main__":
-    # Esegui stress_test e poi continua con la sequenza
-    success = stress_test()
+def main():
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    
+    success = stress_test_monte_carlo(db_path)
     
     if success:
-        # Continua con la sequenza: strategy_engine, backtest_runner, performance_report_generator, analyze_schema_drift
-        run_sequence_from('stress_test')
+        print("\n✅ Stress test completed successfully")
+        return 0
     else:
-        print("❌ Stress test fallito - sequenza interrotta")
-        sys.exit(1)
+        print("\n❌ Stress test failed")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

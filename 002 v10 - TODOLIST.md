@@ -1,7 +1,7 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r29 — 2026-01-05  
+**Doc Revision (internal):** r32 — 2026-01-06  
 **Baseline produzione:** **EUR / ACC**  
 
 ## LEGENDA

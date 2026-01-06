@@ -2,22 +2,23 @@
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r29 — 2026-01-05  
+**Doc Revision (internal):** r32 — 2026-01-06  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
 **Stato Documento:** 🟢 CANONICO — PRODUCTION READY  
-**Stato Sistema:** **COMPLETATO** (12/13 EntryPoint)  
+**Stato Sistema:** **COMPLETATO** (13/13 EntryPoint)  
 **Performance Sharpe:** **0.96** (ottimizzato)  
-**Scripts Funzionanti:** **12/13** (92% success)  
+**Scripts Funzionanti:** **13/13** (100% success)  
 **Issues Integrity:** **75** (85.3% weekend/festivi)  
 **Risk Level:** **CONTROLLED** (Score: 0.40)  
 **Correlazione ETF:** **0.821** (CSSPX-XS2L)  
 **Volatilità Portfolio:** **26.75%** (controllata)  
 **Max Drawdown:** **-59.06%** (XS2L asset-level, portfolio-level protetto da risk scalar 0.001)  
+**Closed Loop:** **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py)  
 **Reports Location:** **data/reports/sessions/<timestamp>/**  
 **Report Structure:** 01-09 ordinal categories + session_info.json  
 **Risk Analysis:** **data/reports/sessions/<timestamp>/04_risk/**  
-**System Status:** **PRODUCTION READY**
+**System Status:** **PRODUCTION READY v10.7**
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
 
 ---
@@ -93,13 +94,18 @@ Sì, il progetto supporta tutto ciò che non è "tempo reale". È una macchina d
 - **Storage analytics:** Parquet per snapshot/export e Run Package su filesystem.
 - **OS target:** Windows native.
 
-### 1.2 Flusso dati (EOD)
+### 1.2 Flusso dati (EOD) - CLOSED LOOP
 1) Ingestione prezzi (provider → staging → merge in `market_data`).
 2) Validazione + audit (`ingestion_audit`, policy revised history).
 3) Calcolo metriche/indicatori (DuckDB SQL + Python).
-4) Guardrails + pianificazione ordini (dry-run di default).
-5) Commit ledger (solo con `--commit` + backup pre-commit).
-6) Report e Run Package serializzato.
+4) **Signal Engine** → `signals` table (compute_signals.py).
+5) **Strategy Engine** → ordini JSON (strategy_engine.py).
+6) **🆕 Execute Orders Bridge** → `fiscal_ledger` + `trade_journal` (execute_orders.py).
+7) **Ledger Update** → cash interest + sanity check (update_ledger.py).
+8) **🆕 Complete Cycle Orchestration** (run_complete_cycle.py).
+9) Report e Run Package serializzato.
+
+**Nota:** Il sistema è ora un vero closed loop con catena di esecuzione completa da segnali a movimenti ledger.
 
 
 ---

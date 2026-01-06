@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
+from sequence_runner import run_sequence_from
 
 def stress_test():
     """Esegue stress test con Monte Carlo"""
@@ -259,5 +260,12 @@ def stress_test():
         conn.close()
 
 if __name__ == "__main__":
+    # Esegui stress_test e poi continua con la sequenza
     success = stress_test()
-    sys.exit(0 if success else 1)
+    
+    if success:
+        # Continua con la sequenza: strategy_engine, backtest_runner, performance_report_generator, analyze_schema_drift
+        run_sequence_from('stress_test')
+    else:
+        print("❌ Stress test fallito - sequenza interrotta")
+        sys.exit(1)

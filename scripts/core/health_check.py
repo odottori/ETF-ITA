@@ -9,6 +9,7 @@ import os
 import json
 import duckdb
 import pandas as pd
+import subprocess
 from datetime import datetime, timedelta
 
 # Aggiungi root al path
@@ -556,5 +557,144 @@ def get_status_emoji(status):
     else:
         return ''
 
+def run_complete_sequence():
+    """Esegue la sequenza completa dopo health_check"""
+    scripts_dir = os.path.dirname(__file__)
+    root_dir = os.path.dirname(os.path.dirname(scripts_dir))
+    
+    print("\n🔄 INIZIO SEQUENZA COMPLETA")
+    print("=" * 60)
+    
+    # 2. Automated Test Cycle
+    print("\n🔍 STEP 2: Automated Test Cycle")
+    print("-" * 40)
+    
+    automated_script = os.path.join(scripts_dir, 'automated_test_cycle.py')
+    result = subprocess.run([sys.executable, automated_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Automated Test Cycle fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Automated Test Cycle completato")
+    
+    # 3. Guardrails
+    print("\n🛡️ STEP 3: Guardrails")
+    print("-" * 40)
+    
+    guardrails_script = os.path.join(scripts_dir, 'check_guardrails.py')
+    result = subprocess.run([sys.executable, guardrails_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Guardrails fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Guardrails completato")
+    
+    # 4. Risk Management
+    print("\n⚡ STEP 4: Risk Management")
+    print("-" * 40)
+    
+    risk_script = os.path.join(scripts_dir, 'risk_management.py')
+    result = subprocess.run([sys.executable, risk_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Risk Management fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Risk Management completato")
+    
+    # 5. Stress Tests
+    print("\n💪 STEP 5: Stress Tests")
+    print("-" * 40)
+    
+    stress_script = os.path.join(scripts_dir, 'stress_test.py')
+    result = subprocess.run([sys.executable, stress_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Stress Tests fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Stress Tests completato")
+    
+    # 6. Strategy Engine
+    print("\n🎯 STEP 6: Strategy Engine")
+    print("-" * 40)
+    
+    strategy_script = os.path.join(scripts_dir, 'strategy_engine.py')
+    result = subprocess.run([sys.executable, strategy_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Strategy Engine fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Strategy Engine completato")
+    
+    # 7. Backtests
+    print("\n📊 STEP 7: Backtests")
+    print("-" * 40)
+    
+    backtest_script = os.path.join(scripts_dir, 'backtest_runner.py')
+    result = subprocess.run([sys.executable, backtest_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Backtests fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Backtests completato")
+    
+    # 8. Performance Report
+    print("\n📈 STEP 8: Performance Report")
+    print("-" * 40)
+    
+    performance_script = os.path.join(scripts_dir, 'performance_report_generator.py')
+    result = subprocess.run([sys.executable, performance_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Performance Report fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Performance Report completato")
+    
+    # 9. Analysis
+    print("\n🔬 STEP 9: Analysis")
+    print("-" * 40)
+    
+    analysis_script = os.path.join(scripts_dir, 'analyze_schema_drift.py')
+    result = subprocess.run([sys.executable, analysis_script], 
+                          capture_output=True, text=True, cwd=root_dir)
+    
+    if result.returncode != 0:
+        print(f"❌ Analysis fallito:")
+        print(result.stderr)
+        return False
+    
+    print("✅ Analysis completato")
+    
+    print("\n🎉 SEQUENZA COMPLETA TERMINATA CON SUCCESSO")
+    return True
+
 if __name__ == "__main__":
-    health_check()
+    # Esegui health check
+    success = health_check()
+    
+    if success:
+        # Se health check è OK, continua con la sequenza completa
+        run_complete_sequence()
+    else:
+        print("❌ Health check fallito - sequenza interrotta")
+        sys.exit(1)

@@ -1,13 +1,14 @@
 # 📚 DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r29 — 2026-01-05  
+**Doc Revision (internal):** r32 — 2026-01-06  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
 **Reports Structure:** `data/reports/sessions/<timestamp>/[01_health_checks|02_automated|03_guardrails|04_risk|05_stress_tests|06_strategy|07_backtests|08_performance|09_analysis]/`  
 **Risk Analysis:** `data/reports/sessions/<timestamp>/04_risk/risk_management_*.json`  
 **Risk Summary:** `data/reports/sessions/<timestamp>/08_performance/performance_*.json`  
-**System Status:** **PRODUCTION READY**  
-**Scripts Funzionanti:** **12/13** (92% success)  
+**System Status:** **PRODUCTION READY v10.7**  
+**Scripts Funzionanti:** **13/13** (100% success)  
+**Closed Loop:** **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  
 
 ---
@@ -266,29 +267,32 @@ Minusvalenze "redditi diversi" riportabili (lean FIFO).
 ## DD-8. Trade journaling & attribution
 
 ### DD-8.1 `trade_journal`
-Tabella "ombra" collegata a `fiscal_ledger` per Forecast/Postcast.  
-Approccio **scalar-first**; JSON opzionale.
+Tabella audit trail per tracing completo da segnale a esecuzione.  
+**🆕 Integrata con execute_orders.py per closed loop.**
 
 | Colonna | Tipo | Note |
 |---|---|---|
-| trade_id | BIGINT | PK (= fiscal_ledger.id) |
-| run_id | VARCHAR | |
+| id | INTEGER | PK |
+| run_id | VARCHAR | esecuzione univoca |
+| symbol | VARCHAR | strumento |
+| signal_state | VARCHAR | RISK_ON/OFF/HOLD |
+| risk_scalar | DOUBLE | 0..1 sizing |
+| explain_code | VARCHAR | spiegazione segnale |
 | flag_override | BOOLEAN | default FALSE |
-| override_reason | VARCHAR | obbl. se override |
-| entry_reason | VARCHAR | forecast (max 100 char) |
-| expected_risk_pct | DOUBLE | es. -0.07 |
-| signal_state_entry | VARCHAR | RISK_ON/OFF/HOLD |
-| risk_scalar_entry | DOUBLE | 0..1 |
-| exit_reason | VARCHAR | postcast (max 100 char) |
-| realized_pnl_pct | DOUBLE | |
-| holding_days | INTEGER | |
-| theoretical_price | DOUBLE | modello esecuzione |
-| realized_price | DOUBLE | se disponibile |
-| slippage_bps | DOUBLE | |
+| override_reason | VARCHAR | se override manuale |
+| theoretical_price | DOUBLE | prezzo atteso |
+| realized_price | DOUBLE | prezzo eseguito |
+| slippage_bps | DOUBLE | slippage in basis points |
 | created_at | TIMESTAMP | |
-| last_updated | TIMESTAMP | |
 
-**Note:** Semplificato per retail - rimossi campi research-grade
+**Utilità:**
+- Audit trail completo da segnale a esecuzione
+- Tracking performance vs segnali
+- Debug discrepanze
+- Compliance reporting
+
+**PK:** (`id`)
+**Index:** (`run_id`, `symbol`)
 
 ---
 

@@ -14,9 +14,10 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
+from sequence_runner import run_sequence_from
 from implement_risk_controls import check_stop_loss_trailing_stop, calculate_portfolio_value, calculate_target_weights, calculate_current_weights
 
-def strategy_engine(dry_run=True):
+def strategy_engine(dry_run=True, commit=False):
     """Motore strategia con dry-run"""
     
     print(" STRATEGY ENGINE - ETF Italia Project v10")
@@ -68,15 +69,15 @@ def strategy_engine(dry_run=True):
         current_prices = {}
         for symbol, signal_state, risk_scalar, explain_code in current_signals:
             price_data = conn.execute("""
-            SELECT adj_close, adj_close as close, 0 as volume, volatility_20d
+            SELECT close, adj_close, volume, volatility_20d
             FROM risk_metrics 
             WHERE symbol = ? AND date = (SELECT MAX(date) FROM risk_metrics WHERE symbol = ?)
             """, [symbol, symbol]).fetchone()
             
             if price_data:
                 current_prices[symbol] = {
-                    'adj_close': price_data[0],
-                    'close': price_data[1],
+                    'close': price_data[0],
+                    'adj_close': price_data[1],
                     'volume': price_data[2],
                     'volatility_20d': price_data[3]
                 }
@@ -326,19 +327,27 @@ def strategy_engine(dry_run=True):
         }
         
         # 6. Salva su file
-        if dry_run:
-            # Usa session manager ESISTENTE
+        orders_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'orders')
+        os.makedirs(orders_dir, exist_ok=True)
+        orders_file = os.path.join(orders_dir, f"orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        with open(orders_file, 'w') as f:
+            json.dump(orders_summary, f, indent=2)
+        
+        print(f" Ordini salvati in: {orders_file}")
+        
+        # 6.1 Esegui ordini se --commit
+        if not dry_run and commit:
+            print("\n 🔄 COMMIT MODE - Esecuzione ordini...")
+            from execute_orders import execute_orders
+            success = execute_orders(orders_file=orders_file, commit=True)
+            if success:
+                print("✅ Ordini eseguiti con successo")
+            else:
+                print("❌ Errore durante l'esecuzione degli ordini")
+                return False
+        else:
+            # Usa session manager ESISTENTE per dry-run
             session_manager = get_session_manager()
-            
-            orders_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'orders')
-            os.makedirs(orders_dir, exist_ok=True)
-            orders_file = os.path.join(orders_dir, f"orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
-            with open(orders_file, 'w') as f:
-                json.dump(orders_summary, f, indent=2)
-            
-            print(f" Ordini salvati in: {orders_file}")
-            
-            # Salva nella STESSA sessione
             session_manager.add_report_to_session('strategy', orders_summary, 'json')
             
             # Stampa riepilogo
@@ -367,5 +376,5 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    success = strategy_engine(dry_run=args.dry_run)
+    success = strategy_engine(dry_run=args.dry_run, commit=args.commit)
     sys.exit(0 if success else 1)

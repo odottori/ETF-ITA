@@ -3,8 +3,11 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r29 — 2026-01-05 |
+| **Doc Revision (internal)** | r32 — 2026-01-06 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
+| **Stato Sistema** | **PRODUCTION READY v10.7** |
+| **Scripts Funzionanti** | **13/13** (100% success) |
+| **Closed Loop** | **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py) |
 
 ---
 
@@ -68,27 +71,54 @@ py scripts/compute_signals.py
 py scripts/check_guardrails.py
 ```
 
-### EP-07 — Strategy Engine (dry-run)
+### EP-07 — Strategy Engine (dry-run / commit)
 ```powershell
+# Dry-run (solo generazione ordini)
 py scripts/strategy_engine.py --dry-run
+
+# 🆕 Commit (esegue ordini automaticamente)
+py scripts/strategy_engine.py --commit
 ```
 Output: `data/reports/<run_id>/orders.json` con:
 - ordini proposti (BUY/SELL/HOLD) e motivazioni (`explain_code`)
 - stime costi/attrito (`fees_est`, `tax_friction_est`, `expected_alpha_est`)
 - **`do_nothing_score`** + **`recommendation`** (HOLD/TRADE)
 
-### EP-08 — Update Ledger (commit)
+### EP-08 — 🆕 Execute Orders (bridge)
+```powershell
+# Esegui ordini da file specifico
+py scripts/execute_orders.py --orders-file data/orders/latest.json --commit
+
+# Dry-run test
+py scripts/execute_orders.py --orders-file data/orders/latest.json
+```
+**Funzione:** Bridge critico tra ordini JSON e fiscal_ledger
+
+### EP-09 — 🆕 Complete Cycle (orchestrazione)
+```powershell
+# Ciclo completo in dry-run
+py scripts/run_complete_cycle.py
+
+# 🆕 Ciclo completo con commit
+py scripts/run_complete_cycle.py --commit
+
+# Status sistema
+py scripts/run_complete_cycle.py --status
+```
+**Funzione:** Orchestrazione completa: signals → strategy → execute → ledger
+
+### EP-10 — Update Ledger (commit)
 ```powershell
 py scripts/update_ledger.py --commit
 ```
 Best practice: eseguire backup prima del commit.
 
-### EP-09 — Backtest Runner (Run Package)
+### EP-11 — Backtest Runner (Run Package)
 ```powershell
 py scripts/backtest_runner.py
 ```
 
-### EP-11 — Sanity Check (bloccante)
+### EP-12 — Sanity Check (bloccante)
 ```powershell
 py scripts/sanity_check.py
 ```

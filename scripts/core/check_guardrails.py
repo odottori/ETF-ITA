@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
+from sequence_runner import run_sequence_from
 
 def check_guardrails():
     """Verifica guardrails e risk management"""
@@ -243,5 +244,12 @@ def check_guardrails():
         conn.close()
 
 if __name__ == "__main__":
+    # Esegui check_guardrails e poi continua con la sequenza
     success = check_guardrails()
-    sys.exit(0 if success else 1)
+    
+    if success:
+        # Continua con la sequenza: stress_test, strategy_engine, backtest_runner, performance_report_generator, analyze_schema_drift
+        run_sequence_from('check_guardrails')
+    else:
+        print("❌ Check guardrails fallito - sequenza interrotta")
+        sys.exit(1)

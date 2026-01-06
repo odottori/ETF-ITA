@@ -252,14 +252,31 @@ def setup_database():
             cp.symbol,
             cp.qty,
             cp.avg_buy_price,
-            md.adj_close as current_price,
-            cp.qty * md.adj_close as market_value,
+            md.close as current_price,
+            cp.qty * md.close as market_value,
             cb.cash,
-            cb.cash + SUM(cp.qty * md.adj_close) OVER () as total_portfolio_value
+            cb.cash + SUM(cp.qty * md.close) OVER () as total_portfolio_value
         FROM current_positions cp
         JOIN market_data md ON cp.symbol = md.symbol 
             AND md.date = (SELECT MAX(date) FROM market_data)
         CROSS JOIN cash_balance cb
+        """)
+        
+        # Vista execution_prices per trading realistico
+        conn.execute("""
+        CREATE OR REPLACE VIEW execution_prices AS
+        SELECT 
+            symbol,
+            date,
+            close as execution_price,
+            volume,
+            CASE 
+                WHEN LAG(close) OVER (PARTITION BY symbol ORDER BY date) IS NOT NULL 
+                THEN (close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) / LAG(close) OVER (PARTITION BY symbol ORDER BY date)
+                ELSE NULL 
+            END as daily_return
+        FROM market_data
+        ORDER BY symbol, date
         """)
         
         print(" Viste create")

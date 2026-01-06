@@ -112,7 +112,7 @@ def update_ledger(commit=False):
             for symbol, qty, avg_price, trades in positions:
                 # Ottieni prezzo attuale
                 current_price = conn.execute("""
-                SELECT adj_close FROM market_data 
+                SELECT close FROM market_data 
                 WHERE symbol = ? 
                 ORDER BY date DESC 
                 LIMIT 1

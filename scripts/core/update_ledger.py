@@ -40,6 +40,12 @@ def update_ledger(commit=False):
         # 2. Calcolo cash interest mensile
         print(" Calcolo cash interest...")
         
+        # Calcola Portfolio Market Value attuale
+        portfolio_mv = conn.execute("""
+        SELECT COALESCE(SUM(market_value), 0) as total_mv
+        FROM portfolio_summary
+        """).fetchone()[0]
+        
         # Ottieni cash balance attuale
         cash_balance = conn.execute("""
         SELECT COALESCE(SUM(CASE 
@@ -52,6 +58,7 @@ def update_ledger(commit=False):
         FROM fiscal_ledger
         """).fetchone()[0]
         
+        print(f" Portfolio Market Value: €{portfolio_mv:,.2f}")
         print(f" Cash balance attuale: €{cash_balance:,.2f}")
         
         # Verifica se è già stato pagato interesse questo mese
@@ -86,13 +93,29 @@ def update_ledger(commit=False):
                     next_id, 
                     datetime.now().date(),
                     interest_amount,
-                    cash_balance + interest_amount,
+                    portfolio_mv,  # PMC = Portfolio Market Value snapshot
                     f"ledger_update_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 ])
                 
                 print(f" Interesse registrato: €{interest_amount:.2f}")
         
-        # 3. Verifica posizioni correnti
+        # 3. Aggiorna pmc_snapshot per record mancanti
+        print("\n Aggiornamento PMC snapshot...")
+        
+        # Aggiorna PMC per record senza valore
+        conn.execute("""
+        UPDATE fiscal_ledger 
+        SET pmc_snapshot = ?
+        WHERE pmc_snapshot IS NULL
+        """, [portfolio_mv])
+        
+        updated_records = conn.execute("""
+        SELECT COUNT(*) FROM fiscal_ledger WHERE pmc_snapshot = ?
+        """, [portfolio_mv]).fetchone()[0]
+        
+        print(f" PMC snapshot aggiornati: {updated_records} record")
+        
+        # 4. Verifica posizioni correnti
         print("\n Posizioni correnti:")
         
         positions = conn.execute("""
@@ -129,7 +152,7 @@ def update_ledger(commit=False):
         else:
             print("  Nessuna posizione aperta")
         
-        # 4. Summary finanziario
+        # 5. Summary finanziario
         print(f"\n Summary finanziario:")
         total_value = conn.execute("""
         SELECT SUM(market_value) FROM portfolio_summary
@@ -140,7 +163,7 @@ def update_ledger(commit=False):
         print(f"  Positions: €{total_value:,.2f}")
         print(f"  Portfolio value: €{portfolio_value:,.2f}")
         
-        # 5. Commit se richiesto
+        # 6. Commit se richiesto
         if commit:
             conn.commit()
             print(f"\n Ledger aggiornato con successo")

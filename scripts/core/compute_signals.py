@@ -201,10 +201,14 @@ def compute_signals():
             
             # Insert signals nel database con UPSERT
             if signals_data:
+                # Ottieni prossimo ID disponibile per evitare conflitti
+                next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM signals").fetchone()[0]
+                
                 # Usa UPSERT di DuckDB (INSERT OR REPLACE)
                 signals_to_insert = []
-                for signal in signals_data:
+                for i, signal in enumerate(signals_data):
                     signals_to_insert.append((
+                        next_id + i,  # ID esplicito
                         signal['date'],
                         signal['symbol'],
                         signal['signal_state'],
@@ -219,8 +223,8 @@ def compute_signals():
                 
                 # Usa INSERT OR REPLACE per gestire duplicati automaticamente
                 conn.executemany("""
-                INSERT OR REPLACE INTO signals (date, symbol, signal_state, risk_scalar, explain_code, sma_200, volatility_20d, spy_guard, regime_filter, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO signals (id, date, symbol, signal_state, risk_scalar, explain_code, sma_200, volatility_20d, spy_guard, regime_filter, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, signals_to_insert)
                 
                 print(f"    {symbol}: {len(signals_data)} signals upserted")

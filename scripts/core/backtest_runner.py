@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
-from sequence_runner import run_sequence_from
 
 def backtest_runner():
     """Esegue backtest completo con Run Package"""
@@ -26,9 +25,6 @@ def backtest_runner():
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
     
-    # Inizializza session manager
-    session_manager = get_session_manager()
-    
     # Carica configurazione
     with open(config_path, 'r') as f:
         config = json.load(f)
@@ -36,6 +32,19 @@ def backtest_runner():
     conn = duckdb.connect(db_path)
     
     try:
+        # 0. Pulisci record backtest precedenti
+        print(" Pulizia record backtest precedenti...")
+        
+        # Pulisci fiscal_ledger e orders che hanno run_type
+        conn.execute("DELETE FROM fiscal_ledger WHERE run_type = 'BACKTEST'")
+        conn.execute("DELETE FROM orders WHERE notes LIKE '%backtest%'")
+        
+        # Pulisci signals (non ha run_type, pulisco per explain_code)
+        conn.execute("DELETE FROM signals WHERE explain_code = 'BACKTEST_SIGNAL'")
+        
+        conn.commit()
+        print(" Record backtest puliti")
+        
         # 1. Sanity Check bloccante
         print(" Sanity Check...")
         if not sanity_check(conn):
@@ -50,8 +59,8 @@ def backtest_runner():
         
         print(f" Run ID: {run_id}")
         
-        # 3. Crea sottocartella backtest nella sessione corrente
-        backtest_dir = session_manager.create_backtest_dir(run_id)
+        # 3. Ottieni session manager per salvare report
+        session_manager = get_session_manager(script_name='backtest_runner')
         
         # 3. Esegui simulazione reale prima di calcolare KPI
         print(" Esecuzione simulazione backtest...")
@@ -108,22 +117,14 @@ def backtest_runner():
             'summary': generate_summary(run_id, kpi_data, benchmark_data)
         }
         
-        # 8. Salva artefatti nella sottocartella backtest con timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        manifest_file = backtest_dir / f'manifest_{timestamp}.json'
-        kpi_file = backtest_dir / f'kpi_{timestamp}.json'
-        summary_file = backtest_dir / f'summary_{timestamp}.md'
+        # 8. Salva artefatti nella sessione corrente
+        manifest_file = session_manager.add_report_to_session('backtest_manifest', run_package['manifest'], 'json')
+        kpi_file = session_manager.add_report_to_session('backtest_kpi', run_package['kpi'], 'json')
         
-        with open(manifest_file, 'w') as f:
-            json.dump(run_package['manifest'], f, indent=2)
+        # Salva summary come testo
+        summary_file = session_manager.add_report_to_session('backtest_summary', run_package['summary'], 'md')
         
-        with open(kpi_file, 'w') as f:
-            json.dump(run_package['kpi'], f, indent=2)
-        
-        with open(summary_file, 'w', encoding='utf-8') as f:
-            f.write(run_package['summary'])
-        
-        print(f" Run Package salvato in: {backtest_dir}")
+        print(f" Backtest artefatti salvati nella sessione")
         
         # 9. Stampa riepilogo
         print(f"\n BACKTEST RESULTS:")
@@ -154,12 +155,12 @@ def sanity_check(conn):
     """Controllo di integrità bloccante"""
     
     try:
-        # 1. Posizioni negative
+        # 1. Posizioni negative (solo record backtest)
         negative_positions = conn.execute("""
         SELECT COUNT(*) FROM (
             SELECT symbol, SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
             FROM fiscal_ledger 
-            WHERE type IN ('BUY', 'SELL')
+            WHERE type IN ('BUY', 'SELL') AND run_type = 'BACKTEST'
             GROUP BY symbol
             HAVING net_qty < 0
         )
@@ -169,7 +170,7 @@ def sanity_check(conn):
             print(f" Posizioni negative trovate: {negative_positions}")
             return False
         
-        # 2. Cash negativo
+        # 2. Cash negativo (solo record backtest)
         cash_balance = conn.execute("""
         SELECT COALESCE(SUM(CASE 
             WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
@@ -179,6 +180,7 @@ def sanity_check(conn):
             ELSE 0 
         END), 0) as cash_balance
         FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
         """).fetchone()[0]
         
         if cash_balance < 0:
@@ -516,5 +518,5 @@ if __name__ == "__main__":
         # Continua con la sequenza: performance_report_generator, analyze_schema_drift
         run_sequence_from('backtest_runner')
     else:
-        print("❌ Backtest runner fallito - sequenza interrotta")
+        print("X Backtest runner fallito - sequenza interrotta")
         sys.exit(1)

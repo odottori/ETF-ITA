@@ -14,6 +14,34 @@ from decimal import Decimal, ROUND_HALF_UP
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+def check_cash_available(conn, required_cash):
+    """Verifica cash disponibile prima di BUY"""
+    
+    cash_balance = conn.execute("""
+    SELECT COALESCE(SUM(CASE 
+        WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
+        WHEN type = 'SELL' THEN qty * price - fees - tax_paid
+        WHEN type = 'BUY' THEN -(qty * price + fees)
+        WHEN type = 'INTEREST' THEN qty
+        ELSE 0 
+    END), 0) as cash_balance
+    FROM fiscal_ledger
+    """).fetchone()[0]
+    
+    return cash_balance >= required_cash, cash_balance
+
+def check_position_available(conn, symbol, required_qty):
+    """Verifica posizione disponibile prima di SELL"""
+    
+    position_check = conn.execute("""
+    SELECT SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
+    FROM fiscal_ledger 
+    WHERE symbol = ? AND type IN ('BUY', 'SELL')
+    """, [symbol]).fetchone()
+    
+    available_qty = position_check[0] if position_check and position_check[0] else 0
+    return available_qty >= required_qty, available_qty
+
 def execute_orders(orders_file=None, commit=False):
     """Esegue ordini da file e scrive nel fiscal_ledger"""
     
@@ -68,6 +96,7 @@ def execute_orders(orders_file=None, commit=False):
         
         # 5. Processa ogni ordine
         executed_orders = []
+        rejected_orders = []
         run_id = f"execute_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         for order in executable_orders:
@@ -80,20 +109,64 @@ def execute_orders(orders_file=None, commit=False):
             print(f"\n 🔄 {symbol}: {action} {qty:.0f} @ €{price:.2f}")
             print(f"    Reason: {reason}")
             
-            # 5.1 Validazioni pre-esecuzione
-            if action == 'SELL':
-                # Verifica posizione esistente
-                position_check = conn.execute("""
-                SELECT SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
-                FROM fiscal_ledger 
-                WHERE symbol = ? AND type IN ('BUY', 'SELL')
+            # 5.1 Validazioni pre-esecuzione HARD CONTROLS
+            if action == 'BUY':
+                # Verifica cash disponibile
+                position_value = qty * price
+                commission_pct = config['universe']['core'][0]['cost_model']['commission_pct']
+                commission = position_value * commission_pct
+                if position_value < 1000:
+                    commission = max(5.0, commission)
+                
+                # Stima slippage per calcolo cash richiesto
+                volatility_data = conn.execute("""
+                SELECT volatility_20d FROM risk_metrics 
+                WHERE symbol = ? 
+                ORDER BY date DESC LIMIT 1
                 """, [symbol]).fetchone()
                 
-                if not position_check or position_check[0] < qty:
-                    print(f"    ❌ Posizione insufficiente per vendita")
+                volatility = volatility_data[0] if volatility_data and volatility_data[0] else 0.15
+                slippage_bps = max(2, volatility * 0.5)
+                slippage = position_value * (slippage_bps / 10000)
+                
+                total_required = position_value + commission + slippage
+                cash_available, cash_balance = check_cash_available(conn, total_required)
+                
+                if not cash_available:
+                    print(f"    ❌ CASH INSUFFICIENTE: richiesto €{total_required:.2f}, disponibile €{cash_balance:.2f}")
+                    rejected_orders.append({
+                        'symbol': symbol,
+                        'action': action,
+                        'qty': qty,
+                        'price': price,
+                        'reason': reason,
+                        'reject_reason': f'CASH_INSUFFICIENTE: richiesto €{total_required:.2f}, disponibile €{cash_balance:.2f}',
+                        'timestamp': datetime.now().isoformat()
+                    })
                     continue
+                
+                print(f"    ✅ Cash OK: richiesto €{total_required:.2f}, disponibile €{cash_balance:.2f}")
+                
+            elif action == 'SELL':
+                # Verifica posizione esistente
+                position_available, available_qty = check_position_available(conn, symbol, qty)
+                
+                if not position_available:
+                    print(f"    ❌ POSIZIONE INSUFFICIENTE: richiesto {qty:.0f}, disponibile {available_qty:.0f}")
+                    rejected_orders.append({
+                        'symbol': symbol,
+                        'action': action,
+                        'qty': qty,
+                        'price': price,
+                        'reason': reason,
+                        'reject_reason': f'POSIZIONE_INSUFFICIENTE: richiesto {qty:.0f}, disponibile {available_qty:.0f}',
+                        'timestamp': datetime.now().isoformat()
+                    })
+                    continue
+                
+                print(f"    ✅ Posizione OK: richiesto {qty:.0f}, disponibile {available_qty:.0f}")
             
-            # 5.2 Calcola costi realistici
+            # 5.2 Calcola costi realistici (already estimated for BUY cash check)
             position_value = qty * price
             
             # Commissioni
@@ -120,7 +193,7 @@ def execute_orders(orders_file=None, commit=False):
             if action == 'SELL':
                 # Calcola realized gain per tax
                 avg_buy_price = conn.execute("""
-                SELECT AVG(CASE WHEN type = 'BUY' THEN price ELSE NULL END) as avg_price
+                SELECT AVG(CASE WHEN type = 'BUY' THEN price ELSE NULL END) as avg_buy_price
                 FROM fiscal_ledger 
                 WHERE symbol = ? AND type IN ('BUY', 'SELL')
                 """, [symbol]).fetchone()
@@ -180,7 +253,7 @@ def execute_orders(orders_file=None, commit=False):
                 'price': float(price),
                 'fees': float(total_fees),
                 'tax_paid': float(tax_paid),
-                'pmc_snapshot': None,  # Will be calculated by update_ledger
+                'pmc_snapshot': None,  # Will be calculated by update_ledger (Portfolio Market Value)
                 'run_id': run_id
             }
             
@@ -236,6 +309,12 @@ def execute_orders(orders_file=None, commit=False):
         print(f"\n ESECUZIONE COMPLETATA")
         print(f" Ordini processati: {len(executable_orders)}")
         print(f" Ordini eseguiti: {len(executed_orders)}")
+        print(f" Ordini respinti: {len(rejected_orders)}")
+        
+        if rejected_orders:
+            print(f"\n REJECT SUMMARY:")
+            for reject in rejected_orders:
+                print(f"  ❌ {reject['symbol']} {reject['action']}: {reject['reject_reason']}")
         
         if executed_orders:
             total_value = sum(o['qty'] * o['price'] for o in executed_orders)

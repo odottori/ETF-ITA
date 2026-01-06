@@ -82,6 +82,8 @@ def setup_database():
             exchange_rate_used DOUBLE DEFAULT 1.0 CHECK (exchange_rate_used > 0),
             price_eur DOUBLE,
             run_id VARCHAR,
+            run_type VARCHAR DEFAULT 'PRODUCTION',
+            notes VARCHAR,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
@@ -126,6 +128,21 @@ def setup_database():
             tax_category VARCHAR DEFAULT 'OICR_ETF',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
+        # Tabella orders (gestione ordini)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY,
+            date DATE NOT NULL,
+            symbol VARCHAR NOT NULL,
+            order_type VARCHAR NOT NULL CHECK (order_type IN ('BUY', 'SELL', 'HOLD')),
+            qty DOUBLE NOT NULL,
+            price DOUBLE NOT NULL CHECK (price >= 0),
+            status VARCHAR DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'EXECUTED', 'CANCELLED')),
+            notes VARCHAR,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
         
@@ -195,6 +212,8 @@ def setup_database():
                 symbol,
                 date,
                 adj_close,
+                close,
+                volume,
                 CASE 
                     WHEN LAG(adj_close) OVER (PARTITION BY symbol ORDER BY date) IS NOT NULL 
                     THEN (adj_close - LAG(adj_close) OVER (PARTITION BY symbol ORDER BY date)) / LAG(adj_close) OVER (PARTITION BY symbol ORDER BY date)
@@ -207,6 +226,8 @@ def setup_database():
                 symbol,
                 date,
                 adj_close,
+                close,
+                volume,
                 daily_return,
                 AVG(adj_close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW) as sma_200,
                 MAX(adj_close) OVER (PARTITION BY symbol ORDER BY date ROWS UNBOUNDED PRECEDING) as high_water_mark
@@ -216,6 +237,8 @@ def setup_database():
             symbol,
             date,
             adj_close,
+            close,
+            volume,
             sma_200,
             STDDEV_SAMP(daily_return) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) * SQRT(252) as volatility_20d,
             high_water_mark,

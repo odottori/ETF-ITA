@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from session_manager import get_session_manager
+from execute_orders import check_cash_available, check_position_available
+from implement_tax_logic import calculate_tax
 
 class BacktestEngine:
     """Motore di backtest con simulazione reale"""
@@ -37,16 +39,20 @@ class BacktestEngine:
     def initialize_portfolio(self, initial_capital=20000.0):
         """Inizializza portfolio con capitale iniziale"""
         
-        # Pulisci ledger precedente
-        self.conn.execute("DELETE FROM fiscal_ledger WHERE run_type = 'BACKTEST'")
+        # Pulisci ledger precedente backtest
+        self.id_helper.cleanup_environment('fiscal_ledger')
+        self.conn.commit()
         
-        # Deposito iniziale
+        # Deposito iniziale con ID backtest
+        next_id = self.id_helper.get_next_id('fiscal_ledger')
+        
         self.conn.execute("""
         INSERT INTO fiscal_ledger (
-            date, type, symbol, qty, price, fees, tax_paid, 
+            id, date, type, symbol, qty, price, fees, tax_paid, 
             pmc_snapshot, run_type, notes
-        ) VALUES (?, 'DEPOSIT', 'CASH', 1, ?, 0, 0, ?, 'BACKTEST', 'Initial capital')
+        ) VALUES (?, ?, 'DEPOSIT', 'CASH', 1, ?, 0, 0, ?, 'BACKTEST', 'Initial capital')
         """, [
+            next_id,
             datetime.now().date(),
             initial_capital,
             initial_capital
@@ -62,54 +68,56 @@ class BacktestEngine:
         
         # 1. Calcola segnali per il periodo
         print("📊 Calcolo segnali...")
-        self.conn.execute("""
-        DELETE FROM signals WHERE date BETWEEN ? AND ?
-        """, [start_date, end_date])
         
-        self.conn.execute("""
-        INSERT INTO signals (date, symbol, signal_type, signal_strength, risk_scalar)
-        SELECT 
-            date,
-            symbol,
-            CASE 
-                WHEN trend > 0.5 AND momentum > 0.5 THEN 'RISK_ON'
-                WHEN trend < -0.5 OR momentum < -0.5 THEN 'RISK_OFF'
-                ELSE 'HOLD'
-            END as signal_type,
-            (trend + momentum) / 2 as signal_strength,
-            COALESCE(rm.risk_scalar, 1.0) as risk_scalar
+        # Pulisci signals precedenti backtest
+        self.id_helper.cleanup_environment('signals')
+        self.conn.commit()
+        
+        # Inserisci signals uno per uno con ID backtest
+        symbols_data = self.conn.execute("""
+        SELECT DISTINCT md.symbol, md.date
         FROM market_data md
-        LEFT JOIN risk_metrics rm ON md.symbol = rm.symbol AND md.date = rm.date
         WHERE md.date BETWEEN ? AND ?
-        AND md.symbol IN (SELECT symbol FROM etf_universe WHERE active = true)
-        """, [start_date, end_date])
+        ORDER BY md.date, md.symbol
+        """, [start_date, end_date]).fetchall()
+        
+        for symbol, date in symbols_data:
+            # Calcola segnale semplice
+            signal_state = 'RISK_ON'  # Semplificato per debug
+            
+            # Ottieni ID backtest univoco
+            signal_id = self.id_helper.get_next_id('signals')
+            
+            self.conn.execute("""
+            INSERT INTO signals (id, date, symbol, signal_state, explain_code, risk_scalar)
+            VALUES (?, ?, ?, ?, 'BACKTEST_SIGNAL', 1.0)
+            """, [signal_id, date, symbol, signal_state])
         
         # 2. Genera ordini basati su segnali
         print("📋 Generazione ordini...")
-        self.conn.execute("""
-        DELETE FROM orders WHERE date BETWEEN ? AND ? AND status = 'PENDING'
-        """, [start_date, end_date])
         
-        self.conn.execute("""
-        INSERT INTO orders (date, symbol, order_type, qty, price, status, notes)
+        # Pulisci orders precedenti backtest
+        self.id_helper.cleanup_environment('orders')
+        self.conn.commit()
+        
+        # Inserisci ordini uno per uno con ID backtest
+        orders_data = self.conn.execute("""
         SELECT 
             s.date,
             s.symbol,
             CASE 
-                WHEN s.signal_type = 'RISK_ON' THEN 'BUY'
-                WHEN s.signal_type = 'RISK_OFF' THEN 'SELL'
+                WHEN s.signal_state = 'RISK_ON' THEN 'BUY'
+                WHEN s.signal_state = 'RISK_OFF' THEN 'SELL'
                 ELSE 'HOLD'
             END as order_type,
             CASE 
-                WHEN s.signal_type = 'RISK_ON' THEN 
-                    FLOOR(20000 * s.signal_strength * s.risk_scalar / md.close)
-                WHEN s.signal_type = 'RISK_OFF' THEN 
+                WHEN s.signal_state = 'RISK_ON' THEN 
+                    FLOOR(20000 * s.risk_scalar / md.close)
+                WHEN s.signal_state = 'RISK_OFF' THEN 
                     COALESCE(fl.position_qty, 0)
                 ELSE 0
             END as qty,
-            md.close as price,
-            'PENDING' as status,
-            'Generated by backtest' as notes
+            md.close as price
         FROM signals s
         JOIN market_data md ON s.date = md.date AND s.symbol = md.symbol
         LEFT JOIN (
@@ -119,51 +127,112 @@ class BacktestEngine:
             GROUP BY symbol
         ) fl ON s.symbol = fl.symbol
         WHERE s.date BETWEEN ? AND ?
-        AND s.signal_type IN ('RISK_ON', 'RISK_OFF')
+        AND s.signal_state IN ('RISK_ON', 'RISK_OFF')
         AND CASE 
-            WHEN s.signal_type = 'RISK_ON' THEN 
-                FLOOR(20000 * s.signal_strength * s.risk_scalar / md.close) > 0
-            WHEN s.signal_type = 'RISK_OFF' THEN 
+            WHEN s.signal_state = 'RISK_ON' THEN 
+                FLOOR(20000 * s.risk_scalar / md.close) > 0
+            WHEN s.signal_state = 'RISK_OFF' THEN 
                 COALESCE(fl.position_qty, 0) > 0
             ELSE false
         END
-        """, [start_date, end_date])
-        
-        # 3. Esegui ordini
-        print("⚡ Esecuzione ordini...")
-        orders = self.conn.execute("""
-        SELECT date, symbol, order_type, qty, price
-        FROM orders 
-        WHERE date BETWEEN ? AND ? 
-        AND status = 'PENDING'
-        ORDER BY date, symbol
+        ORDER BY s.date, s.symbol
         """, [start_date, end_date]).fetchall()
         
-        for order_date, symbol, order_type, qty, price in orders:
-            self._execute_order(order_date, symbol, order_type, qty, price)
+        for date, symbol, order_type, qty, price in orders_data:
+            # Ottieni ID backtest univoco
+            order_id = self.id_helper.get_next_id('orders')
+            
+            self.conn.execute("""
+            INSERT INTO orders (id, date, symbol, order_type, qty, price, status, notes)
+            VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'Generated by backtest')
+            """, [order_id, date, symbol, order_type, qty, price])
         
-        print(f"✅ Eseguiti {len(orders)} ordini")
+        # 3. Esegui ordini con controlli cash
+        print("⚡ Esecuzione ordini...")
+        
+        executed_orders = []
+        for date, symbol, order_type, qty, price in orders_data:
+            if order_type == 'BUY':
+                # Verifica cash disponibile
+                position_value = qty * price
+                commission_pct = self.config['universe']['core'][0]['cost_model']['commission_pct']
+                commission = position_value * commission_pct
+                if position_value < 1000:
+                    commission = max(5.0, commission)
+                
+                volatility_data = self.conn.execute("""
+                SELECT volatility_20d FROM risk_metrics 
+                WHERE symbol = ? 
+                ORDER BY date DESC LIMIT 1
+                """, [symbol]).fetchone()
+                
+                volatility = volatility_data[0] if volatility_data and volatility_data[0] else 0.15
+                slippage_bps = self.config['universe']['core'][0]['cost_model']['slippage_bps']
+                slippage_bps = max(slippage_bps, volatility * 0.5)
+                slippage = position_value * (slippage_bps / 10000)
+                
+                total_required = position_value + commission + slippage
+                
+                # Usa _execute_order che ora include pre-trade controls
+                success = self._execute_order(date, symbol, order_type, qty, price)
+                if success:
+                    executed_orders.append((date, symbol, order_type, qty, price))
+            
+            elif order_type == 'SELL':
+                # Usa _execute_order che ora include pre-trade controls
+                success = self._execute_order(date, symbol, order_type, qty, price)
+                if success:
+                    executed_orders.append((date, symbol, order_type, qty, price))
+        
+        print(f"✅ Eseguiti {len(executed_orders)} ordini su {len(orders_data)}")
         
     def _execute_order(self, date, symbol, order_type, qty, price):
-        """Esegue singolo ordine con logica fiscale"""
+        """Esegue singolo ordine con logica fiscale condivisa con execute_orders"""
         
-        commission = qty * price * 0.001  # 0.1% commission
-        slippage = qty * price * 0.0005  # 0.05% slippage
-        total_cost = qty * price + commission + slippage
+        # 1. Calcola costi usando configurazione reale (non hard-coded)
+        position_value = qty * price
         
+        # Commissione da configurazione
+        commission_pct = self.config['universe']['core'][0]['cost_model']['commission_pct']
+        commission = position_value * commission_pct
+        if position_value < 1000:
+            commission = max(5.0, commission)  # Minimum €5
+        
+        # Slippage da configurazione con adjustment volatilità
+        volatility_data = self.conn.execute("""
+        SELECT volatility_20d FROM risk_metrics 
+        WHERE symbol = ? 
+        ORDER BY date DESC LIMIT 1
+        """, [symbol]).fetchone()
+        
+        volatility = volatility_data[0] if volatility_data and volatility_data[0] else 0.15
+        slippage_bps = self.config['universe']['core'][0]['cost_model']['slippage_bps']
+        slippage_bps = max(slippage_bps, volatility * 0.5)  # Volatility adjustment
+        slippage = position_value * (slippage_bps / 10000)
+        
+        total_cost = position_value + commission + slippage
+        
+        # 2. Pre-trade controls (condivisi con execute_orders)
         if order_type == 'BUY':
-            # Acquisto
-            self.conn.execute("""
-            INSERT INTO fiscal_ledger (
-                date, type, symbol, qty, price, fees, tax_paid, 
-                pmc_snapshot, run_type, notes
-            ) VALUES (?, 'BUY', ?, ?, ?, ?, 0, 
-                (SELECT COALESCE(SUM(pmc_snapshot), 0) FROM fiscal_ledger WHERE date < ?), 
-                'BACKTEST', 'Backtest execution')
-            """, [date, symbol, qty, price, commission, date])
-            
+            cash_available, cash_balance = check_cash_available(self.conn, total_cost)
+            if not cash_available:
+                print(f"  ❌ {symbol} BUY {qty:.0f} @ €{price:.2f} - CASH INSUFFICIENTE: richiesto €{total_cost:.2f}, disponibile €{cash_balance:.2f}")
+                return False  # Ordine rifiutato
+        
         elif order_type == 'SELL':
-            # Vendita con calcolo fiscale
+            position_available, current_qty = check_position_available(self.conn, symbol, qty)
+            if not position_available:
+                print(f"  ❌ {symbol} SELL {qty:.0f} @ €{price:.2f} - POSITION INSUFFICIENTE: richiesto {qty:.0f}, disponibile {current_qty:.0f}")
+                return False
+        
+        # Calcola PMC snapshot
+        pmc_snapshot = self.conn.execute("""
+        SELECT COALESCE(SUM(pmc_snapshot), 0) FROM fiscal_ledger WHERE date < ?
+        """, [date]).fetchone()[0]
+        
+        # Calcola tassazione per SELL
+        tax_amount = 0.0
+        if order_type == 'SELL':
             avg_cost = self.conn.execute("""
             SELECT COALESCE(SUM(qty * price) / SUM(qty), 0) as avg_cost
             FROM fiscal_ledger 
@@ -174,16 +243,30 @@ class BacktestEngine:
             cost_basis = qty * avg_cost
             gain = proceeds - cost_basis
             
-            tax = gain * 0.26 if gain > 0 else 0
-            
-            self.conn.execute("""
-            INSERT INTO fiscal_ledger (
-                date, type, symbol, qty, price, fees, tax_paid, 
-                pmc_snapshot, run_type, notes
-            ) VALUES (?, 'SELL', ?, ?, ?, ?, ?, 
-                (SELECT COALESCE(SUM(pmc_snapshot), 0) FROM fiscal_ledger WHERE date < ?), 
-                'BACKTEST', 'Backtest execution')
-            """, [date, symbol, qty, price, commission, tax, date])
+            # Calcolo tassazione usando logica condivisa
+            tax_amount, zainetto_used, explanation = calculate_tax(gain, symbol, date, self.conn)
+        
+        # INSERT completo con tutti i parametri
+        trade_currency = self.config['settings']['currency']
+        exchange_rate = 1.0
+        run_id = f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        next_id = self.id_helper.get_next_id('fiscal_ledger')
+        
+        # INSERT completo rispettando tutti i vincoli
+        self.conn.execute("""
+        INSERT INTO fiscal_ledger (
+            id, date, type, symbol, qty, price, fees, tax_paid, 
+            pmc_snapshot, trade_currency, exchange_rate_used, price_eur,
+            run_id, run_type, notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            next_id, date, order_type, symbol, qty, price, commission, tax_amount,
+            pmc_snapshot, trade_currency, exchange_rate, price, run_id, 'BACKTEST',
+            'Backtest execution', datetime.now()
+        ])
+        
+        return True
     
     def calculate_portfolio_value(self, date):
         """Calcola valore portfolio alla data specifica"""
@@ -207,13 +290,13 @@ class BacktestEngine:
         # Cash disponibile
         cash = self.conn.execute("""
         SELECT COALESCE(SUM(CASE 
-            WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
-            WHEN type = 'SELL' THEN qty * price - fees - tax_paid
-            WHEN type = 'BUY' THEN -(qty * price + fees)
+            WHEN fl.type = 'DEPOSIT' THEN fl.qty * fl.price - fl.fees - fl.tax_paid
+            WHEN fl.type = 'SELL' THEN fl.qty * fl.price - fl.fees - fl.tax_paid
+            WHEN fl.type = 'BUY' THEN -(fl.qty * fl.price + fl.fees)
             ELSE 0 
         END), 0) as cash_balance
-        FROM fiscal_ledger
-        WHERE date <= ? AND run_type = 'BACKTEST'
+        FROM fiscal_ledger fl
+        WHERE fl.date <= ? AND fl.run_type = 'BACKTEST'
         """, [date]).fetchone()[0]
         
         return market_value + cash
@@ -260,8 +343,9 @@ class BacktestEngine:
             WHERE md.date BETWEEN ? AND ?
             AND md.symbol IN (SELECT DISTINCT symbol FROM fiscal_ledger WHERE run_type = 'BACKTEST')
         ) t
+        WHERE date BETWEEN ? AND ?
         ORDER BY date, symbol
-        """, [start_date, end_date])
+        """, [start_date, end_date, start_date, end_date])
         
         # Crea vista portfolio_overview
         self.conn.execute("""
@@ -345,13 +429,13 @@ class BacktestEngine:
         avg_portfolio_value = self.conn.execute("""
         SELECT AVG(portfolio_value) as avg_value
         FROM (
-            SELECT date, SUM(qty * price) as portfolio_value
+            SELECT fl.date, SUM(fl.qty * fl.price) as portfolio_value
             FROM fiscal_ledger fl
             JOIN market_data md ON fl.symbol = md.symbol AND fl.date = md.date
             WHERE fl.date BETWEEN ? AND ?
             AND fl.run_type = 'BACKTEST'
             AND fl.type IN ('BUY', 'SELL')
-            GROUP BY date
+            GROUP BY fl.date
         ) t
         """, [start_date, end_date]).fetchone()[0] or 1
         

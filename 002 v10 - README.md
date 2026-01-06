@@ -3,13 +3,14 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r33 — 2026-01-06 |
+| **Doc Revision (internal)** | r34 — 2026-01-06 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **PRODUCTION READY v10.7.2** |
-| **Scripts Funzionanti** | **13/13** (100% success) |
+| **Stato Sistema** | **PRODUCTION READY v10.7.3** |
+| **Scripts Funzionanti** | **14/14** (100% success) |
 | **Closed Loop** | **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py) |
 | **Strategy Engine** | **CRITICAL FIXES COMPLETATI** (bug risolti) |
 | **Fiscal Engine** | **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
+| **Backtest Engine** | **SIMULATION REALISTIC** (reporting con simulazione reale) |
 | **Guardrails** | **CRITICAL BUGS RISOLTI** (NameError + price coherence) |
 
 ---

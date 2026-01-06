@@ -1,9 +1,9 @@
 # 📋 TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r33 — 2026-01-06  
+**Doc Revision (internal):** r35 — 2026-01-06  
 **Baseline produzione:** **EUR / ACC**  
-**System Status:** **PRODUCTION READY v10.7.1**  
+**System Status:** **PRODUCTION READY v10.7.3**  
 **Strategy Engine:** **CRITICAL FIXES COMPLETATI**  
 
 ## LEGENDA
@@ -29,6 +29,7 @@
 | EP-07 | `scripts/core/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | [🟢] DONE |
 | EP-08 | `scripts/core/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-7 | [🟢] DONE |
 | EP-09 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] DONE |
+| 🚀 | `scripts/core/backtest_engine.py` | Simulazione realistica backtest | Backtest Fix | [🟢] DONE |
 | EP-10 | `scripts/core/stress_test.py` | stress report | DIPF §9.2 | [🟢] DONE |
 | EP-11 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | [🟢] DONE |
 | EP-12 | `scripts/core/performance_report_generator.py` | report performance sessione | System Test | [🟢] DONE |

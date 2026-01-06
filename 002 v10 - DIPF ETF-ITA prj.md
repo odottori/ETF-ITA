@@ -2,13 +2,13 @@
 
 **Progetto:** ETF Italia Smart Retail  
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r34 — 2026-01-06  
+**Doc Revision (internal):** r35 — 2026-01-06  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
 **Stato Documento:** 🟢 CANONICO — PRODUCTION READY  
-**Stato Sistema:** **COMPLETATO** (13/13 EntryPoint)  
+**Stato Sistema:** **COMPLETATO** (14/14 EntryPoint)  
 **Performance Sharpe:** **0.96** (ottimizzato)  
-**Scripts Funzionanti:** **13/13** (100% success)  
+**Scripts Funzionanti:** **14/14** (100% success)  
 **Issues Integrity:** **75** (85.3% weekend/festivi)  
 **Risk Level:** **CONTROLLED** (Score: 0.40)  
 **Correlazione ETF:** **0.821** (CSSPX-XS2L)  
@@ -18,9 +18,10 @@
 **Reports Location:** **data/reports/sessions/<timestamp>/**  
 **Report Structure:** 01-09 ordinal categories + session_info.json  
 **Risk Analysis:** **data/reports/sessions/<timestamp>/04_risk/**  
-**System Status:** **PRODUCTION READY v10.7.2**  
+**System Status:** **PRODUCTION READY v10.7.3**  
 | **Strategy Engine:** **CRITICAL FIXES COMPLETATI** (bug risolti) |
 | **Fiscal Engine:** **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
+| **Backtest Engine:** **SIMULATION REALISTIC** (reporting con simulazione reale) |
 | **Guardrails:** **CRITICAL BUGS RISOLTI** (NameError + price coherence) | 
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)
 

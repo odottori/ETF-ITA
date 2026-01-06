@@ -53,7 +53,15 @@ def backtest_runner():
         # 3. Crea sottocartella backtest nella sessione corrente
         backtest_dir = session_manager.create_backtest_dir(run_id)
         
-        # 4. Calcola KPI portfolio
+        # 3. Esegui simulazione reale prima di calcolare KPI
+        print(" Esecuzione simulazione backtest...")
+        
+        from backtest_engine import run_backtest_simulation
+        if not run_backtest_simulation():
+            print(" Simulazione fallita - Backtest interrotto")
+            return False
+        
+        # 4. Calcola KPI portfolio (ora basati su dati reali)
         print(" Calcolo KPI portfolio...")
         
         kpi_data = calculate_kpi(conn, config)
@@ -63,7 +71,7 @@ def backtest_runner():
         
         benchmark_data = calculate_benchmark_kpi(conn, config)
         
-        # 6. Genera Run Package
+        # 7. Genera Run Package
         print(" Generazione Run Package...")
         
         run_package = {
@@ -100,7 +108,7 @@ def backtest_runner():
             'summary': generate_summary(run_id, kpi_data, benchmark_data)
         }
         
-        # 7. Salva artefatti nella sottocartella backtest con timestamp
+        # 8. Salva artefatti nella sottocartella backtest con timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         manifest_file = backtest_dir / f'manifest_{timestamp}.json'
         kpi_file = backtest_dir / f'kpi_{timestamp}.json'
@@ -117,7 +125,7 @@ def backtest_runner():
         
         print(f" Run Package salvato in: {backtest_dir}")
         
-        # 8. Stampa riepilogo
+        # 9. Stampa riepilogo
         print(f"\n BACKTEST RESULTS:")
         print(f"Run ID: {run_id}")
         print(f"CAGR Portfolio: {kpi_data['cagr']:.2%}")

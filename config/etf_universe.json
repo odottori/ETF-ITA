@@ -8,7 +8,10 @@
     "volatility_target": 0.15,
     "inertia_threshold": 0.001,
     "cash_interest_rate": 0.02,
-    "cash_interest_monthly": true
+    "cash_interest_monthly": true,
+    "score_entry_min": 0.7,
+    "score_rebalance_min": 0.6,
+    "force_deviation": 0.05
   },
   "universe": {
     "core": [
@@ -78,6 +81,12 @@
   "risk_management": {
     "stop_loss_satellite": -0.15,
     "trailing_stop_satellite": -0.1,
+    "trailing_stop_v2": {
+      "enabled": true,
+      "drawdown_threshold": -0.10,
+      "min_profit_activation": 0.05,
+      "reset_on_close": true
+    },
     "satellite_weight_target": 0.3,
     "satellite_weight_upper": 0.4,
     "spy_guard_enabled": true,

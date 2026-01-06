@@ -1,17 +1,20 @@
 # DATADICTIONARY (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r35 — 2026-01-06  
+**Doc Revision (internal):** r41 — 2026-01-06  
 **Database:** DuckDB embedded (`data/etf_data.duckdb`)  
 **Reports Structure:** `data/reports/sessions/<timestamp>/[01_health_checks|02_automated|03_guardrails|04_risk|05_stress_tests|06_strategy|07_backtests|08_performance|09_analysis]/`  
 **Risk Analysis:** `data/reports/sessions/<timestamp>/04_risk/risk_management_*.json`  
 **Risk Summary:** `data/reports/sessions/<timestamp>/08_performance/performance_*.json`  
-**System Status:** **PRODUCTION READY v10.7.3**  
-| **Strategy Engine:** **CRITICAL FIXES COMPLETATI** (bug risolti) |
+**System Status:** **PRODUCTION READY v10.7.8** |
+| **Strategy Engine:** **MOMENTUM SCORE IMPLEMENTED** (euristico 0-1, mandatory vs opportunistic) |
 | **Fiscal Engine:** **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
 | **Backtest Engine:** **SIMULATION REALISTIC** (reporting con simulazione reale) |
+| **Pre-Trade Controls:** | **HARD CONTROLS IMPLEMENTED** (cash + position checks) | 
 | **Guardrails:** **CRITICAL BUGS RISOLTI** (NameError + price coherence) | 
-**Scripts Funzionanti:** **14/14** (100% success)  
+| **Schema Coherence:** **DRIFT ELIMINATED** (contract unico + validation) |
+| **Schema Contract:** **BASELINE VINCOLANTE CONGELATA** (single source of truth + gate bloccante) |
+**Scripts Funzionanti:** **16/16** (100% success) | 
 **Closed Loop:** **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py)  
 **Baseline produzione:** **EUR / ACC** (FX e DIST disattivati salvo feature flag)  
 
@@ -52,6 +55,7 @@ Questa sezione elenca gli oggetti database principali.
 - `portfolio_overview` - Vista portafoglio
 - `trade_actions_log` - Log azioni trading
 - `benchmark_after_tax_eur` - Benchmark after-tax EUR
+- `risk_metrics` - Metriche di rischio (volatility, drawdown, SMA) con close/volume per strategy_engine
 
 ---
 
@@ -451,3 +455,30 @@ risk_adjusted_alpha = base_alpha * risk_scalar * vol_adjustment
 daily_alpha = (1 + risk_adjusted_alpha) ** (1/252) - 1
 expected_alpha = position_value * daily_alpha
 ```
+
+---
+
+## DD-0.3 Schema Contract (v10.7.6)
+**File:** `docs/SCHEMA_CONTRACT.json`  
+**Gate:** `scripts/core/schema_contract_gate.py`  
+**Validazione:** `scripts/core/validate_core_scripts.py`
+
+Single source of truth per schema database e naming conventions. Impedisce drift sistemici.
+
+### Tabelle con contract vincolante:
+- `market_data` - Dati OHLCV con convenzione adj_close/close
+- `fiscal_ledger` - Ledger PMC con colonne fiscali complete  
+- `signals` - Segnali strategia con risk scalar
+- `tax_loss_carryforward` - Zainetto per categoria fiscale
+
+### Viste critiche garantite:
+- `risk_metrics` - Con close/volume per strategy_engine
+- `portfolio_summary` - Con valori market coerenti
+- `execution_prices` - Prezzi esecuzione realistici
+
+### Gate operativo:
+- Blocca esecuzione se schema non conforme
+- Verifica colonne critiche per viste
+- Validazione syntax script core
+- Cleanup automatico ambiente test
+

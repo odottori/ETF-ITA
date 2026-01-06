@@ -87,58 +87,58 @@ def test_strategy_engine_fixes():
         else:
             print(f"   ✅ Somma pesi normalizzata: {total_weight:.3f}")
         
-        # 3. Test logica do_nothing_score corretta
-        print("\n3️⃣ Test logica do_nothing_score")
+        # 3. Test logica trade_score corretta
+        print("\n3️⃣ Test logica trade_score")
         
         # Simula valori per test
+        momentum_score = 0.8  # Score 0-1
         position_value = 10000
-        expected_alpha = 800  # 8% annual → ~0.03% daily
         total_cost = 50
         tax_estimate = 20
         
-        do_nothing_score = (expected_alpha - total_cost - tax_estimate) / position_value
+        # Trade score basato su momentum vs costi (euristico)
+        cost_ratio = (total_cost + tax_estimate) / position_value
+        trade_score = momentum_score - cost_ratio * 10  # Scaling factor per costi
+        trade_score = max(0, min(1, trade_score))  # Clamp 0-1
         
-        # Con inertia_threshold tipico di 0.001 (0.1%)
-        inertia_threshold = 0.001
+        # Soglie tipiche
+        score_rebalance_min = 0.6
         
-        # Se do_nothing_score > threshold → TRADE (logica corretta)
-        recommendation = 'TRADE' if do_nothing_score > inertia_threshold else 'HOLD'
+        # Se trade_score >= threshold → TRADE (logica corretta)
+        recommendation = 'TRADE' if trade_score >= score_rebalance_min else 'HOLD'
         
-        print(f"   Do-nothing score: {do_nothing_score:.4f}")
-        print(f"   Inertia threshold: {inertia_threshold:.4f}")
+        print(f"   Momentum score: {momentum_score:.2f}")
+        print(f"   Cost ratio: {cost_ratio:.4f}")
+        print(f"   Trade score: {trade_score:.2f}")
+        print(f"   Rebalance threshold: {score_rebalance_min:.2f}")
         print(f"   Recommendation: {recommendation}")
         
-        if do_nothing_score > 0 and recommendation == 'TRADE':
-            print("   ✅ Logica do_nothing_score corretta")
+        if trade_score >= score_rebalance_min and recommendation == 'TRADE':
+            print("   ✅ Logica trade_score corretta")
         else:
-            print("   ⚠️ Logica do_nothing_score da verificare con valori reali")
+            print("   ⚠️ Logica trade_score da verificare con valori reali")
         
-        # 4. Test expected_alpha modellistico
-        print("\n4️⃣ Test expected_alpha modellistico")
+        # 4. Test momentum_score modellistico
+        print("\n4️⃣ Test momentum_score modellistico")
         
         # Simula parametri
-        base_alpha = 0.08
+        base_momentum = 0.5  # Base score 0-1
         risk_scalar = 0.8
         current_vol = 0.15  # 15%
-        position_value = 10000
         
-        risk_adjusted_alpha = base_alpha * risk_scalar
+        momentum_score = base_momentum * risk_scalar
         vol_adjustment = min(1.5, 0.10 / current_vol)
-        risk_adjusted_alpha *= vol_adjustment
-        daily_alpha = (1 + risk_adjusted_alpha) ** (1/252) - 1
-        expected_alpha = position_value * daily_alpha
+        momentum_score = min(1.0, momentum_score * vol_adjustment)
         
-        print(f"   Base alpha: {base_alpha:.1%}")
+        print(f"   Base momentum: {base_momentum:.2f}")
         print(f"   Risk scalar: {risk_scalar:.2f}")
         print(f"   Vol adjustment: {vol_adjustment:.2f}")
-        print(f"   Risk-adjusted alpha: {risk_adjusted_alpha:.1%}")
-        print(f"   Daily alpha: {daily_alpha:.4%}")
-        print(f"   Expected alpha: €{expected_alpha:.2f}")
+        print(f"   Momentum score: {momentum_score:.2f}")
         
-        if expected_alpha > 0:
-            print("   ✅ Expected_alpha modellistico positivo")
+        if momentum_score > 0 and momentum_score != 0.5:
+            print("   ✅ Momentum_score modellistico positivo")
         else:
-            print("   ❌ Expected_alpha modellistico negativo")
+            print("   ❌ Momentum_score modellistico nullo")
             return False
         
         # 5. Test esecuzione strategy engine

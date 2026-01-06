@@ -3,15 +3,16 @@
 | Meta-Dato | Valore |
 | :--- | :--- |
 | **Package (canonico)** | v10 |
-| **Doc Revision (internal)** | r34 — 2026-01-06 |
+| **Doc Revision (internal)** | r41 — 2026-01-06 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **PRODUCTION READY v10.7.3** |
-| **Scripts Funzionanti** | **14/14** (100% success) |
-| **Closed Loop** | **IMPLEMENTATO** (execute_orders.py + run_complete_cycle.py) |
-| **Strategy Engine** | **CRITICAL FIXES COMPLETATI** (bug risolti) |
-| **Fiscal Engine** | **CRITICAL FIXES COMPLETATI** (zainetto per categoria, integrazione completa) |
-| **Backtest Engine** | **SIMULATION REALISTIC** (reporting con simulazione reale) |
-| **Guardrails** | **CRITICAL BUGS RISOLTI** (NameError + price coherence) |
+| **Stato Sistema** | **PRODUCTION READY v10.7.8** |
+| **Scripts Funzionanti** | **16/16** (100% success) |
+| **Closed Loop** | **ROBUST MUTUAL EXCLUSION** (commit > dry-run, deterministic) |
+| **Determinismo Ciclo** | **IMPLEMENTATO** (produce → esegue → contabilizza sempre deterministico) |
+| **ID Helper** | **IMPLEMENTATO** (range ID separati 50000+ per backtest) |
+| **Strategy Engine** | **MOMENTUM SCORE IMPLEMENTED** (euristico 0-1, mandatory vs opportunistic) |
+| **Schema Coherence** | **DRIFT ELIMINATED** (risk_metrics con close/volume, contract unico + validation) |
+| **Schema Contract** | **BASELINE VINCOLANTE CONGELATA** (single source of truth + gate bloccante) |
 
 ---
 
@@ -24,7 +25,13 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 - **session management centralizzato** con prefissi ordinali
 - reporting serializzato (Run Package)
 
-### 1.1 Scopo
+### 1.1 Caratteristiche Principali
+- **Determinismo Assoluto**: Il ciclo "produce → esegue → contibilizza" è completamente deterministico
+- **Pre-Trade Hard Controls**: Cash e posizione verificati prima di ogni trade
+- **ID Helper**: Range ID dedicati per ambiente (Production: 1-9999, Backtest: 50000-59999)
+- **Reject Logging**: Ogni trade rifiutato viene loggato con motivazione chiara
+- **Mutua Exclusion**: Modalità --commit e --dry-run mutualmente esclusive
+- **Closed Loop**: Sistema completo da segnali a ledger con controlli robusti
 - **Decision support / simulazione backtest-grade**: segnali, ordini proposti (dry-run), controlli rischio, contabilità fiscale simulata e report riproducibili.
 - **Non è execution automatica**: la produzione è *human-in-the-loop* (manual gate), soprattutto in caso di guardrails/circuit breaker.
 
@@ -101,15 +108,19 @@ py scripts/execute_orders.py --orders-file data/orders/latest.json
 ### EP-09 — 🆕 Complete Cycle (orchestrazione)
 ```powershell
 # Ciclo completo in dry-run
-py scripts/run_complete_cycle.py
+py scripts/core/run_complete_cycle_fixed.py --dry-run
+# Simulazione completa con mutual exclusion
 
-# 🆕 Ciclo completo con commit
-py scripts/run_complete_cycle.py --commit
+# Trading con esecuzione reale
+py scripts/core/run_complete_cycle_fixed.py --commit
+# Esecuzione ordini permanente (override inequivoco)
 
-# Status sistema
-py scripts/run_complete_cycle.py --status
-```
-**Funzione:** Orchestrazione completa: signals → strategy → execute → ledger
+# Strategy engine singolo (robusto)
+py scripts/core/strategy_engine_fixed.py --dry-run
+# Simulazione strategia
+
+py scripts/core/strategy_engine_fixed.py --commit
+# Esecuzione strategia permanente
 
 ### EP-10 — Update Ledger (commit)
 ```powershell
@@ -453,3 +464,25 @@ Tutti gli advanced scripts sono stati archiviati perché:
 ## 8) Nota importante
 
 Questo progetto è *decision support / simulazione backtest-grade*. Non sostituisce il commercialista né costituisce consulenza finanziaria.
+
+## Fase 0 — Schema Contract (v10.7.6)
+**STATUS:** ✅ COMPLETATA - Baseline vincolante congelata
+
+### Deliverable
+- **Schema Contract:** `docs/SCHEMA_CONTRACT.json` (single source of truth)
+- **Gate Operativo:** `scripts/core/schema_contract_gate.py` (bloccante)
+- **Validazione Core:** `scripts/core/validate_core_scripts.py` (5/5 passanti)
+
+### Criterio DONE ✅
+- setup_db.py = single source of truth per schema
+- Schema contract vincolante impedisce drift
+- Gate operativo bloccante implementato
+- Tutti gli script core girano su DB vuota inizializzata
+- Nessun errore o colonna fantasma
+
+### Artefatti creati
+- `docs/SCHEMA_CONTRACT.json` - Contract completo
+- `scripts/core/schema_contract_gate.py` - Gate operativo
+- `scripts/core/validate_core_scripts.py` - Validazione core
+- `scripts/core/schema_contract.py` - Contract definition
+

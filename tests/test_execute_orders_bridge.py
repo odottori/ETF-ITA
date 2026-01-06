@@ -101,10 +101,10 @@ def create_test_orders():
             'qty': 50,
             'price': 52.0,
             'reason': 'RISK_OFF_TREND_DOWN',
-            'expected_alpha_est': 0.0,
+            'momentum_score': 0.0,
             'fees_est': 2.6,
             'tax_friction_est': 26.0,  # (52-50)*50*0.26
-            'do_nothing_score': 0.0,
+            'trade_score': 0.0,
             'recommendation': 'TRADE',
             'signal_state': 'RISK_OFF',
             'risk_scalar': 0.0
@@ -115,10 +115,10 @@ def create_test_orders():
             'qty': 75,
             'price': 45.0,
             'reason': 'RISK_ON_TREND_UP',
-            'expected_alpha_est': 225.0,
+            'momentum_score': 0.8,
             'fees_est': 3.375,
             'tax_friction_est': 0.0,
-            'do_nothing_score': -0.05,
+            'trade_score': 0.7,
             'recommendation': 'TRADE',
             'signal_state': 'RISK_ON',
             'risk_scalar': 0.3
@@ -129,10 +129,10 @@ def create_test_orders():
             'qty': 0,
             'price': 52.0,
             'reason': 'HOLD_NEUTRAL',
-            'expected_alpha_est': 0.0,
+            'momentum_score': 0.0,
             'fees_est': 0.0,
             'tax_friction_est': 0.0,
-            'do_nothing_score': 1.0,
+            'trade_score': 1.0,
             'recommendation': 'HOLD',
             'signal_state': 'HOLD',
             'risk_scalar': 1.0
@@ -149,7 +149,7 @@ def create_test_orders():
             'sell_orders': 1,
             'hold_orders': 1,
             'total_estimated_cost': 31.975,
-            'total_expected_alpha': 225.0
+            'total_momentum_score': 0.4
         }
     }
 
@@ -285,10 +285,10 @@ def test_execute_orders():
                 'qty': 200,  # Più di quanto posseduto
                 'price': 52.0,
                 'reason': 'TEST_INSUFFICIENT',
-                'expected_alpha_est': 0.0,
+                'momentum_score': 0.0,
                 'fees_est': 0.0,
                 'tax_friction_est': 0.0,
-                'do_nothing_score': 0.0,
+                'trade_score': 0.0,
                 'recommendation': 'TRADE'
             }],
             'summary': {'total_orders': 1}

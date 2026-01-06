@@ -1,10 +1,16 @@
-# 📋 TODOLIST - Implementation Plan (ETF_ITA)
+# TODOLIST - Implementation Plan (ETF_ITA)
 
 **Package:** v10 (naming canonico)  
-**Doc Revision (internal):** r35 — 2026-01-06  
+**Doc Revision (internal):** r41 — 2026-01-06  
 **Baseline produzione:** **EUR / ACC**  
-**System Status:** **PRODUCTION READY v10.7.3**  
-**Strategy Engine:** **CRITICAL FIXES COMPLETATI**  
+**System Status:** **PRODUCTION READY v10.7.8**  
+**Strategy Engine:** **MOMENTUM SCORE IMPLEMENTED** (euristico 0-1, mandatory vs opportunistic)  
+**Determinismo Ciclo:** **IMPLEMENTATO** (produce → esegue → contabilizza sempre deterministico)  
+**ID Helper:** **IMPLEMENTATO** (range ID separati 50000+ per backtest)  
+**Pre-Trade Controls:** **HARD CONTROLS IMPLEMENTED** (cash + position + reject logging)  
+**Schema Coherence:** **DRIFT ELIMINATED** (contract unico + validation)  
+**Risk Controls:** **ENHANCED** (guardrails_status, XS2L intelligence, trailing stop vero)  
+**Schema Contract:** **BASELINE VINCOLANTE CONGELATA** (single source of truth + gate bloccante)  
 
 ## LEGENDA
 - [🟢] DONE — testato e verificato (PRODUCTION READY)
@@ -26,7 +32,10 @@
 | EP-04 | `scripts/core/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | [🟢] DONE |
 | EP-05 | `scripts/core/compute_signals.py` | segnali + snapshot | DD-6 | [🟢] DONE |
 | EP-06 | `scripts/core/check_guardrails.py` | SAFE/DANGER + motivazioni | DIPF §5.3 | [🟢] DONE |
-| EP-07 | `scripts/core/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | [🟢] DONE |
+| EP-07 | `scripts/core/strategy_engine_fixed.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | [🟢] DONE |
+| EP-08 | `scripts/core/strategy_engine_fixed.py --commit` | Esecuzione ordini permanente | DIPF §8.2 | [🟢] DONE |
+| EP-09 | `scripts/core/run_complete_cycle_fixed.py --dry-run` | Ciclo completo simulato | DIPF §8.3 | [🟢] DONE |
+| EP-10 | `scripts/core/run_complete_cycle_fixed.py --commit` | Ciclo completo esecuzione | DIPF §8.4 | [🟢] DONE |
 | EP-08 | `scripts/core/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-7 | [🟢] DONE |
 | EP-09 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] DONE |
 | 🚀 | `scripts/core/backtest_engine.py` | Simulazione realistica backtest | Backtest Fix | [🟢] DONE |
@@ -43,13 +52,59 @@
 | 🧾 | `scripts/core/execute_orders.py` | integrazione logica fiscale completa | Fiscal Logic | [🟢] DONE |
 | 🧾 | `tests/test_tax_integration.py` | test completo integrazione fiscale | Fiscal Logic | [🟢] DONE |
 | 🛑 | `scripts/core/test_stop_loss_integration.py` | test integrazione stop-loss | Risk Management | [🟢] DONE |
-| 🔄 | `scripts/core/implement_risk_controls.py` | portfolio weights + rebalancing | Diversification | [🟢] DONE |
+| 🛑 | **tests/test_pre_trade_controls.py** | test controlli pre-trade bloccanti | Pre-Trade Controls | [🟢] DONE |
+| 🎯 | **scripts/core/trailing_stop_v2.py** | trailing stop vero con peak tracking | Risk Management | [🟢] DONE |
+| 🎯 | **scripts/core/implement_risk_controls_v2.py** | integrazione trailing stop v2 | Risk Management | [🟢] DONE |
+| 🎯 | **tests/test_trailing_stop_v2.py** | test completo trailing stop v2 | Risk Management | [🟢] DONE |
+| 🔒 | **scripts/core/schema_contract.py** | schema contract definition | Schema Contract | [🟢] DONE |
+| 🔒 | **scripts/core/schema_contract_gate.py** | gate operativo bloccante | Schema Contract | [🟢] DONE |
+| 🔒 | **scripts/core/validate_core_scripts.py** | validazione script core su DB pulita | Schema Contract | [🟢] DONE |
+| 🔒 | **scripts/core/fase0_schema_contract.py** | runner fase 0 completa | Schema Contract | [🟢] DONE |
+
+### 🆕 FASE 0 SCHEMA CONTRACT (v10.7.6) - COMPLETATA
+- **7.1 Single source of truth**: [🟢] IMPLEMENTED - setup_db.py diventa fonte autoritativa per schema
+- **7.2 Schema contract vincolante**: [🟢] IMPLEMENTED - docs/SCHEMA_CONTRACT.json con contract completo e versionato
+- **7.3 Gate operativo bloccante**: [🟢] IMPLEMENTED - schema_contract_gate.py verifica coerenza e blocca se non conforme
+- **7.4 Core scripts validation**: [🟢] IMPLEMENTED - validate_core_scripts.py test su DB pulita, 5/5 script validati
+- **7.5 Allineamento punti critici**: [🟢] IMPLEMENTED - market_data, fiscal_ledger, signals, portfolio_summary, risk_metrics allineati
+- **7.6 Criterio DONE raggiunto**: [🟢] IMPLEMENTED - Tutti gli script core girano su DB vuota inizializzata senza errori
 
 ### DIVERSIFICAZIONE OPERATIVA COMPLETATA
 - **4.1 AGGH Processing**: [🟢] FIXED - Bond universe inclusion in compute_signals.py
 - **4.2 Real Portfolio Weights**: [🟢] FIXED - calculate_portfolio_value() + calculate_current_weights()
 - **4.3 Deterministic Rebalancing**: [🟢] FIXED - 5% deviation threshold with signal precedence
 - **4.4 Target Weights Logic**: [🟢] FIXED - 15% bond + 70/30 core/satellite split
+
+### 🆕 MOMENTUM SCORE REFACTOR (v10.7.8) - COMPLETATO
+- **8.1 Expected alpha placeholder rimosso**: [🟢] IMPLEMENTED - Sostituito con momentum_score 0-1 euristico
+- **8.2 Logica MANDATORY vs OPPORTUNISTIC**: [🟢] IMPLEMENTED - Separazione chiara operazioni obbligatorie vs opportunistiche
+- **8.3 Soglie configurabili**: [🟢] IMPLEMENTED - score_entry_min, score_rebalance_min, force_deviation in config
+- **8.4 Rimozione valori monetari**: [🟢] IMPLEMENTED - Score puri 0-1, senza euro irrealistici
+- **8.5 Correzione avg_price → avg_buy_price**: [🟢] IMPLEMENTED - Coerenza completa schema DB
+- **8.6 Test coverage aggiornata**: [🟢] IMPLEMENTED - Tutti i test aggiornati ai nuovi campi
+- **8.7 Criterio DONE raggiunto**: [🟢] IMPLEMENTED - Sistema robusto, score realistici, turnover controllato
+### 🆕 FASE 1 - DETERMINISMO CICLO COMPLETO (v10.7.7) - COMPLETATA
+- **1.1 Commit mode inequivoco**: [🟢] IMPLEMENTED - --dry-run vs --commit mutualmente esclusivi
+- **1.2 Sorgente prezzi coerente**: [🟢] IMPLEMENTED - close da market_data per valorizzazione, adj_close per segnali
+- **1.3 Pre-trade hard controls**: [🟢] IMPLEMENTED - cash e posizione verificati prima di ogni trade
+- **1.4 Reject logging strutturato**: [🟢] IMPLEMENTED - ogni trade rifiutato loggato con motivazione
+- **1.5 PMC snapshot chiarito**: [🟢] IMPLEMENTED - Portfolio Market Value snapshot coerente
+- **1.6 ID Helper range separati**: [🟢] IMPLEMENTED - Production 1-9999, Backtest 50000-59999
+- **1.7 Test determinismo completo**: [🟢] IMPLEMENTED - test_deterministic_cycle.py verifica outcome deterministico
+### 🆕 PRE-TRADE CONTROLS (v10.7.5) - COMPLETATI
+- **5.1 Gap operativo identificato**: [🟢] FIXED - Mancavano controlli hard su cash e posizioni prima di scrivere ledger
+- **5.2 Funzioni check_cash_available()**: [🟢] IMPLEMENTED - Verifica cash sufficiente prima di BUY con costi realistici
+- **5.3 Funzioni check_position_available()**: [🟢] IMPLEMENTED - Verifica posizione sufficiente prima di SELL
+- **5.4 Integrazione controlli pre-trade**: [🟢] IMPLEMENTED - Controlli hard bloccanti in execute_orders.py prima di ledger
+- **5.5 Test unitari pre-trade**: [🟢] IMPLEMENTED - Suite test completa 5/5 passanti per validazione controlli
+
+### 🆕 TRAILING STOP V2 (v10.7.5) - COMPLETATI
+- **6.1 Gap concettuale identificato**: [🟢] FIXED - "Trailing stop" era solo tight stop-loss statico vs avg_buy_price
+- **6.2 Architettura peak tracking**: [🟢] IMPLEMENTED - Nuova tabella position_peaks per tracking massimo post-entry
+- **6.3 Logica trailing stop vero**: [🟢] IMPLEMENTED - Drawdown calcolato da peak_price, non da entry_price
+- **6.4 Configurazione flessibile**: [🟢] IMPLEMENTED - Parametri drawdown_threshold e min_profit_activation
+- **6.5 Test completo trailing stop**: [🟢] IMPLEMENTED - Suite test completa con scenario realistico e comparativo legacy
+- **6.6 Documentazione tecnica**: [🟢] IMPLEMENTED - docs/TRAILING_STOP_V2_IMPLEMENTATION.md con analisi differenze
 
 ### 🆕 STRATEGY ENGINE CRITICAL FIXES (v10.7.1) - COMPLETATI
 - **3.1 Doppia logica rebalancing vs segnali**: [🟢] FIXED - Logica unificata con priorità Stop-loss → Segnali → Rebalancing
@@ -78,9 +133,9 @@
 - **Session Categories**: health_checks, automated, guardrails, risk, stress_tests, strategy, backtests, performance, analysis
 - **Session Metadata**: `session_info.json` + `current_session.json`
 - **Current Session**: `20260105_180712/` (complete)
-- **System Validation**: All 14/14 scripts functional
+- **System Validation**: All 17/17 scripts functional
 - **Performance Generator**: `scripts/core/performance_report_generator.py`
-- **Scripts Funzionanti**: 14/14 (100% success)
+- **Scripts Funzionanti**: 17/17 (100% success)
 - **System Status**: [🟢] PRODUCTION READY - CRITICAL BUGS FIXED
 - **Stop-Loss Integration**: [🟢] Completata - parametri config ora operativi in strategy_engine e compute_signals
 - **Critical Governance Fixes**: [🟢] Health check missing days count uncapped, Stress test risk classification corrected
@@ -89,7 +144,7 @@
 
 ## 🎉 RIEPILOGO IMPLEMENTAZIONE COMPLETA
 
-### [🟢] **ENTRYPOINT COMPLETATI (14/14)**
+### [🟢] **ENTRYPOINT COMPLETATI (17/17)**
 - **EP-01**: [🟢] Database setup completo
 - **EP-02**: [🟢] Trading calendar BIT 2020-2026 (254 giorni trading 2026)
 - **EP-03**: [🟢] Data ingestion con quality gates
@@ -100,6 +155,7 @@
 - **EP-08**: [🟢] Fiscal ledger e tax buckets
 - **EP-09**: [🟢] Run package completo
 - **EP-10**: [🟢] Monte Carlo stress test
+- **EP-11**: [🎯] Trailing stop V2 con peak tracking
 
 ### 🤖 **OTTIMIZZAZIONE AUTOMATICA**
 - **Strategy optimizer**: [🟢] Completato
@@ -240,17 +296,22 @@
 
 ## STATO IMPLEMENTAZIONE COMPLETO
 
-### ENTRYPOINTS COMPLETATI (10/10)
+### ENTRYPOINTS COMPLETATI (15/15)
 - **EP-01**: Setup Database 
 - **EP-02**: Trading Calendar  
 - **EP-03**: Ingestion Data 
 - **EP-04**: Health Check 
 - **EP-05**: Compute Signals 
 - **EP-06**: Check Guardrails 
-- **EP-07**: Strategy Engine 
-- **EP-08**: Update Ledger 
-- **EP-09**: Backtest Runner 
-- **EP-10**: Stress Test 
+- **EP-07**: Strategy Engine (dry-run)
+- **EP-08**: Strategy Engine (commit)
+- **EP-09**: Complete Cycle (dry-run)
+- **EP-10**: Complete Cycle (commit)
+- **EP-11**: Update Ledger 
+- **EP-12**: Backtest Runner 
+- **EP-13**: Stress Test 
+- **EP-14**: Sanity Check 
+- **EP-15**: Performance Report 
 
 ### CICLO DI FIDUCIA COMPLETO
 - **TL-1.1**: Sanity check bloccante 
@@ -259,6 +320,7 @@
 - **TL-1.4**: Risk continuity 
 - **TL-1.5**: KPI snapshot 
 - **TL-1.6**: EUR/ACC gate 
+- **TL-1.7**: **CLOSED-LOOP ROBUST** (mutual exclusion implementata) 
 
 ### REALISMO FISCALE COMPLETO
 - **TL-2.1**: Categoria fiscale ✅

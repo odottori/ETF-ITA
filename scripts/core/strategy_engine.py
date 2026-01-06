@@ -128,9 +128,9 @@ def strategy_engine(dry_run=True, commit=False):
                     slippage = position_value * (slippage_bps / 10000)
                     
                     # Tax su gain
-                    avg_price = positions_dict[symbol]['avg_price']
-                    if current_price > avg_price:
-                        realized_gain = (current_price - avg_price) * qty
+                    avg_buy_price = positions_dict[symbol]['avg_buy_price']
+                    if current_price > avg_buy_price:
+                        realized_gain = (current_price - avg_buy_price) * qty
                         tax_estimate = realized_gain * 0.26
                     else:
                         tax_estimate = 0.0
@@ -141,10 +141,10 @@ def strategy_engine(dry_run=True, commit=False):
                         'qty': qty,
                         'price': current_price,
                         'reason': stop_reason,
-                        'expected_alpha_est': 0.0,
+                        'momentum_score': 0.0,
                         'fees_est': commission + slippage,
                         'tax_friction_est': tax_estimate,
-                        'do_nothing_score': 0.0,
+                        'trade_score': 0.0,
                         'recommendation': 'FORCE_SELL'
                     })
                     print(f"🛑 {symbol}: STOP LOSS TRIGGERED - {stop_reason}")
@@ -186,10 +186,8 @@ def strategy_engine(dry_run=True, commit=False):
                         'qty': abs(qty_diff),
                         'price': current_price,
                         'reason': f'REBALANCE_{weight_deviation:.1%}_DEVIATION',
-                        'expected_alpha_est': 0.0,
-                        'fees_est': commission + slippage,
-                        'tax_friction_est': 0.0,
-                        'do_nothing_score': -1.0,  # Force rebalancing
+                        'momentum_score': 0.0,
+                        'trade_score': -1.0,  # Force rebalancing
                         'recommendation': 'TRADE'
                     })
                     print(f"    🔄 REBALANCE {symbol}: {action} {abs(qty_diff):.0f} shares (dev: {weight_deviation:.1%})")
@@ -238,31 +236,40 @@ def strategy_engine(dry_run=True, commit=False):
                 
                 total_cost = commission + slippage + ter_drag
                 
-                # Expected alpha modellistico basato su:
+                # Momentum score modellistico basato su:
                 # 1. Risk scalar (segnale di momentum/trend)
                 # 2. Volatilità inversa (risk-adjusted return)
                 # 3. Regime di mercato implicito nel signal
-                base_alpha = 0.08  # 8% base annual return expectation
+                base_momentum = 0.5  # Base score 0-1
                 
                 # Adjust per risk scalar (più alto = più confidente)
-                risk_adjusted_alpha = base_alpha * risk_scalar
+                momentum_score = base_momentum * risk_scalar
                 
-                # Volatility adjustment (lower vol = higher risk-adjusted return)
+                # Volatility adjustment (lower vol = higher confidence)
                 if current_vol > 0:
                     vol_adjustment = min(1.5, 0.10 / current_vol)  # Cap a 1.5x
-                    risk_adjusted_alpha *= vol_adjustment
+                    momentum_score = min(1.0, momentum_score * vol_adjustment)
                 
-                # Converti da annual a daily per position value
-                daily_alpha = (1 + risk_adjusted_alpha) ** (1/252) - 1
-                expected_alpha = position_value * daily_alpha
+                # Trade score basato su momentum vs costi (euristico)
+                cost_ratio = (commission + slippage + tax_estimate) / position_value
+                trade_score = momentum_score - cost_ratio * 10  # Scaling factor per costi
+                trade_score = max(0, min(1, trade_score))  # Clamp 0-1
                 
-                # Inerzia tax-friction aware
-                inertia_threshold = config['settings']['inertia_threshold']
-                do_nothing_score = (expected_alpha - total_cost - tax_estimate) / position_value
+                # Logica separata MANDATORY vs OPPORTUNISTIC
+                score_entry_min = config['settings']['score_entry_min']
+                score_rebalance_min = config['settings']['score_rebalance_min']
                 
-                # Se il beneficio netto supera la soglia di inerzia, allora TRADE
-                # altrimenti HOLD (logica corretta: alpha >= costi → più propenso a tradare)
-                recommendation = 'TRADE' if do_nothing_score >= inertia_threshold else 'HOLD'
+                # MANDATORY: stop-loss, force rebalancing, segnali forti
+                if stop_reason or weight_deviation > config['settings']['force_deviation']:
+                    recommendation = 'TRADE'  # Sempre esegui
+                # OPPORTUNISTIC: rebalancing solo se score sufficiente
+                elif abs(weight_deviation) > 0.01:  # 1% min deviation
+                    recommendation = 'TRADE' if trade_score >= score_rebalance_min else 'HOLD'
+                # ENTRY: nuove posizioni solo se score alto
+                elif current_qty == 0 and momentum_score >= score_entry_min:
+                    recommendation = 'TRADE'
+                else:
+                    recommendation = 'HOLD'
                 
                 orders.append({
                     'symbol': symbol,
@@ -270,10 +277,10 @@ def strategy_engine(dry_run=True, commit=False):
                     'qty': qty_target,
                     'price': current_price,
                     'reason': explain_code,
-                    'expected_alpha_est': expected_alpha,
+                    'momentum_score': momentum_score,
                     'fees_est': commission + slippage,
                     'tax_friction_est': tax_estimate,
-                    'do_nothing_score': do_nothing_score,
+                    'trade_score': trade_score,
                     'recommendation': recommendation
                 })
                 
@@ -292,9 +299,9 @@ def strategy_engine(dry_run=True, commit=False):
                     slippage = position_value * (slippage_bps / 10000)
                     
                     # Tax su gain
-                    avg_price = positions_dict[symbol]['avg_price']
-                    if current_price > avg_price:
-                        realized_gain = (current_price - avg_price) * qty
+                    avg_buy_price = positions_dict[symbol]['avg_buy_price']
+                    if current_price > avg_buy_price:
+                        realized_gain = (current_price - avg_buy_price) * qty
                         tax_estimate = realized_gain * 0.26
                     else:
                         tax_estimate = 0.0
@@ -307,10 +314,10 @@ def strategy_engine(dry_run=True, commit=False):
                         'qty': qty,
                         'price': current_price,
                         'reason': explain_code,
-                        'expected_alpha_est': 0.0,
+                        'momentum_score': 0.0,
                         'fees_est': commission + slippage,
                         'tax_friction_est': tax_estimate,
-                        'do_nothing_score': 0.0,
+                        'trade_score': 0.0,
                         'recommendation': 'TRADE'
                     })
             
@@ -321,10 +328,8 @@ def strategy_engine(dry_run=True, commit=False):
                     'qty': 0,
                     'price': current_price,
                     'reason': explain_code,
-                    'expected_alpha_est': 0.0,
-                    'fees_est': 0.0,
-                    'tax_friction_est': 0.0,
-                    'do_nothing_score': 1.0,
+                    'momentum_score': 0.0,
+                    'trade_score': 1.0,
                     'recommendation': 'HOLD'
                 })
         
@@ -341,7 +346,7 @@ def strategy_engine(dry_run=True, commit=False):
                 'sell_orders': len([o for o in orders if o['action'] == 'SELL']),
                 'hold_orders': len([o for o in orders if o['action'] == 'HOLD']),
                 'total_estimated_cost': sum(o['fees_est'] + o['tax_friction_est'] for o in orders),
-                'total_expected_alpha': sum(o['expected_alpha_est'] for o in orders)
+                'total_momentum_score': sum(o['momentum_score'] for o in orders) / len(orders) if orders else 0
             }
         }
         

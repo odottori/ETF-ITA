@@ -17,6 +17,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_smoke_schema():
     """Smoke test: verifica esistenza tabelle core e viste"""
+    assert _run_smoke_schema()
+
+
+def _run_smoke_schema():
+    """Runner bool (per __main__)."""
     
     print("💨 SMOKE TEST - Schema Core")
     print("-" * 40)
@@ -59,6 +64,11 @@ def test_smoke_schema():
 
 def test_economic_coherence():
     """Economics test: verifica coerenza prezzi e cash"""
+    assert _run_economic_coherence()
+
+
+def _run_economic_coherence():
+    """Runner bool (per __main__)."""
     
     print("💰 ECONOMICS TEST - Coerenza Prezzi/Cash")
     print("-" * 40)
@@ -108,6 +118,11 @@ def test_economic_coherence():
 
 def test_fiscal_edge():
     """Fiscal edge test: verifica logica fiscale critica"""
+    assert _run_fiscal_edge()
+
+
+def _run_fiscal_edge():
+    """Runner bool (per __main__)."""
     
     print("🧾 FISCAL EDGE TEST - Logica Critica")
     print("-" * 40)
@@ -220,9 +235,9 @@ def run_minimal_gate_suite():
     print("=" * 60)
     
     tests = [
-        ("Smoke Schema", test_smoke_schema),
-        ("Economic Coherence", test_economic_coherence),
-        ("Fiscal Edge", test_fiscal_edge)
+        ("Smoke Schema", _run_smoke_schema),
+        ("Economic Coherence", _run_economic_coherence),
+        ("Fiscal Edge", _run_fiscal_edge)
     ]
     
     passed = 0

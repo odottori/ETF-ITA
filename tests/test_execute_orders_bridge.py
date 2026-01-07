@@ -64,6 +64,27 @@ def setup_test_database():
         volatility_20d DOUBLE
     )
     """)
+
+    # Tabelle fiscali minime (richieste da implement_tax_logic)
+    conn.execute("""
+    CREATE TABLE symbol_registry (
+        symbol VARCHAR PRIMARY KEY,
+        name VARCHAR,
+        tax_category VARCHAR
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE tax_loss_carryforward (
+        id INTEGER PRIMARY KEY,
+        symbol VARCHAR NOT NULL,
+        realize_date DATE NOT NULL,
+        loss_amount DOUBLE NOT NULL,
+        used_amount DOUBLE DEFAULT 0.0,
+        expires_at DATE NOT NULL,
+        tax_category VARCHAR NOT NULL
+    )
+    """)
     
     # Inserisci dati di test
     test_date = date.today()
@@ -87,7 +108,15 @@ def setup_test_database():
     (symbol, date, volatility_20d)
     VALUES (?, ?, ?)
     """, ['IE00B4L5Y983', test_date, 0.15])
-    
+
+    # Seed symbol_registry per logica fiscale
+    conn.execute("""
+    INSERT INTO symbol_registry (symbol, name, tax_category)
+    VALUES
+        ('IE00B4L5Y983', 'Test ETF 1', 'OICR_ETF'),
+        ('IE00B3RBWM25', 'Test ETF 2', 'OICR_ETF')
+    """)
+
     conn.commit()
     return conn, db_path, temp_dir
 
@@ -155,6 +184,11 @@ def create_test_orders():
 
 def test_execute_orders():
     """Test completo del bridge execute_orders"""
+    assert _run_execute_orders_bridge()
+
+
+def _run_execute_orders_bridge():
+    """Runner che ritorna bool (per __main__)."""
     
     print(" TEST EXECUTE ORDERS BRIDGE")
     print("=" * 50)
@@ -204,14 +238,19 @@ def test_execute_orders():
         json.dump(test_config, config_file, indent=2)
         config_file.close()
         
-        # Override config path
+        # Override config/db path senza sporcare globalmente la suite
         import execute_orders
-        original_path = execute_orders.os.path.join
-        execute_orders.os.path.join = lambda *args: config_file.name if 'etf_universe.json' in args else original_path(*args)
-        
-        # Override db path
-        original_db_path = execute_orders.os.path.join
-        execute_orders.os.path.join = lambda *args: db_path if 'etf_data.duckdb' in args else original_db_path(*args)
+        original_join = execute_orders.os.path.join
+
+        def _join_override(*args):
+            # intercetta solo i path specifici del progetto
+            if any(isinstance(a, str) and a.endswith('etf_universe.json') for a in args):
+                return config_file.name
+            if any(isinstance(a, str) and a.endswith('etf_data.duckdb') for a in args):
+                return db_path
+            return original_join(*args)
+
+        execute_orders.os.path.join = _join_override
         
         # Esegui dry-run
         success = execute_orders.execute_orders(orders_file=orders_file.name, commit=False)
@@ -321,6 +360,14 @@ def test_execute_orders():
         return False
         
     finally:
+        # Restore monkeypatch (critico per isolamento suite)
+        try:
+            import execute_orders
+            if 'original_join' in locals():
+                execute_orders.os.path.join = original_join
+        except Exception:
+            pass
+
         # Cleanup
         conn.close()
         import shutil
@@ -332,5 +379,5 @@ def test_execute_orders():
             os.unlink(insufficient_file.name)
 
 if __name__ == "__main__":
-    success = test_execute_orders()
+    success = _run_execute_orders_bridge()
     sys.exit(0 if success else 1)

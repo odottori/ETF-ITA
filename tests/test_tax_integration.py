@@ -15,6 +15,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_tax_integration():
     """Test integrazione fiscale completa"""
+    assert _run_tax_integration()
+
+
+def _run_tax_integration():
+    """Runner che ritorna bool (per __main__)."""
     
     print("🧾 TAX INTEGRATION TEST - ETF Italia Project v10")
     print("=" * 60)
@@ -132,5 +137,5 @@ def test_tax_integration():
         conn.close()
 
 if __name__ == "__main__":
-    success = test_tax_integration()
+    success = _run_tax_integration()
     sys.exit(0 if success else 1)

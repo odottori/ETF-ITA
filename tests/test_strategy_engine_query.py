@@ -13,6 +13,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_strategy_engine_query():
     """Test query strategy_engine su risk_metrics"""
+    assert _run_strategy_engine_query()
+
+
+def _run_strategy_engine_query():
+    """Runner che ritorna bool (per __main__)."""
     
     print(" TEST STRATEGY ENGINE QUERY")
     print("=" * 50)
@@ -67,5 +72,5 @@ def test_strategy_engine_query():
         conn.close()
 
 if __name__ == "__main__":
-    success = test_strategy_engine_query()
+    success = _run_strategy_engine_query()
     sys.exit(0 if success else 1)

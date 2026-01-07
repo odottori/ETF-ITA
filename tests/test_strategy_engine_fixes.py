@@ -19,11 +19,16 @@ from implement_risk_controls import apply_position_caps, load_config
 
 def test_strategy_engine_fixes():
     """Test completo dei fix implementati"""
+    assert _run_strategy_engine_fixes()
+
+
+def _run_strategy_engine_fixes():
+    """Runner che ritorna bool (per __main__)."""
     
     print("🧪 STRATEGY ENGINE FIXES TEST - ETF Italia Project v10.7")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
     
     if not os.path.exists(db_path):
         print("❌ Database non trovato")
@@ -162,5 +167,5 @@ def test_strategy_engine_fixes():
         conn.close()
 
 if __name__ == "__main__":
-    success = test_strategy_engine_fixes()
+    success = _run_strategy_engine_fixes()
     sys.exit(0 if success else 1)

@@ -9,6 +9,8 @@ import os
 import json
 import duckdb
 from datetime import datetime, timedelta
+import pytest
+import tempfile
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,6 +46,42 @@ def setup_test_data(conn):
     conn.commit()
     print("✅ Setup completato")
 
+
+@pytest.fixture(scope='function')
+def conn():
+    """Connessione DB per test pre-trade (setup + cleanup isolati)."""
+
+    temp_dir = tempfile.mkdtemp()
+    db_path = os.path.join(temp_dir, 'test_etf_data.duckdb')
+    connection = duckdb.connect(db_path)
+
+    # Schema minimo per execute_orders.check_cash_available/check_position_available
+    connection.execute("""
+    CREATE TABLE fiscal_ledger (
+        id INTEGER PRIMARY KEY,
+        date DATE NOT NULL,
+        type VARCHAR NOT NULL,
+        symbol VARCHAR NOT NULL,
+        qty DOUBLE NOT NULL,
+        price DOUBLE NOT NULL,
+        fees DOUBLE DEFAULT 0.0,
+        tax_paid DOUBLE DEFAULT 0.0,
+        pmc_snapshot DOUBLE,
+        run_id VARCHAR
+    )
+    """)
+
+    try:
+        setup_test_data(connection)
+        yield connection
+    finally:
+        connection.close()
+        try:
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
 def test_cash_insufficient_buy(conn):
     """Test BUY con cash insufficiente"""
     
@@ -68,8 +106,8 @@ def test_cash_sufficient_buy(conn):
     
     from execute_orders import check_cash_available
     
-    # Simula ordine BUY entro cash disponibile
-    required_cash = 10000  # Inferiore ai ~25000 disponibili
+    # Simula ordine BUY entro cash disponibile (con ledger sintetico creato in setup_test_data)
+    required_cash = 4000
     
     cash_available, cash_balance = check_cash_available(conn, required_cash)
     

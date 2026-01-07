@@ -14,6 +14,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_etf_gain_with_tax_bucket():
     """Test edge case: gain ETF + zainetto presente = no compensazione"""
+    assert _run_etf_gain_with_tax_bucket()
+
+
+def _run_etf_gain_with_tax_bucket():
+    """Runner che ritorna bool (per __main__)."""
     
     db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
     conn = duckdb.connect(db_path)
@@ -144,5 +149,5 @@ def test_etf_gain_with_tax_bucket():
         conn.close()
 
 if __name__ == "__main__":
-    success = test_etf_gain_with_tax_bucket()
+    success = _run_etf_gain_with_tax_bucket()
     sys.exit(0 if success else 1)

@@ -15,6 +15,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_schema_coherence():
     """Test coerenza schema database"""
+    assert _run_schema_coherence()
+
+
+def _run_schema_coherence():
+    """Runner che ritorna bool (per __main__)."""
     
     print("🔍 SCHEMA VALIDATION TESTS")
     print("=" * 50)
@@ -192,6 +197,11 @@ def test_schema_coherence():
 
 def test_business_rules():
     """Test regole business"""
+    assert _run_business_rules()
+
+
+def _run_business_rules():
+    """Runner che ritorna bool (per __main__)."""
     
     print("\n🔍 BUSINESS RULES TESTS")
     print("=" * 50)
@@ -294,8 +304,8 @@ def run_all_validation_tests():
     print("🚀 SCHEMA VALIDATION SUITE - ETF Italia Project v10.7.3")
     print("=" * 60)
     
-    schema_ok = test_schema_coherence()
-    business_ok = test_business_rules()
+    schema_ok = _run_schema_coherence()
+    business_ok = _run_business_rules()
     
     print(f"\n📊 RISULTATI FINALI")
     print("=" * 40)

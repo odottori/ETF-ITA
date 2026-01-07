@@ -28,15 +28,11 @@ def test_positions_dict_key_fix():
     
     # Verifica
     for symbol, data in positions_dict.items():
-        if 'avg_buy_price' not in data:
-            print(f"❌ {symbol}: chiave avg_buy_price mancante")
-            return False
-        if 'avg_price' in data:
-            print(f"❌ {symbol}: chiave errata avg_price presente")
-            return False
+        assert 'avg_buy_price' in data, f"{symbol}: chiave avg_buy_price mancante"
+        assert 'avg_price' not in data, f"{symbol}: chiave errata avg_price presente"
     
     print("   ✅ Chiave avg_buy_price corretta in positions_dict")
-    return True
+    assert True
 
 def test_position_caps_math():
     """Test che i cap non vengano violati dalla normalizzazione"""
@@ -91,25 +87,19 @@ def test_position_caps_math():
     
     # Verifica XS2L cap
     if 'XS2L.MI' in capped_weights:
-        if capped_weights['XS2L.MI'] > 0.35:
-            print(f"❌ XS2L.MI cap violato: {capped_weights['XS2L.MI']:.3f}")
-            return False
-        else:
-            print(f"   ✅ XS2L.MI cap rispettato: {capped_weights['XS2L.MI']:.3f}")
+        assert capped_weights['XS2L.MI'] <= 0.35, f"XS2L.MI cap violato: {capped_weights['XS2L.MI']:.3f}"
+        print(f"   ✅ XS2L.MI cap rispettato: {capped_weights['XS2L.MI']:.3f}")
     
     # Verifica somma pesi = 1
     total_weight = sum(capped_weights.values())
-    if abs(total_weight - 1.0) > 0.001:
-        print(f"❌ Somma pesi non normalizzata: {total_weight:.3f}")
-        return False
-    else:
-        print(f"   ✅ Somma pesi normalizzata: {total_weight:.3f}")
+    assert abs(total_weight - 1.0) <= 0.001, f"Somma pesi non normalizzata: {total_weight:.3f}"
+    print(f"   ✅ Somma pesi normalizzata: {total_weight:.3f}")
     
     # Verifica che il peso eccedente sia stato ridistribuito
     if capped_weights['XS2L.MI'] < 0.40:
         print("   ✅ Peso eccedente ridistribuito ad altri asset")
-    
-    return True
+
+    assert True
 
 def test_trade_score_logic():
     """Test logica trade_score corretta"""
@@ -160,7 +150,7 @@ def test_trade_score_logic():
         print("   ❌ Logica rebalance errata")
         rebalance_ok = False
     
-    return entry_ok and rebalance_ok
+    assert entry_ok and rebalance_ok
 
 def test_momentum_score_model():
     """Test momentum_score modellistico"""
@@ -182,12 +172,8 @@ def test_momentum_score_model():
     print(f"   Momentum score: {momentum_score:.2f}")
     
     # Verifica che sia modellistico e non hardcoded
-    if momentum_score > 0 and momentum_score != 0.5:
-        print("   ✅ Momentum_score modellistico (non hardcoded)")
-        return True
-    else:
-        print("   ❌ Momentum_score ancora hardcoded o nullo")
-        return False
+    assert momentum_score > 0 and momentum_score != 0.5
+    print("   ✅ Momentum_score modellistico (non hardcoded)")
 
 def test_unified_logic():
     """Test che rebalancing e segnali siano unificati"""
@@ -215,15 +201,10 @@ def test_unified_logic():
     
     # Verifica che non ci siano conflitti
     if len(rebalance_candidates) > 0 and len(signal_candidates) > 0:
-        if set(rebalance_candidates).isdisjoint(set(signal_candidates)):
-            print("   ✅ Logica unificata: nessun conflitto rebalancing/segnali")
-            return True
-        else:
-            print("   ❌ Conflitto rilevato tra rebalancing e segnali")
-            return False
+        assert set(rebalance_candidates).isdisjoint(set(signal_candidates))
+        print("   ✅ Logica unificata: nessun conflitto rebalancing/segnali")
     else:
         print("   ✅ Logica unificata: separazione corretta")
-        return True
 
 def main():
     """Run tutti i test"""

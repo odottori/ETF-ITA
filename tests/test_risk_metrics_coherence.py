@@ -13,6 +13,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_risk_metrics_coherence():
     """Test coerenza risk_metrics con strategy_engine"""
+    assert _run_risk_metrics_coherence()
+
+
+def _run_risk_metrics_coherence():
+    """Runner che ritorna bool (per __main__)."""
     
     print(" TEST RISK METRICS COHERENCE")
     print("=" * 50)
@@ -126,5 +131,5 @@ def test_risk_metrics_coherence():
         conn.close()
 
 if __name__ == "__main__":
-    success = test_risk_metrics_coherence()
+    success = _run_risk_metrics_coherence()
     sys.exit(0 if success else 1)

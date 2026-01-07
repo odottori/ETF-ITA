@@ -14,6 +14,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_tax_bucket_expiry():
     """Test edge case: scadenza zainetto = 31/12 anno+4"""
+    assert _run_tax_bucket_expiry()
+
+
+def _run_tax_bucket_expiry():
+    """Runner che ritorna bool (per __main__)."""
     
     db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
     conn = duckdb.connect(db_path)
@@ -179,5 +184,5 @@ def test_tax_bucket_expiry():
         conn.close()
 
 if __name__ == "__main__":
-    success = test_tax_bucket_expiry()
+    success = _run_tax_bucket_expiry()
     sys.exit(0 if success else 1)

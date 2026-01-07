@@ -9,6 +9,8 @@ import os
 import duckdb
 import json
 from datetime import datetime, timedelta
+import tempfile
+import shutil
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,9 +55,9 @@ def create_test_scenario(conn):
     for date, price in price_series:
         # Inserisci prezzo in market_data
         conn.execute("""
-            INSERT OR REPLACE INTO market_data (date, symbol, close, high, low, volume)
-            VALUES (?, 'XS2L.MI', ?, ?, ?, 1000000)
-        """, [date, price, price * 1.02, price * 0.98])
+            INSERT OR REPLACE INTO market_data (symbol, date, adj_close, close, high, low, volume)
+            VALUES ('XS2L.MI', ?, ?, ?, ?, ?, 1000000)
+        """, [date, price, price, price * 1.02, price * 0.98])
         
         # Aggiorna peak se necessario
         update_position_peak(conn, symbol, price, date)
@@ -65,14 +67,45 @@ def create_test_scenario(conn):
 
 def test_trailing_stop_logic():
     """Test logica trailing stop v2"""
+    assert _run_trailing_stop_logic()
+
+
+def _run_trailing_stop_logic():
+    """Runner che ritorna bool (per __main__)."""
     
     print("🧪 TRAILING STOP LOGIC TEST - ETF Italia Project v10.7.4")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    temp_dir = tempfile.mkdtemp()
+    db_path = os.path.join(temp_dir, 'test_etf_data.duckdb')
     conn = duckdb.connect(db_path)
     
     try:
+        # Schema minimo (isolato) per scenario trailing stop
+        conn.execute("""
+        CREATE TABLE fiscal_ledger (
+            id INTEGER PRIMARY KEY,
+            date DATE NOT NULL,
+            type VARCHAR NOT NULL,
+            symbol VARCHAR NOT NULL,
+            qty DOUBLE NOT NULL,
+            price DOUBLE NOT NULL
+        )
+        """)
+
+        conn.execute("""
+        CREATE TABLE market_data (
+            symbol VARCHAR NOT NULL,
+            date DATE NOT NULL,
+            adj_close DOUBLE,
+            close DOUBLE,
+            high DOUBLE,
+            low DOUBLE,
+            volume BIGINT,
+            PRIMARY KEY (symbol, date)
+        )
+        """)
+
         # Setup
         create_position_peaks_table(conn)
         symbol = create_test_scenario(conn)
@@ -146,10 +179,14 @@ def test_trailing_stop_logic():
         
     except Exception as e:
         print(f"❌ Errore: {e}")
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         return False
     finally:
         conn.close()
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 def test_vs_legacy_comparison():
     """Test comparativo trailing stop v2 vs legacy"""
@@ -176,7 +213,7 @@ def test_vs_legacy_comparison():
     print("  V2: TRIGGER (DD da peak: -10%)")
 
 if __name__ == "__main__":
-    success = test_trailing_stop_logic()
+    success = _run_trailing_stop_logic()
     if success:
         test_vs_legacy_comparison()
     sys.exit(0 if success else 1)

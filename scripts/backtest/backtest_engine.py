@@ -11,27 +11,13 @@ import json
 import duckdb
 import pandas as pd
 from datetime import datetime, timedelta
-import io
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Windows console robustness (avoid UnicodeEncodeError on cp1252)
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-# Fallback (some Windows terminals ignore reconfigure)
-try:
-    if getattr(sys.stdout, "encoding", None) and sys.stdout.encoding.lower() != "utf-8":
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
-    if getattr(sys.stderr, "encoding", None) and sys.stderr.encoding.lower() != "utf-8":
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
-except Exception:
-    pass
+# Windows console robustness
+from utils.console_utils import setup_windows_console
+setup_windows_console()
 
 from orchestration.session_manager import get_session_manager
 from trading.execute_orders import check_cash_available, check_position_available
@@ -704,6 +690,92 @@ def run_backtest_simulation():
         with open(kpi_file, 'w') as f:
             json.dump(kpi, f, indent=2)
         
+        # Salva orders eseguiti
+        orders_executed = engine.conn.execute("""
+        SELECT symbol, type, qty, price, fees, tax_paid, date, notes
+        FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
+        AND type IN ('BUY', 'SELL')
+        ORDER BY date, id
+        """).fetchall()
+        
+        orders_data = {
+            'backtest_id': run_id,
+            'preset': preset,
+            'period': {'start': start_date, 'end': end_date},
+            'total_orders': len(orders_executed),
+            'orders': [
+                {
+                    'symbol': o[0],
+                    'type': o[1],
+                    'qty': float(o[2]),
+                    'price': float(o[3]),
+                    'fees': float(o[4]),
+                    'tax': float(o[5]),
+                    'date': str(o[6]),
+                    'notes': o[7]
+                }
+                for o in orders_executed
+            ]
+        }
+        
+        orders_file = pm.backtest_orders_path(preset, timestamp)
+        with open(orders_file, 'w') as f:
+            json.dump(orders_data, f, indent=2)
+        
+        # Salva portfolio evolution
+        portfolio_evolution = engine.conn.execute("""
+        WITH daily_positions AS (
+            SELECT 
+                date,
+                symbol,
+                SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as position
+            FROM fiscal_ledger
+            WHERE run_type = 'BACKTEST'
+            AND type IN ('BUY', 'SELL')
+            GROUP BY date, symbol
+        )
+        SELECT 
+            date,
+            symbol,
+            SUM(position) OVER (PARTITION BY symbol ORDER BY date) as cumulative_position
+        FROM daily_positions
+        ORDER BY date, symbol
+        """).fetchall()
+        
+        portfolio_data = {
+            'backtest_id': run_id,
+            'preset': preset,
+            'period': {'start': start_date, 'end': end_date},
+            'evolution': {}
+        }
+        
+        for date, symbol, position in portfolio_evolution:
+            date_str = str(date)
+            if date_str not in portfolio_data['evolution']:
+                portfolio_data['evolution'][date_str] = {}
+            portfolio_data['evolution'][date_str][symbol] = float(position)
+        
+        portfolio_file = pm.backtest_portfolio_path(preset, timestamp)
+        with open(portfolio_file, 'w') as f:
+            json.dump(portfolio_data, f, indent=2)
+        
+        # Salva trades summary
+        trades_summary = {
+            'backtest_id': run_id,
+            'preset': preset,
+            'period': {'start': start_date, 'end': end_date},
+            'total_trades': len([o for o in orders_executed if o[1] in ['BUY', 'SELL']]),
+            'buy_trades': len([o for o in orders_executed if o[1] == 'BUY']),
+            'sell_trades': len([o for o in orders_executed if o[1] == 'SELL']),
+            'total_fees': sum(o[4] for o in orders_executed),
+            'total_tax': sum(o[5] for o in orders_executed)
+        }
+        
+        trades_file = pm.backtest_trades_path(preset, timestamp)
+        with open(trades_file, 'w') as f:
+            json.dump(trades_summary, f, indent=2)
+        
         # 6. Report risultati
         print(f"\n📊 BACKTEST RESULTS (SIMULAZIONE REALE):")
         print(f"Periodo: {start_date} → {end_date}")
@@ -715,7 +787,11 @@ def run_backtest_simulation():
         print(f"Sharpe Ratio: {kpi['sharpe']:.2f}")
         print(f"Volatility: {kpi['vol']:.2%}")
         print(f"Turnover: {kpi['turnover']:.2%}")
-        print(f"\n📁 KPI salvati in: {kpi_file}")
+        print(f"\n📁 Output salvati in: {run_dir}")
+        print(f"   - kpi.json: {kpi_file.name}")
+        print(f"   - orders.json: {orders_file.name}")
+        print(f"   - portfolio.json: {portfolio_file.name}")
+        print(f"   - trades.json: {trades_file.name}")
         
         print(f"\n✅ Backtest con simulazione reale completato")
         return True

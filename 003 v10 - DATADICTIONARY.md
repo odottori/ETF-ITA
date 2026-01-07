@@ -1,7 +1,7 @@
 # DATADICTIONARY (ETF_ITA)
 
 **Package:** v10.8 (naming canonico)  
-**Doc Revision:** r40 — 2026-01-07  
+**Doc Revision:** r41 — 2026-01-07  
 **Stato:** PRODUCTION READY v10.8  
 
 **Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
@@ -11,14 +11,16 @@
 - Orders (commit): `data/production/orders/orders_<timestamp>.json`  
 - Forecasts (dry-run): `data/production/forecasts/forecast_<timestamp>.json`  
 - Postcasts: `data/production/postcasts/postcast_<timestamp>.json`  
-- KPI: `data/production/kpi/kpi_<timestamp>.json` (TODO)
+- KPI Forecast: `data/production/forecasts/kpi_forecast_<timestamp>.json` (metriche ordini proposti)  
+- KPI Postcast: `data/production/postcasts/kpi_postcast_<timestamp>.json` (metriche post-execution)
 
 **Backtests:**  
 - Run directory: `data/backtests/runs/backtest_<preset>_<timestamp>/`  
-- KPI: `data/backtests/runs/backtest_<preset>_<timestamp>/kpi.json`  
-- Orders: `data/backtests/runs/backtest_<preset>_<timestamp>/orders.json`  
-- Portfolio: `data/backtests/runs/backtest_<preset>_<timestamp>/portfolio.json`  
-- Summary: `data/backtests/reports/backtest_summary_<batch_ts>.json`
+- KPI: `data/backtests/runs/backtest_<preset>_<timestamp>/kpi.json` (metriche performance)  
+- Orders: `data/backtests/runs/backtest_<preset>_<timestamp>/orders.json` (ordini eseguiti)  
+- Portfolio: `data/backtests/runs/backtest_<preset>_<timestamp>/portfolio.json` (evoluzione posizioni)  
+- Trades: `data/backtests/runs/backtest_<preset>_<timestamp>/trades.json` (summary trade)  
+- Summary: `data/backtests/reports/backtest_summary_<batch_ts>.json` (aggregato multi-preset)
 
 **Reports:** `data/reports/sessions/<timestamp>/[01_health_checks|02_data_quality|03_guardrails|04_risk_management|05_stress_tests|06_strategy_analysis|07_backtest_validation|08_performance_summary]/`  
 
@@ -34,9 +36,9 @@
 - `scripts/quality/`: Data quality & health (health_check, sanity_check, spike_detector, zombie_exclusion_enforcer, data_quality_audit)
 - `scripts/risk/`: Risk management (check_guardrails, implement_risk_controls, enhanced_risk_management, diversification_guardrails, vol_targeting, trailing_stop_v2)
 - `scripts/fiscal/`: Tax & fiscal (implement_tax_logic, update_tax_loss_carryforward)
-- `scripts/reports/`: Reports & analysis (performance_report_generator, stress_test)
+- `scripts/reports/`: Reports & analysis (performance_report_generator, stress_test, production_kpi)
 - `scripts/orchestration/`: Workflow orchestration (sequence_runner, session_manager, automated_test_cycle)
-- `scripts/utils/`: Shared utilities (path_manager, market_calendar)
+- `scripts/utils/`: Shared utilities (path_manager, market_calendar, console_utils)
 - `scripts/maintenance/`: Maintenance scripts (update_market_calendar)
 
 **Docs:** (riorganizzati)

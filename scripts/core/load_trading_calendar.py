@@ -8,15 +8,19 @@ import sys
 import os
 import argparse
 import duckdb
+
 from datetime import datetime, date
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
+
 def load_trading_calendar(venue='BIT', csv_file=None):
     """Carica calendario trading da CSV o genera base"""
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     conn = duckdb.connect(db_path)
     

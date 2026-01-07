@@ -687,7 +687,24 @@ def run_backtest_simulation():
         # 4. Calcola KPI reali
         kpi = engine.calculate_real_kpi(start_date, end_date)
         
-        # 5. Report risultati
+        # 5. Salva risultati in data/backtests/runs/
+        from utils.path_manager import get_path_manager
+        pm = get_path_manager()
+        
+        # Determina preset dal run_id se presente
+        preset = run_id.split('_')[1] if run_id and '_' in run_id else 'default'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Crea directory run
+        run_dir = pm.backtest_run_dir(preset, timestamp)
+        pm.ensure_dir(run_dir)
+        
+        # Salva KPI
+        kpi_file = pm.backtest_kpi_path(preset, timestamp)
+        with open(kpi_file, 'w') as f:
+            json.dump(kpi, f, indent=2)
+        
+        # 6. Report risultati
         print(f"\n📊 BACKTEST RESULTS (SIMULAZIONE REALE):")
         print(f"Periodo: {start_date} → {end_date}")
         print(f"Valore Iniziale: €{kpi['initial_value']:,.2f}")
@@ -698,6 +715,7 @@ def run_backtest_simulation():
         print(f"Sharpe Ratio: {kpi['sharpe']:.2f}")
         print(f"Volatility: {kpi['vol']:.2%}")
         print(f"Turnover: {kpi['turnover']:.2%}")
+        print(f"\n📁 KPI salvati in: {kpi_file}")
         
         print(f"\n✅ Backtest con simulazione reale completato")
         return True

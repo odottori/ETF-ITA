@@ -7,10 +7,13 @@ Aggiorna used_amount nei record zainetto quando utilizzati
 import sys
 import os
 import duckdb
+
 from datetime import datetime
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 def update_zainetto_usage(symbol, tax_category, used_amount, realize_date, conn):
     """Aggiorna used_amount per zainetto utilizzato (FIFO)"""
@@ -64,7 +67,8 @@ def test_zainetto_update():
     print("🧾 ZAINETTO UPDATE TEST - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     conn = duckdb.connect(db_path)
     
     try:

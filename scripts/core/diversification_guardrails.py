@@ -8,15 +8,19 @@ import sys
 import os
 import duckdb
 import numpy as np
+
 from datetime import datetime
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
+
 def calculate_diversification_metrics():
     """Calcola metriche di diversificazione e guardrails"""
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     conn = duckdb.connect(db_path)
     
     print("🔄 P2.1: Diversification Guardrails")

@@ -7,10 +7,13 @@ Validazione integrità sistema con controlli bloccanti
 import sys
 import os
 import duckdb
+
 from datetime import datetime
 
 # Aggiungi path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 def sanity_check(conn):
     """Controllo di integrità bloccante"""
@@ -212,7 +215,8 @@ def sanity_check(conn):
         return False
 
 def main():
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     if not os.path.exists(db_path):
         print("❌ Database non trovato")

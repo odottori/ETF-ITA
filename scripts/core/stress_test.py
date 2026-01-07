@@ -8,11 +8,14 @@ import sys
 import os
 import json
 import duckdb
+
 from datetime import datetime, timedelta
 import numpy as np
 
 # Aggiungi path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 def stress_test_monte_carlo(db_path, num_simulations=1000, time_horizon_days=252):
     """
@@ -148,7 +151,8 @@ def stress_test_monte_carlo(db_path, num_simulations=1000, time_horizon_days=252
         conn.close()
 
 def main():
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     success = stress_test_monte_carlo(db_path)
     

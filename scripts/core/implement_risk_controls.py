@@ -8,15 +8,19 @@ import sys
 import os
 import duckdb
 import json
+
 from datetime import datetime
 from decimal import Decimal
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
+
 def load_config():
     """Carica configurazione universe"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -248,7 +252,8 @@ def test_risk_controls():
     print("🛡️ RISK CONTROLS E2E TEST - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     conn = duckdb.connect(db_path)
     
     try:

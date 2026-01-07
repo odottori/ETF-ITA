@@ -9,10 +9,13 @@ import os
 import json
 import duckdb
 import numpy as np
+
 from datetime import datetime, timedelta
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 def enhanced_risk_management():
     """Implementa correzioni rischio aggressive per drawdown e zombie prices"""
@@ -20,8 +23,10 @@ def enhanced_risk_management():
     print("🛡️ ENHANCED RISK MANAGEMENT - ETF Italia Project v10")
     print("=" * 60)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     # Carica configurazione
     with open(config_path, 'r') as f:

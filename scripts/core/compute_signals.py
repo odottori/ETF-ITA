@@ -10,6 +10,7 @@ import json
 import duckdb
 import pandas as pd
 import numpy as np
+
 from datetime import datetime, timedelta
 from itertools import chain
 import argparse
@@ -19,6 +20,8 @@ import time
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 # Windows console robustness (avoid UnicodeEncodeError on cp1252)
 if hasattr(sys.stdout, "reconfigure"):
@@ -59,8 +62,10 @@ def compute_signals(start_date=None, end_date=None, preset=None, lookback_days=6
     print(" COMPUTE SIGNALS - ETF Italia Project v10")
     print("=" * 60)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     # Carica configurazione
     with open(config_path, 'r') as f:

@@ -7,15 +7,19 @@ P2.2: Vol targeting più stringente in presenza di drawdown storico estremo
 import sys
 import os
 import duckdb
+
 from datetime import datetime
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
+
 def calculate_vol_targeting():
     """Calcola vol targeting dinamico basato su drawdown storico"""
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     conn = duckdb.connect(db_path)
     
     print("📊 P2.2: Vol Targeting Stringente")

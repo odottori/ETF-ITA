@@ -1,13 +1,33 @@
 # DATADICTIONARY (ETF_ITA)
 
 **Package:** v10.8 (naming canonico)  
-**Doc Revision:** r38 — 2026-01-07  
+**Doc Revision:** r39 — 2026-01-07  
 **Stato:** PRODUCTION READY v10.8  
-**Database:** DuckDB embedded (`data/etf_data.duckdb`)  
-**Market Calendar:** `config/market_holidays.json` (festività + exceptional_closures)  
-**Reports Structure:** `data/reports/sessions/<timestamp>/[01_health_checks|02_automated|03_guardrails|04_risk|05_stress_tests|06_strategy|07_backtests|08_performance|09_analysis]/`  
-**Risk Analysis:** `data/reports/sessions/<timestamp>/04_risk/risk_management_*.json`  
-**Risk Summary:** `data/reports/sessions/<timestamp>/08_performance/performance_*.json`  
+
+**Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
+**DB Backups:** `data/db/backups/etf_data_backup_<timestamp>.duckdb`  
+
+**Production:**  
+- Orders (commit): `data/production/orders/orders_<timestamp>.json`  
+- Forecasts (dry-run): `data/production/forecasts/forecast_<timestamp>.json`  
+- Postcasts: `data/production/postcasts/postcast_<timestamp>.json`  
+- KPI: `data/production/kpi/kpi_<timestamp>.json` (TODO)
+
+**Backtests:**  
+- Run directory: `data/backtests/runs/backtest_<preset>_<timestamp>/`  
+- KPI: `data/backtests/runs/backtest_<preset>_<timestamp>/kpi.json`  
+- Orders: `data/backtests/runs/backtest_<preset>_<timestamp>/orders.json`  
+- Portfolio: `data/backtests/runs/backtest_<preset>_<timestamp>/portfolio.json`  
+- Summary: `data/backtests/reports/backtest_summary_<batch_ts>.json`
+
+**Reports:** `data/reports/sessions/<timestamp>/[01_health_checks|02_data_quality|03_guardrails|04_risk_management|05_stress_tests|06_strategy_analysis|07_backtest_validation|08_performance_summary]/`  
+
+**Config:**  
+- ETF Universe: `config/etf_universe.json`  
+- Market Calendar: `config/market_holidays.json` (festività + exceptional_closures)
+
+**Temp:** `temp/` (script temporanei, auto-cleanup)
+
 **System Status:** CANDIDATE PRODUCTION  
 **Baseline produzione:** EUR / ACC (FX e DIST disattivati salvo feature flag)
 

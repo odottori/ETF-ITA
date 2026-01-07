@@ -11,13 +11,24 @@ __pycache__/
 *.duckdb
 *.duckdb.backup
 
+# Data structure (keep organized folders, ignore content)
+data/db/*.duckdb
+data/db/backups/*.duckdb
+data/production/orders/*.json
+data/production/forecasts/*.json
+data/production/postcasts/*.json
+data/production/kpi/*.json
+data/backtests/runs/*/
+data/backtests/reports/*.json
+
 # Reports temporanei
 data/reports/*/
 !data/reports/.gitkeep
 
-# Backup
-data/backup/*/
-!data/backup/.gitkeep
+# Temp folder
+temp/*.py
+temp/*.json
+!temp/.gitkeep
 
 # Logs
 *.log

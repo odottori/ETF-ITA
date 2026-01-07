@@ -8,10 +8,13 @@ import sys
 import os
 import json
 import duckdb
+
 from datetime import datetime
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 from session_manager import get_session_manager
 from sequence_runner import run_sequence_from
@@ -23,8 +26,10 @@ def strategy_engine(dry_run=True, commit=False):
     print(" STRATEGY ENGINE - ETF Italia Project v10")
     print("=" * 60)
     
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     # Carica configurazione
     with open(config_path, 'r') as f:
@@ -358,14 +363,19 @@ def strategy_engine(dry_run=True, commit=False):
             }
         }
         
-        # 6. Salva su file
-        orders_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'orders')
-        os.makedirs(orders_dir, exist_ok=True)
-        orders_file = os.path.join(orders_dir, f"orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+        # 6. Salva su file in production/orders/ (o forecasts/ se dry-run)
+        if dry_run:
+            # Dry-run → forecast (ordini proposti)
+            orders_file = str(pm.production_forecast_path())
+        else:
+            # Commit → production orders
+            orders_file = str(pm.production_orders_path())
+        
+        pm.ensure_parent_dir(orders_file)
         with open(orders_file, 'w') as f:
             json.dump(orders_summary, f, indent=2)
         
-        print(f" Ordini salvati in: {orders_file}")
+        print(f"📁 Ordini salvati in: {orders_file}")
         
         # 6.1 Esegui ordini se --commit
         if not dry_run and commit:

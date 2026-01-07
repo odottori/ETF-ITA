@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
 from session_manager import get_session_manager
 
 def health_check():
@@ -23,8 +24,10 @@ def health_check():
     print(" HEALTH CHECK - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
     
     # Inizializza session manager
     session_manager = get_session_manager(script_name='health_check')

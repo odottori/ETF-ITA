@@ -7,10 +7,13 @@ Implementa logica tax_category e scadenza zainetto
 import sys
 import os
 import duckdb
+
 from datetime import datetime, timedelta
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 def calculate_tax(gain_amount, symbol, realize_date, conn):
     """Calcola tassazione basata su tax_category e zainetto"""
@@ -108,7 +111,8 @@ def test_tax_logic():
     print("🧾 TAX LOGIC IMPLEMENTATION - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     conn = duckdb.connect(db_path)
     
     try:

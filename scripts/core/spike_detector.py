@@ -7,16 +7,20 @@ P0.4: Spike threshold per simbolo con audit soglia
 import sys
 import os
 import duckdb
+
 from datetime import datetime
 import numpy as np
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
+
 def detect_spikes():
     """Rileva spike anomali con threshold dinamico per simbolo"""
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     conn = duckdb.connect(db_path)
     
     print("📈 P0.4: Spike Threshold Detection")

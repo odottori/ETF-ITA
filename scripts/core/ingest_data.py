@@ -11,6 +11,7 @@ import yfinance as yf
 import pandas as pd
 import duckdb
 import requests
+
 from datetime import datetime, timedelta
 import hashlib
 import argparse
@@ -20,9 +21,12 @@ from typing import Optional, Tuple, Dict, List
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.path_manager import get_path_manager
+
 def get_config():
     """Carica configurazione"""
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -252,7 +256,8 @@ def ingest_data(start_date_override=None, end_date_override=None, full_refresh=F
     """Ingestione completa dati di mercato"""
     
     config = get_config()
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     # Genera run_id
     run_id = f"ingest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

@@ -13,15 +13,18 @@ from datetime import datetime
 # Aggiungi root al path per import futuri
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import PathManager
+from utils.path_manager import get_path_manager
+
 def setup_database():
     """Setup completo del database"""
     
-    # Path database
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    # Usa PathManager per path centralizzati
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     # Carica configurazione
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'etf_universe.json')
-    with open(config_path, 'r') as f:
+    with open(str(pm.etf_universe_path), 'r') as f:
         config = json.load(f)
     
     # Connessione DB

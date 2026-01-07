@@ -8,12 +8,15 @@ import sys
 import os
 import json
 import duckdb
+
 from datetime import datetime, timedelta
 import pandas as pd
 import io
 
 # Aggiungi path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 # Windows console robustness (avoid UnicodeEncodeError on cp1252)
 if hasattr(sys.stdout, "reconfigure"):
@@ -267,7 +270,8 @@ def generate_performance_report(db_path, output_dir=None):
         conn.close()
 
 def main():
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     success = generate_performance_report(db_path)
     

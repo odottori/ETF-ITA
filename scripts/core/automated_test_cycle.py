@@ -8,10 +8,13 @@ import sys
 import os
 import duckdb
 import json
+
 from datetime import datetime, timedelta
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.path_manager import get_path_manager
 
 from session_manager import get_session_manager
 
@@ -21,7 +24,8 @@ def automated_test_cycle():
     print("🔄 AUTOMATED TEST CYCLE - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'etf_data.duckdb')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
     
     # Inizializza session manager
     session_manager = get_session_manager()

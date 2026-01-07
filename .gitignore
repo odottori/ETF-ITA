@@ -36,3 +36,7 @@ Thumbs.db
 P2_*.md
 Enhanced_*.md
 PRODUCTION_*.md
+
+# Temporary folders
+_next version/
+_next_version/

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Backtest Engine - ETF Italia Project v10.7.2
+Backtest Engine - ETF Italia Project v10.8
 Simulazione reale con esecuzione ordini e contabilizzazione fiscale
-Risolve il problema "reporting senza simulazione"
+Event-driven day-by-day simulation con SELL→BUY priority
 """
 
 import sys
@@ -35,7 +35,7 @@ except Exception:
 
 from orchestration.session_manager import get_session_manager
 from trading.execute_orders import check_cash_available, check_position_available
-from implement_tax_logic import calculate_tax
+from fiscal.implement_tax_logic import calculate_tax
 
 class BacktestEngine:
     """Motore di backtest con simulazione reale"""
@@ -486,7 +486,7 @@ class BacktestEngine:
 def run_backtest_simulation():
     """Funzione principale per esecuzione backtest con simulazione"""
     
-    print("🚀 BACKTEST ENGINE - ETF Italia Project v10.7.2")
+    print("🚀 BACKTEST ENGINE - ETF Italia Project v10.8")
     print("=" * 60)
     
     # Path configurazione

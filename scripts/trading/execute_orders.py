@@ -16,6 +16,8 @@ from decimal import Decimal, ROUND_HALF_UP
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
+from fiscal.implement_tax_logic import calculate_tax, create_tax_loss_carryforward
+from fiscal.update_tax_loss_carryforward import update_zainetto_usage
 
 def check_cash_available(conn, required_cash):
     """Verifica cash disponibile prima di BUY"""
@@ -209,7 +211,6 @@ def execute_orders(orders_file=None, commit=False):
                         realized_gain = (price - avg_price) * qty
                         
                         # Usa logica fiscale completa con zainetto
-                        from implement_tax_logic import calculate_tax
                         tax_result = calculate_tax(realized_gain, symbol, datetime.now().date(), conn)
                         tax_paid = tax_result['tax_amount']
                         
@@ -218,7 +219,6 @@ def execute_orders(orders_file=None, commit=False):
                         
                         # Se usato zainetto, aggiornalo
                         if tax_result['zainetto_used'] > 0:
-                            from update_tax_loss_carryforward import update_zainetto_usage
                             update_zainetto_usage(
                                 symbol, 
                                 tax_result['tax_category'], 
@@ -230,7 +230,6 @@ def execute_orders(orders_file=None, commit=False):
                         # Loss: crea zainetto
                         loss_amount = (price - avg_price) * qty  # Negativo
                         if loss_amount < -0.01:  # Soglia minima
-                            from implement_tax_logic import create_tax_loss_carryforward
                             zainetto_record = create_tax_loss_carryforward(
                                 symbol, datetime.now().date(), loss_amount, conn
                             )

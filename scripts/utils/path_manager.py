@@ -17,6 +17,12 @@ class PathManager:
     
     def __init__(self):
         self.root = PROJECT_ROOT
+    
+    def _get_timestamp(self, timestamp=None):
+        """Genera timestamp se non fornito (metodo privato per evitare ripetizioni)"""
+        if timestamp is None:
+            return datetime.now().strftime("%Y%m%d_%H%M%S")
+        return timestamp
         
     # ==================== DATABASE ====================
     
@@ -27,42 +33,36 @@ class PathManager:
     
     def db_backup_path(self, timestamp=None):
         """Path per backup DB"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'db' / 'backups' / f'etf_data_backup_{timestamp}.duckdb'
     
     # ==================== PRODUCTION ====================
     
     def production_orders_path(self, timestamp=None):
         """Path per ordini PRODUCTION (strategy_engine)"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'production' / 'orders' / f'orders_{timestamp}.json'
     
     def production_forecast_path(self, timestamp=None):
         """Path per forecast (ordini proposti dry-run)"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'production' / 'forecasts' / f'forecast_{timestamp}.json'
     
     def production_postcast_path(self, timestamp=None):
         """Path per postcast (report post-esecuzione)"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'production' / 'postcasts' / f'postcast_{timestamp}.json'
     
     def production_kpi_path(self, timestamp=None):
         """Path per KPI production"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'production' / 'kpi' / f'kpi_{timestamp}.json'
     
     # ==================== BACKTEST ====================
     
     def backtest_run_dir(self, preset, timestamp=None):
         """Directory per singolo run backtest"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'backtests' / 'runs' / f'backtest_{preset}_{timestamp}'
     
     def backtest_orders_path(self, preset, timestamp=None):
@@ -87,16 +87,14 @@ class PathManager:
     
     def backtest_summary_path(self, batch_timestamp=None):
         """Path per summary aggregato multi-preset"""
-        if batch_timestamp is None:
-            batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        batch_timestamp = self._get_timestamp(batch_timestamp)
         return self.root / 'data' / 'backtests' / 'reports' / f'backtest_summary_{batch_timestamp}.json'
     
     # ==================== REPORTS ====================
     
     def session_dir(self, timestamp=None):
         """Directory per session reports"""
-        if timestamp is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = self._get_timestamp(timestamp)
         return self.root / 'data' / 'reports' / 'sessions' / timestamp
     
     def health_check_dir(self, timestamp=None):

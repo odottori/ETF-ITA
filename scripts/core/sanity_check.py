@@ -174,7 +174,7 @@ def sanity_check(conn):
         ),
         portfolio_value AS (
             SELECT 
-                SUM(cp.qty * cp.current_price) as market_value,
+                SUM(cp.qty * cp2.current_price) as market_value,
                 SUM(cp.qty * cp.avg_price) as cost_basis
             FROM current_positions cp
             JOIN current_prices cp2 ON cp.symbol = cp2.symbol

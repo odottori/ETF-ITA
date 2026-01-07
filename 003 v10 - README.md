@@ -2,17 +2,21 @@
 
 | Meta-Dato | Valore |
 | :--- | :--- |
-| **Package (canonico)** | v10.8 |
-| **Doc Revision** | r38 — 2026-01-07 |
+| **Package (canonico)** | v10.8.0 |
+| **Doc Revision** | r40 — 2026-01-07 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **PRODUCTION READY v10.8** |
-| **Scripts Funzionanti** | **18/18** (100% success) |
+| **Stato Sistema** | **PRODUCTION READY v10.8.0** |
+| **Scripts Funzionanti** | **53 file Python** (15 directory) |
+| **Schema DB** | **19 tabelle** (15 tabelle + 4 viste) - 100% documentato |
 | **Closed Loop** | **ROBUST MUTUAL EXCLUSION** (commit > dry-run, deterministic) |
-| **Determinismo Ciclo** | **IMPLEMENTATO** (produce → esegue → contabilizza sempre deterministico) |
-| **Backtest Engine** | **EVENT-DRIVEN** (day-by-day, SELL→BUY, cash management corretto) |
+| **Strategy Engine V2** | **TWO-PASS** (Exit → Cash Update → Entry con ranking candidati) |
+| **Holding Period** | **DINAMICO** (5-30 giorni, logica invertita momentum) |
+| **Portfolio Construction** | **IMPLEMENTATO** (ranking + constraints + allocation) |
+| **Pre-Trade Controls** | **HARD CHECKS** (cash e position verification) |
+| **Backtest Engine** | **EVENT-DRIVEN** (day-by-day, SELL→BUY priority, cash management realistico) |
+| **Fiscal Engine** | **COMPLETO** (zainetto per categoria fiscale, scadenza 31/12+4 anni) |
 | **Auto-Update** | **PROATTIVO** (ingest + compute automatico, data freshness check) |
 | **Market Calendar** | **INTELLIGENTE** (festività + auto-healing chiusure eccezionali) |
-| **Strategy Engine** | **MOMENTUM SCORE IMPLEMENTED** (euristico 0-1, mandatory vs opportunistic) |
 | **Schema Coherence** | **DRIFT ELIMINATED** (contract unico + validation) |
 
 ---
@@ -27,13 +31,18 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 - reporting serializzato (Run Package)
 
 ### 1.1 Caratteristiche Principali
-- **Determinismo Assoluto**: Il ciclo "produce → esegue → contibilizza" è completamente deterministico
-- **Pre-Trade Hard Controls**: Cash e posizione verificati prima di ogni trade
-- **Reject Logging**: Ogni trade rifiutato viene loggato con motivazione chiara
-- **Mutua Exclusion**: Modalità --commit e --dry-run mutualmente esclusive
+- **Strategy Engine V2 TWO-PASS**: Exit → Cash Update → Entry con ranking candidati e constraints
+- **Holding Period Dinamico**: 5-30 giorni con logica invertita (alto momentum = holding corto)
+- **Portfolio Construction**: Ranking candidati + cost penalty + overlap penalty + constraints hard
+- **Pre-Trade Hard Controls**: Cash e posizione verificati prima di ogni trade (no ledger "sporco")
+- **Backtest Event-Driven**: Simulazione day-by-day con SELL priority, cash management realistico
+- **Fiscal Engine Completo**: Tassazione 26% + zainetto per categoria fiscale (OICR_ETF vs ETC_ETN_STOCK)
+- **Determinismo Assoluto**: Il ciclo "produce → esegue → contabilizza" è completamente deterministico
+- **Reject Logging**: Ogni trade rifiutato loggato con motivazione (cash_reserve, max_positions, overlap)
+- **Audit Trail Completo**: orders_plan con decision_path, reason_code, candidate_score, reject_reason
 - **Closed Loop**: Sistema completo da segnali a ledger con controlli robusti
-- **Decision support / simulazione backtest-grade**: segnali, ordini proposti (dry-run), controlli rischio, contabilità fiscale simulata e report riproducibili.
-- **Non è execution automatica**: la produzione è *human-in-the-loop* (manual gate), soprattutto in caso di guardrails/circuit breaker.
+- **Decision support / simulazione backtest-grade**: segnali, ordini proposti (dry-run), controlli rischio, contabilità fiscale simulata e report riproducibili
+- **Non è execution automatica**: la produzione è *human-in-the-loop* (manual gate), soprattutto in caso di guardrails/circuit breaker
 
 ---
 
@@ -52,8 +61,8 @@ py -m pip install -r requirements.txt
 
 Inizializzazione DB:
 ```powershell
-py scripts/core/setup_db.py
-py scripts/core/load_trading_calendar.py
+py scripts/setup/setup_db.py
+py scripts/setup/load_trading_calendar.py
 ```
 
 ---
@@ -64,53 +73,53 @@ Nota baseline **EUR/ACC**: strumenti non-EUR o a distribuzione (DIST) sono **blo
 
 ### EP-03 — Ingestion (staging + quality gates)
 ```powershell
-py scripts/core/ingest_data.py
+py scripts/data/ingest_data.py
 ```
 
 ### EP-04 — Health Check (gap/zombie) + Risk Continuity se necessario
 ```powershell
-py scripts/core/health_check.py
+py scripts/quality/health_check.py
 ```
 
 ### EP-05 — Compute Signals
 ```powershell
-py scripts/core/compute_signals.py
+py scripts/data/compute_signals.py
 ```
 
 Modalità avanzate (periodi critici / rolling / full storico):
 
 ```powershell
 # FULL storico (usa min/max disponibili per ogni simbolo)
-py scripts/core/compute_signals.py --preset full
+py scripts/data/compute_signals.py --preset full
 
 # RECENT mobile (rolling window; default 365 giorni)
-py scripts/core/compute_signals.py --preset recent --recent-days 365
+py scripts/data/compute_signals.py --preset recent --recent-days 365
 
 # Periodi critici (preset)
-py scripts/core/compute_signals.py --preset gfc
-py scripts/core/compute_signals.py --preset eurocrisis
-py scripts/core/compute_signals.py --preset covid
-py scripts/core/compute_signals.py --preset inflation2022
+py scripts/data/compute_signals.py --preset gfc
+py scripts/data/compute_signals.py --preset eurocrisis
+py scripts/data/compute_signals.py --preset covid
+py scripts/data/compute_signals.py --preset inflation2022
 
 # Range custom
-py scripts/core/compute_signals.py --start-date 2020-02-01 --end-date 2020-06-30
+py scripts/data/compute_signals.py --start-date 2020-02-01 --end-date 2020-06-30
 
 # ALL (full + recent + periodi critici)
-py scripts/core/compute_signals.py --all --recent-days 365
+py scripts/data/compute_signals.py --all --recent-days 365
 ```
 
 ### EP-06 — Check Guardrails
 ```powershell
-py scripts/core/check_guardrails.py
+py scripts/risk/check_guardrails.py
 ```
 
 ### EP-07 — Strategy Engine (dry-run / commit)
 ```powershell
 # Dry-run (solo generazione ordini)
-py scripts/core/strategy_engine.py --dry-run
+py scripts/trading/strategy_engine.py --dry-run
 
 # Commit (esegue ordini automaticamente)
-py scripts/core/strategy_engine.py --commit
+py scripts/trading/strategy_engine.py --commit
 ```
 Output: `data/reports/<run_id>/orders.json` con:
 - ordini proposti (BUY/SELL/HOLD) e motivazioni (`explain_code`)
@@ -123,27 +132,27 @@ Nota output file:
 
 ### EP-08 — Execute Orders (bridge)
 ```powershell
-py scripts/core/execute_orders.py --commit
+py scripts/trading/execute_orders.py --commit
 ```
 Output: `fiscal_ledger` + `trade_journal` con contabilizzazione fiscale completa.
 
 ### EP-09 — Update Ledger (cash interest + sanity)
 ```powershell
-py scripts/core/update_ledger.py --commit
+py scripts/trading/update_ledger.py --commit
 ```
 
 ### EP-10 — Complete Cycle (orchestration)
 ```powershell
 # Dry-run completo
-py scripts/core/run_complete_cycle.py --dry-run
+py scripts/orchestration/run_complete_cycle.py --dry-run
 
 # Esecuzione completa
-py scripts/core/run_complete_cycle.py --commit
+py scripts/orchestration/run_complete_cycle.py --commit
 ```
 
 ### EP-15 — Backtest Runner
 ```powershell
-py scripts/core/backtest_runner.py
+py scripts/backtest/backtest_runner.py
 ```
 Output: Run Package completo con simulazione realistica.
 
@@ -151,37 +160,37 @@ Modalità avanzate (coerenti con EP-05):
 
 ```powershell
 # FULL storico (usa min/max disponibili per i segnali)
-py scripts/core/backtest_runner.py --preset full
+py scripts/backtest/backtest_runner.py --preset full
 
 # RECENT mobile (rolling window; default 365 giorni)
-py scripts/core/backtest_runner.py --preset recent --recent-days 365
+py scripts/backtest/backtest_runner.py --preset recent --recent-days 365
 
 # Periodi critici (preset)
-py scripts/core/backtest_runner.py --preset gfc
-py scripts/core/backtest_runner.py --preset eurocrisis
-py scripts/core/backtest_runner.py --preset covid
-py scripts/core/backtest_runner.py --preset inflation2022
+py scripts/backtest/backtest_runner.py --preset gfc
+py scripts/backtest/backtest_runner.py --preset eurocrisis
+py scripts/backtest/backtest_runner.py --preset covid
+py scripts/backtest/backtest_runner.py --preset inflation2022
 
 # Range custom
-py scripts/core/backtest_runner.py --start-date 2020-02-01 --end-date 2020-06-30
+py scripts/backtest/backtest_runner.py --start-date 2020-02-01 --end-date 2020-06-30
 
 # ALL (full + recent + periodi critici)
-py scripts/core/backtest_runner.py --all --recent-days 365
+py scripts/backtest/backtest_runner.py --all --recent-days 365
 ```
 
 ### EP-12 — Stress Test
 ```powershell
-py scripts/core/stress_test.py
+py scripts/reports/stress_test.py
 ```
 
 ### EP-13 — Sanity Check (bloccante)
 ```powershell
-py scripts/core/sanity_check.py
+py scripts/quality/sanity_check.py
 ```
 
 ### EP-14 — Performance Report
 ```powershell
-py scripts/core/performance_report_generator.py
+py scripts/reports/performance_report_generator.py
 ```
 
 ---
@@ -212,15 +221,15 @@ data/reports/sessions/<timestamp>/
 **🚀 Comandi Report:**
 ```powershell
 # Health check completo
-py scripts/core/health_check.py
+py scripts/quality/health_check.py
 # Output: data/reports/sessions/<timestamp>/01_health_checks/health_checks_<timestamp>.md
 
 # Stress test Monte Carlo
-py scripts/core/stress_test.py
+py scripts/reports/stress_test.py
 # Output: data/reports/sessions/<timestamp>/05_stress_tests/stress_test_<timestamp>.json
 
 # Report performance completo
-py scripts/core/performance_report_generator.py
+py scripts/reports/performance_report_generator.py
 # Analizza tutti i report disponibili
 ```
 
@@ -279,8 +288,8 @@ scripts/
 ### Issues Comuni
 - **"Schema non conforme"**: Eseguire `py tests/test_schema_validation.py`
 - **"Cash insufficiente"**: Verificare pre-trade controls in `execute_orders.py`
-- **"Zombie prices"**: Controllare `scripts/core/zombie_exclusion_enforcer.py`
-- **"Volatilità elevata"**: Review `scripts/core/enhanced_risk_management.py`
+- **"Zombie prices"**: Controllare `scripts/quality/zombie_exclusion_enforcer.py`
+- **"Volatilità elevata"**: Review `scripts/risk/enhanced_risk_management.py`
 
 ### Best Practices
 1. **Sempre dry-run prima di commit**

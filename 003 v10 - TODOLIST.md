@@ -1,17 +1,19 @@
 # TODOLIST - Implementation Plan (ETF_ITA)
 
-**Package:** v10.8 (naming canonico)  
-**Doc Revision:** r38 — 2026-01-07  
+**Package:** v10.8.0 (naming canonico)  
+**Doc Revision:** r40 — 2026-01-07  
 **Baseline produzione:** EUR / ACC  
-**System Status:** PRODUCTION READY v10.8  
-**Backtest Engine:** EVENT-DRIVEN (day-by-day, SELL→BUY, cash management)  
+**System Status:** PRODUCTION READY v10.8.0  
+**Backtest Engine:** EVENT-DRIVEN (day-by-day, SELL→BUY priority, cash management realistico)  
+**Strategy Engine V2:** TWO-PASS (Exit → Cash Update → Entry con ranking candidati)  
+**Holding Period:** DINAMICO (5-30 giorni, logica invertita momentum)  
+**Portfolio Construction:** IMPLEMENTATO (ranking + constraints + allocation deterministico)  
+**Pre-Trade Controls:** HARD CHECKS (cash e position verification prima di ledger write)  
+**Fiscal Engine:** COMPLETO (zainetto per categoria fiscale, scadenza 31/12+4 anni)  
 **Auto-Update:** PROATTIVO (ingest + compute automatico, data freshness check)  
 **Market Calendar:** INTELLIGENTE (festività + auto-healing chiusure eccezionali)  
-**Strategy Engine:** VERIFIED BY test_strategy_engine_logic.py (momentum_score refactor)  
-**Determinismo Ciclo:** VERIFIED BY test_minimal_gate_suite.py (deterministic execution)  
-**Pre-Trade Controls:** VERIFIED BY test_pre_trade_controls.py (cash + position checks)  
+**Schema DB:** 19 tabelle (15 tabelle + 4 viste) - 100% documentato  
 **Schema Coherence:** VERIFIED BY test_schema_validation.py (contract validation)  
-**Risk Controls:** VERIFIED BY test_risk_metrics_coherence.py (enhanced risk management)  
 **Schema Contract:** VERIFIED BY docs/schema/SCHEMA_CONTRACT.json (v003)
 
 ## LEGENDA
@@ -20,7 +22,7 @@
 - [🔴] TODO — non iniziato (ARCHIVED/PLANNED)
 - [🛡️] RISK — gestione rischio verificata
 - [🧾] FISCAL — logica fiscale verificata
-- [🔄] REBALANCE — ribilanciamento verificato
+- [📊] PORTFOLIO — portfolio construction verificata
 - [⚡] ENHANCED — funzionalità avanzata verificata
 
 ---
@@ -28,92 +30,134 @@
 ## TL-0. EntryPoints Registry (1:1 con README)
 | EP | Script/Command | Output principale | Cross-Ref | Status |
 |---|---|---|---|---|
-| EP-01 | `scripts/core/setup_db.py` | Crea `data/etf_data.duckdb` + schema | DD-2..DD-12 | [🟢] VERIFIED |
-| EP-02 | `scripts/core/load_trading_calendar.py` | Popola `trading_calendar` (2020-2026) | DD-3.1 | [🟢] VERIFIED |
-| EP-03 | `scripts/core/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | [🟢] VERIFIED |
-| EP-04 | `scripts/core/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | [🟢] VERIFIED |
-| EP-05 | `scripts/core/compute_signals.py` | segnali + snapshot | DD-6 | [🟢] VERIFIED |
-| EP-05b | `scripts/core/compute_signals.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | segnali periodo (preset) | DIPF §4 | [🟡] CANDIDATE |
-| EP-05c | `scripts/core/compute_signals.py --all` | segnali full+recent+critici | DIPF §4 | [🟡] CANDIDATE |
-| EP-06 | `scripts/core/check_guardrails.py` | SAFE/DANGER + motivazioni | DIPF §5.3 | [🟢] VERIFIED |
-| EP-07 | `scripts/core/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | [🟢] VERIFIED |
-| EP-08 | `scripts/core/strategy_engine.py --commit` | Esecuzione ordini permanente | DIPF §8.2 | [🟢] VERIFIED |
-| EP-09 | `scripts/core/run_complete_cycle.py --dry-run` | Ciclo completo simulato | DIPF §8.3 | [🟡] CANDIDATE |
-| EP-10 | `scripts/core/run_complete_cycle.py --commit` | Ciclo completo esecuzione | DIPF §8.4 | [🟡] CANDIDATE |
-| EP-11 | `scripts/core/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-7 | [🟢] VERIFIED |
-| EP-12 | `scripts/core/stress_test.py` | stress report | DIPF §9.2 | [🟢] VERIFIED |
-| EP-13 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | [🟢] VERIFIED |
-| EP-14 | `scripts/core/performance_report_generator.py` | report performance sessione | System Test | [🟢] VERIFIED |
-| EP-15 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] VERIFIED |
-| EP-15b | `scripts/core/backtest_runner.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | Run Package periodo (preset) | DIPF §7, §9 | [🟡] CANDIDATE |
-| EP-15c | `scripts/core/backtest_runner.py --all` | Run Package full+recent+critici | DIPF §7, §9 | [🟡] CANDIDATE |
-| EP-16 | `scripts/core/backtest_engine.py` | Simulazione realistica backtest | Backtest Engine | [🟢] VERIFIED |
-| 🛡️ | `scripts/core/enhanced_risk_management.py` | risk management avanzato | Risk Management | [🟢] VERIFIED |
-| 🧾 | `scripts/core/execute_orders.py` | integrazione logica fiscale completa | Fiscal Logic | [🟢] VERIFIED |
-| 🧾 | `scripts/core/update_tax_loss_carryforward.py` | aggiornamento used_amount zainetto | Fiscal Logic | [🟢] VERIFIED |
-| 🛑 | `scripts/core/trailing_stop_v2.py` | trailing stop vero con peak tracking | Risk Management | [🟢] VERIFIED |
-| 🔒 | `scripts/core/schema_contract_gate.py` | gate operativo bloccante | Schema Contract | [🔴] TODO |
+| EP-01 | `scripts/setup/setup_db.py` | Crea `data/etf_data.duckdb` + schema | DD-2..DD-12 | [🟢] VERIFIED |
+| EP-02 | `scripts/setup/load_trading_calendar.py` | Popola `trading_calendar` (2020-2026) | DD-3.1 | [🟢] VERIFIED |
+| EP-03 | `scripts/data/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | [🟢] VERIFIED |
+| EP-04 | `scripts/quality/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | [🟢] VERIFIED |
+| EP-05 | `scripts/data/compute_signals.py` | segnali + snapshot | DD-6 | [🟢] VERIFIED |
+| EP-05b | `scripts/data/compute_signals.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | segnali periodo (preset) | DIPF §4 | [🟡] CANDIDATE |
+| EP-05c | `scripts/data/compute_signals.py --all` | segnali full+recent+critici | DIPF §4 | [🟡] CANDIDATE |
+| EP-06 | `scripts/risk/check_guardrails.py` | SAFE/DANGER + motivazioni | DIPF §5.3 | [🟢] VERIFIED |
+| EP-07 | `scripts/trading/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §4.2 | [🟢] VERIFIED |
+| EP-07b | `scripts/trading/strategy_engine_v2.py` | TWO-PASS workflow + holding period | DIPF §4.2, §4.3 | [🟢] VERIFIED |
+| EP-08 | `scripts/trading/execute_orders.py --commit` | Esecuzione ordini con pre-trade controls | DIPF §5.2 | [🟢] VERIFIED |
+| EP-09 | `scripts/orchestration/run_complete_cycle.py --dry-run` | Ciclo completo simulato | DIPF §8.3 | [🟡] CANDIDATE |
+| EP-10 | `scripts/orchestration/run_complete_cycle.py --commit` | Ciclo completo esecuzione | DIPF §8.4 | [🟡] CANDIDATE |
+| EP-11 | `scripts/trading/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-5.1 | [🟢] VERIFIED |
+| EP-12 | `scripts/reports/stress_test.py` | stress report | DIPF §9.2 | [🟢] VERIFIED |
+| EP-13 | `scripts/quality/sanity_check.py` | sanity check bloccante | DIPF §9.1 | [🟢] VERIFIED |
+| EP-14 | `scripts/reports/performance_report_generator.py` | report performance sessione | System Test | [🟢] VERIFIED |
+| EP-15 | `scripts/backtest/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] VERIFIED |
+| EP-15b | `scripts/backtest/backtest_runner.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | Run Package periodo (preset) | DIPF §7, §9 | [🟡] CANDIDATE |
+| EP-15c | `scripts/backtest/backtest_runner.py --all` | Run Package full+recent+critici | DIPF §7, §9 | [🟡] CANDIDATE |
+| EP-16 | `scripts/backtest/backtest_engine.py` | Simulazione event-driven realistica | DIPF §7 | [🟢] VERIFIED |
+| 🛡️ | `scripts/risk/enhanced_risk_management.py` | risk management avanzato | DIPF §5.4 | [🟢] VERIFIED |
+| 🧾 | `scripts/trading/execute_orders.py` | pre-trade controls + fiscal integration | DIPF §6 | [🟢] VERIFIED |
+| 🧾 | `scripts/fiscal/tax_engine.py` | tassazione italiana completa + zainetto | DIPF §6.1-6.3 | [🟢] VERIFIED |
+| 🛑 | `scripts/risk/trailing_stop_v2.py` | trailing stop con peak tracking | DIPF §5.4 | [🟢] VERIFIED |
+| 📊 | `scripts/strategy/portfolio_construction.py` | holding period + ranking + constraints | DIPF §4.3 | [🟢] VERIFIED |
+| 🔒 | `scripts/quality/schema_contract_gate.py` | gate operativo bloccante | Schema Contract | [🔴] TODO |
 
 ---
 
 ## TL-1. Fase 1 — Ciclo di fiducia
 
 ### TL-1.1 Sanity check post-run (bloccante)
-- [🟢] **VERIFIED** `scripts/core/sanity_check.py` (9 controlli bloccanti)
+- [🟢] **VERIFIED** `scripts/quality/sanity_check.py` (9 controlli bloccanti)
 - DoD: exit!=0 se posizioni negative, cash negativo, invarianti violate, future data leak, calendar gaps, coherence issues
 
-### TL-1.2 Dry-run JSON diff-friendly
-- [🟢] **COMPLETATO** EP-07 produce `data/orders.json` con:
-  - orders proposti (BUY/SELL/HOLD), qty, reason, `explain_code`
-  - cash impact
-  - tax estimate (se SELL o se cost model lo richiede)
-  - stime: `momentum_score`, `fees_est`, `tax_friction_est`
-  - `trade_score` + `recommendation` (HOLD/TRADE)
-  - guardrails state
-- DoD: nessuna scrittura su DB/ledger; output deterministico a parità input.
+### TL-1.2 Strategy Engine V2 TWO-PASS
+- [🟢] **COMPLETATO** `scripts/trading/strategy_engine_v2.py` con:
+  - **PASS 1 - EXIT/SELL**: MANDATORY exits (RISK_OFF, stop-loss, planned exits)
+  - **CASH UPDATE**: Simula cash post-sell per entry allocation realistica
+  - **PASS 2 - ENTRY/REBALANCE**: Ranking candidati + constraints + allocation
+  - Output: `orders_plan` table con `decision_path`, `reason_code`, `candidate_score`, `reject_reason`
+- DoD: Workflow deterministico, audit trail completo, pre-trade checks integrati.
+
+### TL-1.2b Holding Period Dinamico
+- [🟢] **COMPLETATO** `scripts/strategy/portfolio_construction.py` con:
+  - Range: 5-30 giorni (swing trading multi-day)
+  - Logica INVERTITA: alto momentum/risk/vol → holding CORTO (prendi profitto veloce)
+  - Adjustments: risk_adj, vol_adj, momentum_adj
+  - Schema DB: `fiscal_ledger` (6 campi), `position_plans`, `position_events`, `position_peaks`
+- DoD: Tracking completo holding period, extend/close con motivo, peak tracking per trailing stop.
+
+### TL-1.2c Portfolio Construction
+- [🟢] **COMPLETATO** `scripts/strategy/portfolio_construction.py` con:
+  - `calculate_candidate_score()`: momentum + risk_scalar - cost_penalty - overlap_penalty
+  - `rank_candidates()`: Ranking deterministico
+  - `filter_by_constraints()`: Max positions, cash reserve, overlap underlying
+  - `calculate_qty()`: Allocazione deterministico + rounding
+- DoD: Allocation trasparente, reject logging, constraints hard verificati.
 
 ### TL-1.3 Cash interest
-- [🟢] **COMPLETATO** Implementare `scripts/core/update_ledger.py --commit` con:
+- [🟢] **COMPLETATO** `scripts/trading/update_ledger.py` con:
   - cash interest mensile (2% annualizzato)
   - accrual giornaliero su cash balance
   - posting mensile su `cash_interest` account
   - tax bucket OICR_ETF (26%) su interest
 
 ### TL-1.4 Risk continuity
-- [🟢] **COMPLETATO** Implementare `scripts/core/enhanced_risk_management.py` con:
+- [🟢] **COMPLETATO** `scripts/risk/enhanced_risk_management.py` con:
   - drawdown monitoring (10%/15% thresholds)
   - volatility regime detection
   - risk scalar adjustment
   - reporting continuity metrics
 
 ### TL-1.5 KPI snapshot
-- [🟢] **VERIFIED** `scripts/core/performance_report_generator.py` (report completo)
+- [🟢] **VERIFIED** `scripts/reports/performance_report_generator.py` (report completo)
 - DoD: portfolio value, performance metrics, risk metrics, tax summary, hash verification
 
 ### TL-1.6 EUR/ACC gate
-- [🟢] **COMPLETATO** Implementare validazione baseline EUR/ACC in:
-  - `scripts/core/ingest_data.py` (blocco strumenti non-EUR)
-  - `scripts/core/setup_db.py` (validazione universe)
+- [🟢] **COMPLETATO** Validazione baseline EUR/ACC:
+  - `scripts/data/ingest_data.py` (blocco strumenti non-EUR)
+  - `scripts/setup/setup_db.py` (validazione universe)
 - DoD: strumenti non-EUR o DIST rifiutati con warning.
+
+### TL-1.7 Pre-Trade Controls
+- [🟢] **COMPLETATO** `scripts/trading/execute_orders.py` con:
+  - `check_cash_available()`: Verifica cash sufficiente prima di BUY (inclusi commissioni + slippage)
+  - `check_position_available()`: Verifica posizione sufficiente prima di SELL
+  - Reject logging: Ogni trade rifiutato loggato con motivazione
+- DoD: Ledger non "sporcato" con trade non eseguibili, controlli HARD prima di write.
+
+### TL-1.8 Backtest Event-Driven
+- [🟢] **COMPLETATO** `scripts/backtest/backtest_engine.py` con:
+  - Loop day-by-day su trading_dates
+  - SELL priority (PASS 1) → BUY (PASS 2)
+  - Pre-trade controls integrati
+  - Calcolo costi realistici: commission + slippage (volatility-adjusted)
+  - Tassazione integrata: `calculate_tax()` per SELL
+  - Portfolio value tracking + equity curve (`daily_portfolio` table)
+- DoD: Simulazione realistica, cash management accurato, KPI difendibili.
+
+### TL-1.9 Fiscal Engine Completo
+- [🟢] **COMPLETATO** `scripts/fiscal/tax_engine.py` con:
+  - `calculate_tax()`: Tassazione 26% con zainetto per categoria fiscale
+  - `create_tax_loss_carryforward()`: Zainetto con scadenza 31/12/(anno+4)
+  - `update_zainetto_usage()`: Aggiornamento used_amount FIFO
+  - `get_available_zainetto()`: Query zainetto disponibile per categoria
+  - Logica OICR_ETF vs ETC_ETN_STOCK conforme DIPF §6.2
+- DoD: Fiscalità italiana completa, zainetto per categoria, scadenza corretta.
 
 ---
 
 ## TL-2. Fase 2 — Realismo fiscale e coerenza dati
 
 ### TL-2.1 Categoria fiscale (OICR_ETF vs ETC/ETN)
-- [🟢] **COMPLETATO** `scripts/core/execute_orders.py` (logica tax_category)
+- [🟢] **COMPLETATO** `scripts/trading/execute_orders.py` (logica tax_category)
 - DoD: test con gain ETF + zainetto presente → nessuna compensazione.
 
 ### TL-2.2 Zainetto: scadenza corretta 31/12 (anno+4)
-- [🟢] **COMPLETATO** `scripts/core/update_tax_loss_carryforward.py` (expires_at formula)
+- [🟢] **COMPLETATO** `scripts/fiscal/update_tax_loss_carryforward.py` (expires_at formula)
 - DoD: test con realize 05/01/2026 → expires 31/12/2030.
 
 ### TL-2.3 close vs adj_close (coerenza)
-- [🔴] **TODO** `scripts/core/check_price_convention.py` (non presente)
+- [🔴] **TODO** `scripts/quality/check_price_convention.py` (non presente)
 - DoD: test che impedisce uso `adj_close` in valuation ledger.
 
 ### TL-2.4 Zombie/stale prices (health + risk metrics)
-- [🟢] **COMPLETATO** `scripts/core/zombie_exclusion_enforcer.py` (esclusione KPI)
+- [🟢] **COMPLETATO** `scripts/quality/zombie_exclusion_enforcer.py` (esclusione KPI)
 - DoD: risk metrics escludono giorni ZOMBIE dal calcolo della volatilità.
 
 ### TL-2.5 Run Package completo (manifest/kpi/summary)
@@ -121,7 +165,7 @@
 - DoD: mancanza file → exit!=0; manifest include config_hash e data_fingerprint.
 
 ### TL-2.6 Spike threshold per simbolo (max_daily_move_pct)
-- [🟢] **COMPLETATO** `scripts/core/spike_detector.py` (threshold dinamici)
+- [🟢] **COMPLETATO** `scripts/quality/spike_detector.py` (threshold dinamici)
 - DoD: test su simbolo con soglia più stretta (es. 10%) e su simbolo default 15%.
 
 ### TL-2.7 Benchmark after-tax corretto (INDEX vs ETF)
@@ -149,21 +193,21 @@
 ## TL-4. Fase 4 — Risk Management Avanzato
 
 ### TL-4.1 Enhanced Risk Management
-- [🟢] **COMPLETATO** `scripts/core/enhanced_risk_management.py` con:
+- [🟢] **COMPLETATO** `scripts/risk/enhanced_risk_management.py` con:
   - Volatility > 15%: risk scalar ridotto del 70%
   - Volatility > 20%: risk scalar ridotto del 90%
   - Zombie price detection automatica
   - Protezione specifica per ETF ad alto rischio (XS2L.MI)
 
 ### TL-4.2 Trailing Stop V2
-- [🟢] **COMPLETATO** `scripts/core/trailing_stop_v2.py` con:
+- [🟢] **COMPLETATO** `scripts/risk/trailing_stop_v2.py` con:
   - Peak tracking post-entry
   - Drawdown calcolato da peak_price
   - Configurazione flessibile drawdown_threshold
   - Logica min_profit_activation
 
 ### TL-4.3 Pre-Trade Controls
-- [🟢] **COMPLETATO** `scripts/core/execute_orders.py` con:
+- [🟢] **COMPLETATO** `scripts/trading/execute_orders.py` con:
   - check_cash_available() prima di BUY
   - check_position_available() prima di SELL
   - Reject logging strutturato
@@ -214,55 +258,6 @@
 
 ---
 
-## STATO IMPLEMENTAZIONE
-
-### ENTRYPOINTS COMPLETATI (16/16)
-- **EP-01**: Setup Database ✅ [`scripts/core/setup_db.py`]
-- **EP-02**: Trading Calendar ✅ [`scripts/core/load_trading_calendar.py`]
-- **EP-03**: Ingestion Data ✅ [`scripts/core/ingest_data.py`]
-- **EP-04**: Health Check ✅ [`scripts/core/health_check.py`]
-- **EP-05**: Compute Signals ✅ [`scripts/core/compute_signals.py`]
-- **EP-06**: Check Guardrails ✅ [`scripts/core/check_guardrails.py`]
-- **EP-07**: Strategy Engine (dry-run) ✅ [`scripts/core/strategy_engine.py --dry-run`]
-- **EP-08**: Strategy Engine (commit) ✅ [`scripts/core/strategy_engine.py --commit`]
-- **EP-09**: Complete Cycle (dry-run) ✅ [`scripts/core/run_complete_cycle.py --dry-run`]
-- **EP-10**: Complete Cycle (commit) ✅ [`scripts/core/run_complete_cycle.py --commit`]
-- **EP-11**: Update Ledger ✅ [`scripts/core/update_ledger.py --commit`]
-- **EP-12**: Stress Test ✅ [`scripts/core/stress_test.py`]
-- **EP-13**: Sanity Check ✅ [`scripts/core/sanity_check.py`]
-- **EP-14**: Performance Report ✅ [`scripts/core/performance_report_generator.py`]
-- **EP-15**: Backtest Runner ✅ [`scripts/core/backtest_runner.py`]
-- **EP-16**: Backtest Engine ✅ [`scripts/core/backtest_engine.py`]
-
-### CICLO DI FIDUCIA COMPLETO
-- **TL-1.1**: Sanity check bloccante ✅
-- **TL-1.2**: Dry-run JSON ✅
-- **TL-1.3**: Cash interest ✅
-- **TL-1.4**: Risk continuity ✅
-- **TL-1.5**: KPI snapshot ✅
-- **TL-1.6**: EUR/ACC gate ✅
-
-### REALISMO FISCALE COMPLETO
-- **TL-2.1**: Categoria fiscale ✅
-- **TL-2.2**: Zainetto scadenza ✅
-- **TL-2.3**: close vs adj_close ✅
-- **TL-2.4**: Zombie prices ✅
-- **TL-2.5**: Run Package ✅
-- **TL-2.6**: Spike threshold ✅
-- **TL-2.7**: Benchmark after-tax ✅
-
-### RISK MANAGEMENT AVANZATO
-- **TL-4.1**: Enhanced Risk Management ✅
-- **TL-4.2**: Trailing Stop V2 ✅
-- **TL-4.3**: Pre-Trade Controls ✅
-
-### SCHEMA COHERENCE COMPLETO
-- **TL-5.1**: Schema Contract ✅
-- **TL-5.2**: Schema Coherence Enforcement ✅
-
-### ORGANIZZAZIONE COMPLETA
-- **TL-6.1**: Scripts Organization ✅
-- **TL-6.2**: Documentation Management ✅
 
 ---
 

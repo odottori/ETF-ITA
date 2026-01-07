@@ -22,6 +22,8 @@ setup_windows_console()
 from orchestration.session_manager import get_session_manager
 from trading.execute_orders import check_cash_available, check_position_available
 from fiscal.tax_engine import calculate_tax
+from trading.strategy_engine_v2 import generate_orders_with_holding_period
+from utils.universe_helper import get_cost_model_for_symbol
 
 class BacktestEngine:
     """Motore di backtest con simulazione reale"""
@@ -53,16 +55,19 @@ class BacktestEngine:
         # Usa start_date se fornita, altrimenti oggi
         deposit_date = start_date if start_date else datetime.now().date()
         
+        run_id = f"backtest_init_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
         self.conn.execute("""
         INSERT INTO fiscal_ledger (
             id, date, type, symbol, qty, price, fees, tax_paid, 
-            pmc_snapshot, run_type, notes
-        ) VALUES (?, ?, 'DEPOSIT', 'CASH', 1, ?, 0, 0, ?, 'BACKTEST', 'Initial capital')
+            pmc_snapshot, run_type, run_id, decision_path, reason_code, notes
+        ) VALUES (?, ?, 'DEPOSIT', 'CASH', 1, ?, 0, 0, ?, 'BACKTEST', ?, 'SETUP', 'INITIAL_DEPOSIT', 'Initial capital')
         """, [
             next_id,
             deposit_date,
             initial_capital,
-            initial_capital
+            initial_capital,
+            run_id
         ])
         
         print(f"✅ Portfolio inizializzato con €{initial_capital:,.2f}")
@@ -104,104 +109,70 @@ class BacktestEngine:
         executed_orders = []
         progress_interval = max(100, len(trading_dates) // 20)
         
-        # 3. Loop giorno per giorno (event-driven)
+        # 3. Loop giorno per giorno con strategy_engine_v2 (TWO-PASS)
         for idx, current_date in enumerate(trading_dates):
             if idx % progress_interval == 0:
                 print(f"  Processati {idx}/{len(trading_dates)} giorni...")
             
-            # 3.1 Calcola cash disponibile a inizio giornata
-            cash_available = self.conn.execute("""
-            SELECT COALESCE(SUM(CASE 
-                WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
-                WHEN type = 'SELL' THEN qty * price - fees - tax_paid
-                WHEN type = 'BUY' THEN -(qty * price + fees)
-                WHEN type = 'INTEREST' THEN qty
-                ELSE 0 
-            END), 0)
-            FROM fiscal_ledger
-            WHERE date <= ?
-            """, [current_date]).fetchone()[0]
+            # 3.1 Genera ordini con strategy_engine_v2 (holding period + portfolio construction)
+            result = generate_orders_with_holding_period(
+                self.conn,
+                self.config,
+                current_date=current_date,
+                run_type='BACKTEST',
+                run_id=None,  # Auto-generato
+                underlying_map={}  # Default: no overlap
+            )
             
-            # 3.2 Processa prima i SELL (liberano cash)
-            sell_signals = self.conn.execute("""
-            SELECT s.symbol, s.risk_scalar, md.close as price
-            FROM signals s
-            JOIN market_data md ON s.date = md.date AND s.symbol = md.symbol
-            WHERE s.date = ?
-            AND s.signal_state = 'RISK_OFF'
-            """, [current_date]).fetchall()
+            # 3.2 Esegui ordini SELL (PASS 1)
+            for order in result['orders_sell']:
+                success = self._execute_order(
+                    current_date,
+                    order['symbol'],
+                    order['action'],
+                    int(order['qty']),
+                    order['price'],
+                    decision_path=order['decision_path'],
+                    reason_code=order['reason_code'],
+                    run_id=result['run_id']
+                )
+                if success:
+                    executed_orders.append((current_date, order['symbol'], order['action'], int(order['qty']), order['price']))
             
-            for symbol, risk_scalar, price in sell_signals:
-                position_qty = self.conn.execute("""
-                SELECT COALESCE(SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END), 0)
-                FROM fiscal_ledger
-                WHERE symbol = ?
-                AND type IN ('BUY', 'SELL')
-                AND date < ?
-                """, [symbol, current_date]).fetchone()[0]
-                
-                if position_qty > 0:
-                    success = self._execute_order(current_date, symbol, 'SELL', int(position_qty), price)
-                    if success:
-                        executed_orders.append((current_date, symbol, 'SELL', int(position_qty), price))
-                        # Aggiorna cash dopo SELL
-                        cash_available = self.conn.execute("""
-                        SELECT COALESCE(SUM(CASE 
-                            WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
-                            WHEN type = 'SELL' THEN qty * price - fees - tax_paid
-                            WHEN type = 'BUY' THEN -(qty * price + fees)
-                            WHEN type = 'INTEREST' THEN qty
-                            ELSE 0 
-                        END), 0)
-                        FROM fiscal_ledger
-                        WHERE date <= ?
-                        """, [current_date]).fetchone()[0]
-            
-            # 3.3 Processa BUY solo se c'è cash disponibile
-            if cash_available > 100:  # Minimo €100 per operare
-                buy_signals = self.conn.execute("""
-                SELECT s.symbol, s.risk_scalar, md.close as price
-                FROM signals s
-                JOIN market_data md ON s.date = md.date AND s.symbol = md.symbol
-                WHERE s.date = ?
-                AND s.signal_state = 'RISK_ON'
-                ORDER BY s.risk_scalar DESC
-                """, [current_date]).fetchall()
-                
-                for symbol, risk_scalar, price in buy_signals:
-                    if cash_available < 100:
-                        break  # Cash esaurito, salta al giorno successivo
-                    
-                    target_value = cash_available * risk_scalar
-                    qty = int(target_value / price) if price > 0 else 0
-                    
-                    if qty > 0:
-                        success = self._execute_order(current_date, symbol, 'BUY', qty, price)
-                        if success:
-                            executed_orders.append((current_date, symbol, 'BUY', qty, price))
-                            # Aggiorna cash dopo BUY
-                            cash_available = self.conn.execute("""
-                            SELECT COALESCE(SUM(CASE 
-                                WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
-                                WHEN type = 'SELL' THEN qty * price - fees - tax_paid
-                                WHEN type = 'BUY' THEN -(qty * price + fees)
-                                WHEN type = 'INTEREST' THEN qty
-                                ELSE 0 
-                            END), 0)
-                            FROM fiscal_ledger
-                            WHERE date <= ?
-                            """, [current_date]).fetchone()[0]
+            # 3.3 Esegui ordini BUY (PASS 2)
+            for order in result['orders_buy']:
+                success = self._execute_order(
+                    current_date,
+                    order['symbol'],
+                    order['action'],
+                    int(order['qty']),
+                    order['price'],
+                    decision_path=order['decision_path'],
+                    reason_code=order['reason_code'],
+                    run_id=result['run_id'],
+                    entry_score=order.get('entry_score'),
+                    expected_holding_days=order.get('expected_holding_days'),
+                    expected_exit_date=order.get('expected_exit_date')
+                )
+                if success:
+                    executed_orders.append((current_date, order['symbol'], order['action'], int(order['qty']), order['price']))
         
         print(f"✅ Eseguiti {len(executed_orders)} ordini su {len(trading_dates)} giorni")
         
-    def _execute_order(self, date, symbol, order_type, qty, price):
+    def _execute_order(self, date, symbol, order_type, qty, price, decision_path='LEGACY', reason_code='LEGACY_ORDER', run_id=None, entry_score=None, expected_holding_days=None, expected_exit_date=None):
         """Esegue singolo ordine con logica fiscale condivisa con execute_orders"""
+        
+        if run_id is None:
+            run_id = f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # 1. Calcola costi usando configurazione reale (non hard-coded)
         position_value = qty * price
         
+        # Ottieni cost model per simbolo
+        cost_model = get_cost_model_for_symbol(self.config, symbol)
+        
         # Commissione da configurazione
-        commission_pct = self.config['universe']['core'][0]['cost_model']['commission_pct']
+        commission_pct = cost_model['commission_pct']
         commission = position_value * commission_pct
         if position_value < 1000:
             commission = max(5.0, commission)  # Minimum €5
@@ -214,7 +185,7 @@ class BacktestEngine:
         """, [symbol]).fetchone()
         
         volatility = volatility_data[0] if volatility_data and volatility_data[0] else 0.15
-        slippage_bps = self.config['universe']['core'][0]['cost_model']['slippage_bps']
+        slippage_bps = cost_model['slippage_bps']
         slippage_bps = max(slippage_bps, volatility * 0.5)  # Volatility adjustment
         slippage = position_value * (slippage_bps / 10000)
         
@@ -222,13 +193,13 @@ class BacktestEngine:
         
         # 2. Pre-trade controls (condivisi con execute_orders)
         if order_type == 'BUY':
-            cash_available, cash_balance = check_cash_available(self.conn, total_cost)
+            cash_available, cash_balance = check_cash_available(self.conn, total_cost, run_type='BACKTEST')
             if not cash_available:
                 print(f"  ❌ {symbol} BUY {qty:.0f} @ €{price:.2f} - CASH INSUFFICIENTE: richiesto €{total_cost:.2f}, disponibile €{cash_balance:.2f}")
                 return False  # Ordine rifiutato
         
         elif order_type == 'SELL':
-            position_available, current_qty = check_position_available(self.conn, symbol, qty)
+            position_available, current_qty = check_position_available(self.conn, symbol, qty, run_type='BACKTEST')
             if not position_available:
                 print(f"  ❌ {symbol} SELL {qty:.0f} @ €{price:.2f} - POSITION INSUFFICIENTE: richiesto {qty:.0f}, disponibile {current_qty:.0f}")
                 return False
@@ -236,6 +207,7 @@ class BacktestEngine:
         # Calcola PMC snapshot
         pmc_snapshot = self.conn.execute("""
         SELECT COALESCE(SUM(pmc_snapshot), 0) FROM fiscal_ledger WHERE date < ?
+        AND run_type = 'BACKTEST'
         """, [date]).fetchone()[0]
         
         # Calcola tassazione per SELL
@@ -245,6 +217,7 @@ class BacktestEngine:
             SELECT COALESCE(SUM(qty * price) / SUM(qty), 0) as avg_cost
             FROM fiscal_ledger 
             WHERE symbol = ? AND type = 'BUY' AND date <= ?
+            AND run_type = 'BACKTEST'
             """, [symbol, date]).fetchone()[0]
             
             proceeds = qty * price - commission - slippage
@@ -253,26 +226,34 @@ class BacktestEngine:
             
             # Calcolo tassazione usando logica condivisa
             tax_result = calculate_tax(gain, symbol, date, self.conn)
-            tax_amount = tax_result['tax_amount']
+            tax_amount = max(0.0, tax_result['tax_amount'])  # Garantisce >= 0 per CHECK constraint
             zainetto_used = tax_result['zainetto_used']
             explanation = tax_result['explanation']
         
-        # INSERT completo con tutti i parametri
+        # INSERT completo con tutti i parametri audit
         trade_currency = self.config['settings']['currency']
         exchange_rate = 1.0
-        run_id = f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        exec_mode = self.config.get('execution', {}).get('execution_price_mode', 'CLOSE_SAME_DAY_SLIPPAGE')
         
         next_id = self.conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
         
-        # INSERT con valori di default impliciti (DuckDB conta solo parametri non-default)
+        # INSERT con campi audit obbligatori (FIX BUG #8: aggiungi trade_currency)
         self.conn.execute("""
         INSERT INTO fiscal_ledger (
-            id, date, type, symbol, qty, price, 
-            pmc_snapshot, price_eur, run_id, run_type, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, date, type, symbol, qty, price, fees, tax_paid,
+            pmc_snapshot, trade_currency, exchange_rate_used, price_eur, 
+            run_id, run_type, decision_path, reason_code, execution_price_mode,
+            entry_score, expected_holding_days, expected_exit_date,
+            notes, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             next_id, date, order_type, symbol, qty, price, 
-            pmc_snapshot, price, run_id, 'BACKTEST', 'Backtest execution', datetime.now()
+            commission + slippage, tax_amount,
+            pmc_snapshot, trade_currency, exchange_rate, price, 
+            run_id, 'BACKTEST',
+            decision_path, reason_code, exec_mode,
+            entry_score, expected_holding_days, expected_exit_date,
+            'Backtest execution', datetime.now()
         ])
         
         return True
@@ -285,12 +266,19 @@ class BacktestEngine:
         SELECT 
             fl.symbol,
             SUM(CASE WHEN fl.type = 'BUY' THEN fl.qty ELSE -fl.qty END) as net_qty,
-            md.close as current_price
+            (
+                SELECT md2.close
+                FROM market_data md2
+                WHERE md2.symbol = fl.symbol
+                AND md2.date <= ?
+                ORDER BY md2.date DESC
+                LIMIT 1
+            ) as current_price
         FROM fiscal_ledger fl
-        JOIN market_data md ON fl.symbol = md.symbol AND md.date = ?
         WHERE fl.date <= ?
         AND fl.type IN ('BUY', 'SELL')
-        GROUP BY fl.symbol, md.close
+        AND fl.run_type = 'BACKTEST'
+        GROUP BY fl.symbol
         HAVING SUM(CASE WHEN fl.type = 'BUY' THEN fl.qty ELSE -fl.qty END) > 0
         """, [date, date]).fetchall()
         
@@ -319,43 +307,57 @@ class BacktestEngine:
         self.conn.execute("DROP VIEW IF EXISTS portfolio_overview")
         self.conn.execute("DROP TABLE IF EXISTS daily_portfolio")
         
-        # Crea tabella persistente (non TEMP) con valori portfolio giornalieri
+        # Crea tabella persistente con posizioni cumulative corrette (no duplicati)
         self.conn.execute("""
         CREATE TABLE daily_portfolio AS
-        SELECT 
-            date,
-            symbol,
-            adj_close,
-            volume,
-            market_value,
-            qty,
-            cash
-        FROM (
+        WITH trading_dates AS (
+            SELECT DISTINCT date 
+            FROM market_data 
+            WHERE date BETWEEN ? AND ?
+        ),
+        position_changes AS (
             SELECT 
-                md.date,
-                md.symbol,
-                md.adj_close,
-                md.volume,
-                COALESCE(fl.net_qty * md.close, 0) as market_value,
-                COALESCE(fl.net_qty, 0) as qty,
-                0 as cash
-            FROM market_data md
-            LEFT JOIN (
-                SELECT 
-                    symbol,
-                    date,
-                    SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
-                FROM fiscal_ledger fl
-                WHERE run_type = 'BACKTEST'
-                AND type IN ('BUY', 'SELL')
-                GROUP BY symbol, date
-            ) fl ON md.symbol = fl.symbol AND md.date >= fl.date
-            WHERE md.date BETWEEN ? AND ?
-            AND md.symbol IN (SELECT DISTINCT symbol FROM fiscal_ledger WHERE run_type = 'BACKTEST')
-        ) t
-        WHERE date BETWEEN ? AND ?
-        ORDER BY date, symbol
-        """, [start_date, end_date, start_date, end_date])
+                date,
+                symbol,
+                SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as qty_change
+            FROM fiscal_ledger
+            WHERE run_type = 'BACKTEST'
+            AND type IN ('BUY', 'SELL')
+            GROUP BY date, symbol
+        ),
+        daily_positions AS (
+            SELECT 
+                td.date,
+                symbols.symbol,
+                COALESCE(SUM(COALESCE(pc.qty_change, 0)) OVER (
+                    PARTITION BY symbols.symbol 
+                    ORDER BY td.date 
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ), 0) as cumulative_qty
+            FROM trading_dates td
+            CROSS JOIN (SELECT DISTINCT symbol FROM position_changes) symbols
+            LEFT JOIN position_changes pc ON td.date = pc.date AND symbols.symbol = pc.symbol
+        )
+        SELECT 
+            dp.date,
+            dp.symbol,
+            md.adj_close,
+            md.volume,
+            dp.cumulative_qty * md.close as market_value,
+            dp.cumulative_qty as qty,
+            0 as cash
+        FROM daily_positions dp
+        JOIN market_data md
+          ON md.symbol = dp.symbol
+         AND md.date = (
+             SELECT MAX(md2.date)
+             FROM market_data md2
+             WHERE md2.symbol = dp.symbol
+               AND md2.date <= dp.date
+         )
+        WHERE dp.cumulative_qty > 0
+        ORDER BY dp.date, dp.symbol
+        """, [start_date, end_date])
         
         # Crea vista portfolio_overview basata su tabella persistente
         self.conn.execute("""
@@ -369,17 +371,22 @@ class BacktestEngine:
     def calculate_real_kpi(self, start_date, end_date):
         """Calcola KPI basati su simulazione reale"""
         
-        # Ottieni valori portfolio giornalieri
+        # Ottieni valori portfolio sulle sole trading dates (coerente con signals/market_data)
         portfolio_values = []
-        current_date = start_date
-        
-        while current_date <= end_date:
+        trading_dates = self.conn.execute("""
+        SELECT DISTINCT date
+        FROM signals
+        WHERE date BETWEEN ? AND ?
+        ORDER BY date
+        """, [start_date, end_date]).fetchall()
+        trading_dates = [d[0] for d in trading_dates]
+
+        for d in trading_dates:
             try:
-                value = self.calculate_portfolio_value(current_date)
-                portfolio_values.append((current_date, value))
-            except:
-                pass
-            current_date += timedelta(days=1)
+                value = self.calculate_portfolio_value(d)
+                portfolio_values.append((d, value))
+            except Exception:
+                continue
         
         if not portfolio_values:
             return self._empty_kpi()
@@ -475,10 +482,12 @@ def run_backtest_simulation():
     print("🚀 BACKTEST ENGINE - ETF Italia Project v10.8")
     print("=" * 60)
     
-    # Path configurazione
-    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    config_path = os.path.join(root_dir, 'config', 'etf_universe.json')
-    db_path = os.path.join(root_dir, 'data', 'etf_data.duckdb')
+    # Path configurazione (usa path_manager per coerenza)
+    from utils.path_manager import get_path_manager
+    
+    pm = get_path_manager()
+    config_path = str(pm.etf_universe_path)
+    db_path = str(pm.db_path)
     
     PRESET_PERIODS = {
         'covid': ('2020-01-01', '2021-12-31'),
@@ -660,6 +669,19 @@ def run_backtest_simulation():
         elif env_start and env_end:
             start_date = _parse_date(env_start)
             end_date = _parse_date(env_end)
+
+        signal_bounds = engine.conn.execute("""
+        SELECT MIN(date) AS min_date, MAX(date) AS max_date
+        FROM signals
+        WHERE date BETWEEN ? AND ?
+        """, [start_date, end_date]).fetchone()
+
+        sb_min, sb_max = signal_bounds
+        if sb_min is None or sb_max is None:
+            raise ValueError("Nessun segnale disponibile nel range selezionato")
+
+        start_date = sb_min
+        end_date = sb_max
         
         # 1. Inizializza portfolio con deposito alla start_date
         engine.initialize_portfolio(20000.0, start_date=start_date)
@@ -677,18 +699,21 @@ def run_backtest_simulation():
         from utils.path_manager import get_path_manager
         pm = get_path_manager()
         
-        # Determina preset dal run_id se presente
-        preset = run_id.split('_')[1] if run_id and '_' in run_id else 'default'
+        # Genera run_id e determina preset
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        preset_name = env_preset if env_preset else 'custom'
+        run_id = f"backtest_{preset_name}_{timestamp}"
+        preset = preset_name
         
         # Crea directory run
         run_dir = pm.backtest_run_dir(preset, timestamp)
-        pm.ensure_dir(run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
         
-        # Salva KPI
+        # Salva KPI (converti date in stringhe per JSON)
+        kpi_serializable = {k: (str(v) if isinstance(v, (datetime, timedelta)) else v) for k, v in kpi.items()}
         kpi_file = pm.backtest_kpi_path(preset, timestamp)
         with open(kpi_file, 'w') as f:
-            json.dump(kpi, f, indent=2)
+            json.dump(kpi_serializable, f, indent=2)
         
         # Salva orders eseguiti
         orders_executed = engine.conn.execute("""
@@ -702,7 +727,7 @@ def run_backtest_simulation():
         orders_data = {
             'backtest_id': run_id,
             'preset': preset,
-            'period': {'start': start_date, 'end': end_date},
+            'period': {'start': str(start_date), 'end': str(end_date)},
             'total_orders': len(orders_executed),
             'orders': [
                 {
@@ -746,7 +771,7 @@ def run_backtest_simulation():
         portfolio_data = {
             'backtest_id': run_id,
             'preset': preset,
-            'period': {'start': start_date, 'end': end_date},
+            'period': {'start': str(start_date), 'end': str(end_date)},
             'evolution': {}
         }
         
@@ -764,7 +789,7 @@ def run_backtest_simulation():
         trades_summary = {
             'backtest_id': run_id,
             'preset': preset,
-            'period': {'start': start_date, 'end': end_date},
+            'period': {'start': str(start_date), 'end': str(end_date)},
             'total_trades': len([o for o in orders_executed if o[1] in ['BUY', 'SELL']]),
             'buy_trades': len([o for o in orders_executed if o[1] == 'BUY']),
             'sell_trades': len([o for o in orders_executed if o[1] == 'SELL']),

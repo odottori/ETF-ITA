@@ -1,12 +1,12 @@
 # DIPF - Design & Implementation Plan Framework (ETF_ITA)
 
 **Progetto:** ETF Italia Smart Retail  
-**Package:** v10.8 (naming canonico)  
-**Doc Revision:** r38 — 2026-01-07  
+**Package:** v10.8.0 (naming canonico)  
+**Doc Revision:** r40 — 2026-01-07  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
-**Stato Documento:** 🟢 CANONICO — PRODUCTION READY v10.8  
-**Stato Sistema:** CANDIDATE PRODUCTION  
+**Stato Documento:** 🟢 CANONICO — PRODUCTION READY v10.8.0  
+**Stato Sistema:** PRODUCTION READY  
 **Baseline produzione:** EUR / ACC (FX e DIST disattivati salvo feature flag)
 
 ---
@@ -91,15 +91,21 @@ Sì, il progetto supporta tutto ciò che non è "tempo reale". È una macchina d
 ### 1.2 Flusso dati (EOD) - CLOSED LOOP
 1) Ingestione prezzi (provider → staging → merge in `market_data`).
 2) Validazione + audit (`ingestion_audit`, policy revised history).
-3) Calcolo metriche/indicatori (DuckDB SQL + Python).
+3) Calcolo metriche/indicatori → `risk_metrics` vista (DuckDB SQL + window functions).
 4) **Signal Engine** → `signals` table (compute_signals.py).
-5) **Strategy Engine** → ordini JSON (strategy_engine.py).
-6) **Execute Orders Bridge** → `fiscal_ledger` + `trade_journal` (execute_orders.py).
+5) **Strategy Engine V2** → `orders_plan` + ordini TWO-PASS (strategy_engine_v2.py):
+   - PASS 1: EXIT/SELL (MANDATORY: RISK_OFF, stop-loss, planned exits)
+   - CASH UPDATE: Simula cash post-sell
+   - PASS 2: ENTRY/REBALANCE (ranking candidati + constraints + allocation)
+6) **Execute Orders Bridge** → `fiscal_ledger` + `trade_journal` (execute_orders.py):
+   - Pre-trade controls: cash e position checks
+   - Calcolo costi realistici: commission + slippage (volatility-adjusted)
+   - Tassazione integrata: `calculate_tax()` con zainetto per categoria fiscale
 7) **Ledger Update** → cash interest + sanity check (update_ledger.py).
 8) **Complete Cycle Orchestration** (run_complete_cycle.py).
-9) Report e Run Package serializzato.
+9) Report e Run Package serializzato (session-based).
 
-**Nota:** Il sistema è un vero closed loop con catena di esecuzione completa da segnali a movimenti ledger.
+**Nota:** Il sistema è un vero closed loop con catena di esecuzione completa da segnali a movimenti ledger. Holding period dinamico (5-30 giorni) integrato in strategy_engine_v2.
 
 ### 1.3 Operational Modes (Period Matrix) — concetti
 Il sistema supporta più modalità di periodo per **Signal Engine** e **Backtest**. Nel DIPF si definiscono i concetti (non i flag CLI):
@@ -166,60 +172,95 @@ Per ETF a distribuzione, la contabilizzazione dei dividendi richiede flusso cash
 
 ## 4. Strategy & Signal Engine
 
-### 4.1 Modulo Signal Engine
-Il sistema deve calcolare segnali oggettivi.  
-Output minimo standardizzato:
+### 4.1 Modulo Signal Engine (IMPLEMENTATO)
+**File**: `scripts/data/compute_signals.py`  
+**Output standardizzato** in tabella `signals`:
 - `signal_state` (RISK_ON / RISK_OFF / HOLD)
-- `risk_scalar` (0..1)
+- `risk_scalar` (0..1) con volatility targeting
 - `explain_code` (stringa corta)
+- `sma_200`, `volatility_20d`, `spy_guard`, `regime_filter`
 
-### 4.2 Baseline Strategy (SMA 200/50 Crossover)
-**Implementazione obbligatoria per edge verificato:**
-- **Signal primario**: SMA 200/50 crossover con regime filter
-- **Regime filter**: Solo RISK_ON se SPY > SMA 200 (bear market guard)
-- **Performance target**: Sharpe > 0.7 su 10+ anni walk-forward analysis (obiettivo, non requisito)
-- **Requisito**: Edge verificato prima di produzione
+**Logica implementata**:
+- **Trend Following**: SMA 200 con banda 2% (price > sma_200 * 1.02 → RISK_ON)
+- **Volatility Regime Filter**: Adjustment risk_scalar per alta/bassa volatilità
+- **Drawdown Protection**: Force RISK_OFF se drawdown > 15%
+- **SPY Guard**: Bear market guard (SPY < SMA 200 → block RISK_ON)
+- **Entry-Aware Stop-Loss**: Check stop-loss basato su entry_price
+- **Risk Scalar Volatility Targeting**: `vol_scalar = target_vol / current_vol` (clamped)
 
-**Componenti strategia:**
-```python
-# Trend detection
-if price > sma_50 and sma_50 > sma_200:
-    signal_state = 'RISK_ON'
-elif price < sma_50 and sma_50 < sma_200:
-    signal_state = 'RISK_OFF'
-else:
-    signal_state = 'HOLD'
+### 4.2 Strategy Engine V2 (IMPLEMENTATO)
+**File**: `scripts/trading/strategy_engine_v2.py`  
+**Design**: TWO-PASS Workflow (Exit → Cash Update → Entry)
 
-# Regime filter
-if spy_close < spy_sma_200:
-    signal_state = 'RISK_OFF'  # Bear market guard
-```
+**PASS 1 - EXIT/SELL (MANDATORY FIRST)**:
+- MANDATORY exits: RISK_OFF / stop-loss / guardrails
+- Planned exits: `today >= expected_exit_date` (holding period)
+- Pre-trade checks: oversell protection, qty > 0
+- Output: `orders_plan` (SELL) con `decision_path` e `reason_code`
 
-### 4.3 Signal Diversification (futura)
-- **Mean Reversion**: RSI extremes (oversold/overbought)
-- **Momentum**: 12-month momentum ranking
-- **Regime-based weighting**: Low vol → momentum, high vol → mean reversion
+**CASH UPDATE (simulato)**:
+- Simula cash post-sell per entry allocation realistica
 
-### 4.4 Override discipline
-Se l'operatore inserisce ordini che contraddicono il segnale automatico:
-- `trade_journal.flag_override = TRUE`
-- `override_reason` obbligatorio (stringa corta)
+**PASS 2 - ENTRY/REBALANCE (OPPORTUNISTIC + FORCED)**:
+- Genera candidati entry/rebalance da segnali RISK_ON
+- Calcola `candidate_score` (0..1): momentum + risk_scalar - cost_penalty - overlap_penalty
+- Ranking deterministico candidati
+- Applica constraints hard:
+  - Max positions (config)
+  - Cash reserve (config)
+  - Overlap underlying (forbid default)
+- Alloca capitale deterministico + rounding
+- Output: `orders_plan` (BUY) con `candidate_score` e `reject_reason`
 
-### 4.5 Inerzia "tax-friction aware" (smart retail)
-Quando una riallocazione implica realizzo di gain tassabili o costi elevati:
-- calcolare `tax_friction_est + fees_est`
-- se `(momentum_score - cost_ratio) < score_rebalance_min` → **nessuna azione** (HOLD)
-- Logica MANDATORY vs OPPORTUNISTIC:
-  - MANDATORY: stop-loss, force rebalancing (sempre eseguiti)
-  - OPPORTUNISTIC: rebalancing solo se `trade_score >= score_rebalance_min`
-  - ENTRY: nuove posizioni solo se `momentum_score >= score_entry_min`
+**Portfolio Construction** (`scripts/strategy/portfolio_construction.py`):
+- `calculate_expected_holding_days()`: Holding period dinamico 5-30 giorni
+  - Logica INVERTITA: alto momentum/risk/vol = holding CORTO
+- `calculate_candidate_score()`: Score composito per ranking
+- `calculate_cost_penalty()`: TER + slippage normalizzato
+- `calculate_overlap_penalty()`: Forbid overlap underlying
+- `filter_by_constraints()`: Filtri hard (max positions, cash reserve)
+- `calculate_qty()`: Allocazione deterministico + rounding
 
-Scopo: massimizzare rendimento netto tramite differimento d'imposta quando razionale.
+### 4.3 Holding Period Dinamico (IMPLEMENTATO)
+**File**: `scripts/strategy/portfolio_construction.py`  
+**Range**: 5-30 giorni (swing trading multi-day)
 
-Output richiesto in `orders.json`:
-- `momentum_score`, `fees_est`, `tax_friction_est`
-- `trade_score` (score adjusted per costi)
-- `recommendation` = `HOLD` / `TRADE` (decisione proposta dal motore)
+**Logica INVERTITA** (prendi profitto veloce su momentum forte):
+- Alto momentum/risk/vol → holding CORTO (5-10 giorni)
+- Basso momentum/risk/vol → holding LUNGO (20-30 giorni)
+
+**Adjustments**:
+- `risk_adj`: RISK_OFF = 1.5x (aspetta recovery), RISK_ON = 0.7-1.0x
+- `vol_adj`: Alta vol (>25%) = 0.6x (exit veloce), Bassa vol = 1.0x
+- `momentum_adj`: Momentum forte (>0.85) = 0.7x (prendi profitto), Debole = 1.2x
+
+**Schema DB** (tracking completo):
+- `fiscal_ledger`: 6 campi holding period (entry_date, entry_score, expected_holding_days, expected_exit_date, actual_holding_days, exit_reason)
+- `position_plans`: Piano holding period per simbolo
+- `position_events`: Eventi extend/close con motivo
+- `position_peaks`: Peak tracking per trailing stop
+
+### 4.4 Override discipline (IMPLEMENTATO)
+**Tabella**: `trade_journal`  
+- `flag_override = TRUE` se ordine manuale
+- `override_reason` obbligatorio
+
+### 4.5 Tax-Friction Aware Logic (IMPLEMENTATO)
+**Cost Penalty** integrato in `candidate_score`:
+- `cost_penalty = (ter + slippage_roundtrip) / 0.01` (normalizzato 0-1)
+- `overlap_penalty = 1.0` se overlap underlying detected
+- `candidate_score = momentum * risk_scalar * (1 - cost_penalty) * (1 - overlap_penalty)`
+
+**Logica MANDATORY vs OPPORTUNISTIC** (strategy_engine.py):
+- MANDATORY: stop-loss, force rebalancing (sempre eseguiti)
+- OPPORTUNISTIC: rebalancing solo se `trade_score >= score_rebalance_min`
+- ENTRY: nuove posizioni solo se `momentum_score >= score_entry_min`
+
+**Output** in `orders_plan`:
+- `candidate_score` (0..1)
+- `decision_path` (es. 'MANDATORY_EXIT', 'OPPORTUNISTIC_ENTRY')
+- `reason_code` (es. 'STOP_LOSS', 'PLANNED_EXIT', 'RISK_ON_ENTRY')
+- `reject_reason` (se rifiutato: 'CASH_RESERVE', 'MAX_POSITIONS', 'OVERLAP')
 
 ---
 
@@ -228,30 +269,33 @@ Output richiesto in `orders.json`:
 ### 5.1 Execution model
 Default: **T+1_OPEN** per backtest difendibile. Opzionale: T+0_CLOSE (solo con cost model adeguato).
 
-### 5.2 Cost Model Realistico (CRITICO)
-**TER drag giornaliero:** Applicare come drag continuo, non solo annuale.
+### 5.2 Cost Model Realistico (IMPLEMENTATO)
+**File**: `scripts/utils/universe_helper.py`, `execute_orders.py`, `backtest_engine.py`
+
+**Commissioni** (implementato):
 ```python
-# TER drag giornaliero
+commission_pct = config['universe']['core'][0]['cost_model']['commission_pct']
+commission = position_value * commission_pct
+if position_value < 1000:
+    commission = max(5.0, commission)  # Minimum €5
+```
+
+**Slippage dinamico** (implementato con volatility adjustment):
+```python
+volatility = get_volatility_20d(symbol)  # Da risk_metrics
+slippage_bps = config['cost_model']['slippage_bps']
+slippage_bps = max(slippage_bps, volatility * 0.5)  # Volatility adjustment
+slippage = position_value * (slippage_bps / 10000)
+```
+
+**TER drag** (implementato in strategy_engine.py):
+```python
+ter = config['universe']['core'][0]['ter']
 ter_daily = (1 + ter) ** (1/252) - 1
-adj_return = raw_return - ter_daily
-```
-**Impatto:** 2% CAGR in 10 anni (non 0.2% come in config).
-
-**Slippage dinamico:** Basato su volatilità e volume.
-```python
-# Slippage dinamico (bps)
-vol_20d = annualized_volatility_20d
-slippage_bps = max(2, vol_20d * 0.5)  # min 2 bps
+ter_drag = position_value * ter_daily
 ```
 
-**Commissioni realistiche:** Min commission bias per retail.
-```python
-# Commissioni minime (es. Interactive Brokers)
-if trade_value < 1000:
-    commission = max(5.0, trade_value * commission_pct)
-else:
-    commission = trade_value * commission_pct
-```
+**Total cost** = commission + slippage + ter_drag (per trade)
 
 ### 5.3 Slippage monitoring
 Nel journal: `theoretical_price` vs `realized_price` e `slippage_bps`.
@@ -263,23 +307,66 @@ Nel journal: `theoretical_price` vs `realized_price` e `slippage_bps`.
 
 ---
 
-## 6. Fiscal Engine (Italia) — Requisiti chiave
+## 6. Fiscal Engine (Italia) — IMPLEMENTATO
 
-### 6.1 PMC e ledger
-PMC ponderato continuo su quantità; arrotondamenti contabili a 0.01 EUR via `ROUND(x, 2)` nelle query fiscali.
+### 6.1 Tax Engine (IMPLEMENTATO)
+**File**: `scripts/fiscal/tax_engine.py`  
+**Conformità**: DIPF §6.2, normativa italiana
 
-### 6.2 Distinzione categoria fiscale per strumento (CRITICO)
-Ogni strumento deve avere una `tax_category` (da config o registry):
-- `OICR_ETF` (tipico ETF/fondi): **gain** trattato come reddito di capitale → tassazione piena 26% **senza** compensazione con zainetto; **loss** come reddito diverso → va nello zainetto (se applicabile in regime simulato).
-- `ETC_ETN_STOCK` (semplificazione): gain/loss come redditi diversi → **compensazione** con zainetto consentita nel modello.
+**Funzioni**:
+- `calculate_tax()`: Calcolo tassazione 26% con zainetto per categoria fiscale
+- `create_tax_loss_carryforward()`: Creazione zainetto con scadenza 31/12/(anno+4)
+- `update_zainetto_usage()`: Aggiornamento used_amount FIFO
+- `get_available_zainetto()`: Query zainetto disponibile per categoria
 
-**Chiarimento operativo (baseline EUR/ACC):** se l'universo contiene solo strumenti `OICR_ETF`, lo zainetto può **accumularsi** (per loss) ma **non** riduce i gain/proventi degli ETF. Diventa "utilizzabile" solo se/quando si abilitano strumenti `ETC_ETN_STOCK` (feature flag / universo esteso).
+### 6.2 Distinzione categoria fiscale (IMPLEMENTATO)
+**Schema**: `symbol_registry.tax_category`, `tax_loss_carryforward.tax_category`
 
-> Nota: il sistema è una simulazione; l'utente resta responsabile della verifica con intermediario/consulente.
+**Logica implementata**:
+- **OICR_ETF** (default): 
+  - Gain tassati pieni 26% SENZA compensazione zainetto
+  - Loss accumulate in zainetto ma NON utilizzabili per compensare gain OICR_ETF
+  - Zainetto diventa utilizzabile solo con strumenti ETC_ETN_STOCK
+- **ETC_ETN_STOCK**: 
+  - Gain/loss come redditi diversi
+  - Compensazione zainetto consentita per categoria fiscale
 
-### 6.3 Zainetto fiscale (minusvalenze) e scadenza corretta
-Minus nello zainetto scadono al **31/12 del 4° anno successivo** a quello di realizzo (non "created_at + 4 anni").  
-`expires_at = DATE(year(realize_date)+4, 12, 31)`.
+**Query zainetto** (per categoria, non per simbolo):
+```python
+zainetto_available = conn.execute("""
+    SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0)
+    FROM tax_loss_carryforward 
+    WHERE tax_category = ? 
+    AND used_amount < ABS(loss_amount)
+    AND expires_at > ?
+""", [tax_category, realize_date]).fetchone()[0]
+```
+
+### 6.3 Zainetto fiscale e scadenza (IMPLEMENTATO)
+**Tabella**: `tax_loss_carryforward`  
+**Scadenza**: 31/12 del 4° anno successivo (conforme normativa italiana)
+
+**Implementazione**:
+```python
+realize_year = realize_date.year
+expiry_year = realize_year + 4
+expires_at = datetime(expiry_year, 12, 31).date()
+```
+
+**Aggiornamento FIFO** (used_amount):
+- Ordina zainetti per `expires_at ASC, id ASC`
+- Consuma zainetto più vecchio prima
+- Traccia `used_amount` per ogni record
+
+### 6.4 PMC e Ledger (IMPLEMENTATO)
+**Schema**: `fiscal_ledger` (26 colonne)  
+**Campi fiscali**:
+- `pmc_snapshot`: PMC snapshot alla data
+- `tax_paid`: Imposta pagata (26%)
+- `fees`: Commissioni + slippage
+- `trade_currency`, `exchange_rate_used`, `price_eur` (per FX future)
+
+**Arrotondamenti**: 0.01 EUR via `Decimal.quantize(Decimal('0.01'))`
 
 ### 6.4 FX e capital gain in EUR (quando currency != EUR)
 **Baseline EUR/ACC:** questa sezione è disattivata; l'ingestione blocca strumenti non-EUR salvo feature flag FX.
@@ -417,4 +504,4 @@ if max_dd_5pct > 0.25:  # 25% max drawdown
 - Data schema: vedi DATADICTIONARY  
 - Piano implementazione: vedi TODOLIST  
 - Comandi operativi: vedi README  
-- Regole operative: vedi AGENT_RULES
+- Regole operative: vedi AGENT_RULES (v10.5.0)

@@ -68,10 +68,22 @@ Quando ricevi un comando:
 7. produci un diff leggibile
 
 ## 8. Organizzazione Scripts
-- **scripts/core/**: Moduli production (18 file)
-- **scripts/utils/**: Utility condivise (market_calendar.py)
-- **scripts/maintenance/**: Manutenzione dati (update_market_calendar.py)
+- **scripts/setup/**: Setup & initialization (4 file)
+- **scripts/data/**: Data pipeline (3 file)
+- **scripts/trading/**: Strategy & execution (5 file)
+- **scripts/backtest/**: Backtesting (3 file)
+- **scripts/quality/**: Data quality & health (7 file)
+- **scripts/risk/**: Risk management (7 file)
+- **scripts/fiscal/**: Tax & fiscal (2 file)
+- **scripts/reports/**: Reports & analysis (3 file)
+- **scripts/orchestration/**: Workflow orchestration (4 file)
+- **scripts/utils/**: Shared utilities (4 file)
+- **scripts/maintenance/**: Maintenance scripts (3 file)
+- **scripts/analysis/**: Analysis tools (6 file)
+- **scripts/strategy/**: Strategy modules (1 file)
 - **config/**: Configurazione (etf_universe.json, market_holidays.json)
+
+**Totale**: 53 file Python organizzati in 15 directory
 - **tests/**: Suite test (incluso test_market_calendar_quality.py)
 - **scripts/temp/**: File temporanei da pulire
 

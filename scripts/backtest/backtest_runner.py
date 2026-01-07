@@ -48,6 +48,37 @@ PRESET_PERIODS = {
 }
 
 
+def _resolve_backtest_period(conn, preset=None, start_date=None, end_date=None, recent_days=365):
+    """Determina periodo effettivo backtest in modo coerente con backtest_engine.
+
+    Nota: non usa MIN/MAX dal ledger perché il ledger termina all'ultimo trade.
+    """
+    if preset in ('full', 'recent'):
+        min_max = conn.execute("SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM signals").fetchone()
+        min_date, max_date = min_max
+        if min_date is None or max_date is None:
+            raise ValueError("Nessun segnale disponibile: eseguire compute_signals prima del backtest")
+        if preset == 'full':
+            return min_date, max_date
+        return max_date - timedelta(days=int(recent_days)), max_date
+
+    if preset:
+        if preset not in PRESET_PERIODS:
+            raise ValueError(f"Preset non valido: {preset}. Validi: {list(PRESET_PERIODS.keys())}")
+        p_start, p_end = PRESET_PERIODS[preset]
+        if p_start != 'DYNAMIC' and p_end != 'DYNAMIC':
+            return _parse_date(p_start), _parse_date(p_end)
+
+    if start_date is None or end_date is None:
+        # fallback conservativo: usa l'intervallo effettivo dei segnali
+        min_max = conn.execute("SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM signals").fetchone()
+        min_date, max_date = min_max
+        if min_date is None or max_date is None:
+            raise ValueError("Nessun segnale disponibile")
+        return min_date, max_date
+    return start_date, end_date
+
+
 def _parse_date(s):
     if s is None:
         return None
@@ -128,20 +159,21 @@ def backtest_runner(start_date=None, end_date=None, preset=None, recent_days=365
             os.environ['ETF_ITA_START_DATE'] = start_date.strftime('%Y-%m-%d')
             os.environ['ETF_ITA_END_DATE'] = end_date.strftime('%Y-%m-%d')
 
-        from backtest_engine import run_backtest_simulation
+        from backtest.backtest_engine import run_backtest_simulation
         if not run_backtest_simulation():
             print(" Simulazione fallita - Backtest interrotto")
             return False
         
-        # 4. Calcola KPI portfolio (ora basati su dati reali)
+        # 4. Calcola KPI portfolio (basati su equity curve reale sul periodo corretto)
         print(" Calcolo KPI portfolio...")
         
-        kpi_data = calculate_kpi(conn, config)
+        period_start, period_end = _resolve_backtest_period(conn, preset=preset, start_date=start_date, end_date=end_date, recent_days=recent_days)
+        kpi_data = calculate_kpi(conn, config, start_date=period_start, end_date=period_end)
         
         # 5. Calcola KPI benchmark
         print(" Calcolo KPI benchmark...")
         
-        benchmark_data = calculate_benchmark_kpi(conn, config)
+        benchmark_data = calculate_benchmark_kpi(conn, config, start_date=period_start, end_date=period_end)
         
         # 7. Genera Run Package
         print(" Generazione Run Package...")
@@ -151,6 +183,12 @@ def backtest_runner(start_date=None, end_date=None, preset=None, recent_days=365
                 'run_id': run_id,
                 'run_ts': run_timestamp,
                 'mode': 'BACKTEST',
+                'period': {
+                    'start': period_start.isoformat() if hasattr(period_start, 'isoformat') else str(period_start),
+                    'end': period_end.isoformat() if hasattr(period_end, 'isoformat') else str(period_end),
+                    'preset': preset,
+                    'recent_days': int(recent_days) if preset == 'recent' else None,
+                },
                 'execution_model': 'T+1_OPEN',
                 'cost_model': {
                     'commission_pct': config['universe']['core'][0]['cost_model']['commission_pct'],
@@ -186,8 +224,29 @@ def backtest_runner(start_date=None, end_date=None, preset=None, recent_days=365
         
         # Salva summary come testo
         summary_file = session_manager.add_report_to_session('backtest_summary', run_package['summary'], 'md')
+
+        # Config snapshot (runtime) + Session snapshot (runtime) in 10_analysis
+        config_snapshot_file = session_manager.add_report_to_session('config_snapshot', config, 'json')
+
+        session_snapshot = _format_session_snapshot_md(
+            run_package,
+            conn,
+            config_snapshot_file=config_snapshot_file,
+        )
+        session_snapshot_file = session_manager.add_report_to_session('session_snapshot', session_snapshot, 'md')
+
+        # Salva Performance Report (runtime) in 08_performance (focalizzato su performance)
+        performance_report = _format_performance_report_md(
+            run_package,
+            conn,
+            session_snapshot_file=session_snapshot_file,
+        )
+        performance_file = session_manager.add_report_to_session('performance', performance_report, 'md')
         
         print(f" Backtest artefatti salvati nella sessione")
+        print(f" Performance report: {performance_file}")
+        print(f" Session snapshot: {session_snapshot_file}")
+        print(f" Config snapshot: {config_snapshot_file}")
         
         # 9. Stampa riepilogo
         print(f"\n BACKTEST RESULTS:")
@@ -215,6 +274,246 @@ def backtest_runner(start_date=None, end_date=None, preset=None, recent_days=365
         conn.close()
 
 
+def _compute_execution_diagnostics(conn, start_date, end_date):
+    # Trading days from signals in range
+    trading_days = conn.execute(
+        "SELECT COUNT(DISTINCT date) FROM signals WHERE date BETWEEN ? AND ?",
+        [start_date, end_date],
+    ).fetchone()[0]
+
+    signals_by_state = conn.execute(
+        """
+        SELECT signal_state, COUNT(*) AS n
+        FROM signals
+        WHERE date BETWEEN ? AND ?
+        GROUP BY signal_state
+        ORDER BY n DESC
+        """,
+        [start_date, end_date],
+    ).fetchall()
+
+    risk_scalar_stats = conn.execute(
+        """
+        SELECT
+            COUNT(*) AS n,
+            AVG(risk_scalar) AS avg_risk_scalar,
+            MIN(risk_scalar) AS min_risk_scalar,
+            MAX(risk_scalar) AS max_risk_scalar
+        FROM signals
+        WHERE date BETWEEN ? AND ?
+          AND signal_state = 'RISK_ON'
+        """,
+        [start_date, end_date],
+    ).fetchone()
+
+    orders_total = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
+          AND type IN ('BUY','SELL')
+          AND date BETWEEN ? AND ?
+        """,
+        [start_date, end_date],
+    ).fetchone()[0]
+
+    orders_by_type = conn.execute(
+        """
+        SELECT type, COUNT(*)
+        FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
+          AND type IN ('BUY','SELL')
+          AND date BETWEEN ? AND ?
+        GROUP BY type
+        """,
+        [start_date, end_date],
+    ).fetchall()
+
+    trade_days = conn.execute(
+        """
+        SELECT COUNT(DISTINCT date)
+        FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
+          AND type IN ('BUY','SELL')
+          AND date BETWEEN ? AND ?
+        """,
+        [start_date, end_date],
+    ).fetchone()[0]
+
+    traded_value = conn.execute(
+        """
+        SELECT COALESCE(SUM(ABS(qty) * price), 0)
+        FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
+          AND type IN ('BUY','SELL')
+          AND date BETWEEN ? AND ?
+        """,
+        [start_date, end_date],
+    ).fetchone()[0]
+
+    return {
+        'trading_days': int(trading_days or 0),
+        'signals_by_state': [(s, int(n)) for s, n in signals_by_state],
+        'risk_on_stats': {
+            'n': int(risk_scalar_stats[0] or 0) if risk_scalar_stats else 0,
+            'avg': float(risk_scalar_stats[1] or 0.0) if risk_scalar_stats else 0.0,
+            'min': float(risk_scalar_stats[2] or 0.0) if risk_scalar_stats else 0.0,
+            'max': float(risk_scalar_stats[3] or 0.0) if risk_scalar_stats else 0.0,
+        },
+        'orders_total': int(orders_total or 0),
+        'orders_by_type': [(t, int(n)) for t, n in orders_by_type],
+        'trade_days': int(trade_days or 0),
+        'traded_value': float(traded_value or 0.0),
+    }
+
+
+def _format_session_snapshot_md(run_package, conn, config_snapshot_file=None):
+    manifest = run_package.get('manifest', {})
+    period = manifest.get('period', {})
+
+    start_date = period.get('start')
+    end_date = period.get('end')
+
+    # Data coverage in risk_metrics/market_data
+    coverage = conn.execute(
+        """
+        SELECT
+            COUNT(*) AS rows,
+            COUNT(DISTINCT symbol) AS symbols,
+            COUNT(DISTINCT date) AS days
+        FROM market_data
+        WHERE date BETWEEN ? AND ?
+        """,
+        [start_date, end_date],
+    ).fetchone()
+
+    md_rows, md_symbols, md_days = coverage
+
+    exec_diag = _compute_execution_diagnostics(conn, start_date, end_date)
+
+    signals_lines = "\n".join([f"- **{s}**: {n}" for s, n in exec_diag['signals_by_state']])
+    orders_lines = "\n".join([f"- **{t}**: {n}" for t, n in exec_diag['orders_by_type']])
+
+    trade_days = exec_diag['trade_days']
+    trading_days = exec_diag['trading_days']
+    exec_rate_days = (trade_days / trading_days) if trading_days else 0.0
+
+    md = f"""# Session Snapshot — {manifest.get('run_id')}
+
+## Periodo e perimetro
+- **Preset:** {period.get('preset')}
+- **Start:** {start_date}
+- **End:** {end_date}
+
+## Dati (market_data)
+- **Rows (date×symbol):** {int(md_rows)}
+- **Symbols:** {int(md_symbols)}
+- **Trading days (rows distinct date):** {int(md_days)}
+
+## Segnali (signals)
+{signals_lines if signals_lines else '- (nessun segnale)'}
+
+## Operazioni (BACKTEST, fiscal_ledger)
+- **Total orders (BUY+SELL):** {exec_diag['orders_total']}
+{orders_lines if orders_lines else '- (nessun ordine)'}
+- **Trading days con almeno un trade:** {trade_days}
+- **Execution rate (trade_days / trading_days):** {exec_rate_days:.2%}
+- **Traded value (Σ|qty|×price):** €{exec_diag['traded_value']:,.2f}
+
+## Config / fingerprint
+- **Config hash:** {manifest.get('config_hash')}
+- **Data fingerprint:** {manifest.get('data_fingerprint')}
+- **Config snapshot file:** {config_snapshot_file}
+
+"""
+    return md
+
+
+def _format_performance_report_md(run_package, conn, session_snapshot_file=None):
+    manifest = run_package.get('manifest', {})
+    kpi = run_package.get('kpi', {})
+    portfolio = (kpi.get('portfolio') or {})
+    benchmark = (kpi.get('benchmark') or {})
+
+    run_id = manifest.get('run_id')
+    ts = manifest.get('run_ts')
+    benchmark_symbol = manifest.get('benchmark_symbol')
+    period = manifest.get('period', {})
+    period_start = period.get('start')
+    period_end = period.get('end')
+
+    cagr_p = portfolio.get('cagr', 0.0)
+    max_dd_p = portfolio.get('max_dd', 0.0)
+    vol_p = portfolio.get('vol', 0.0)
+    sharpe_p = portfolio.get('sharpe', 0.0)
+    turnover_p = portfolio.get('turnover', 0.0)
+
+    cagr_b = benchmark.get('cagr', 0.0) if benchmark else 0.0
+    alpha = (cagr_p - cagr_b) if benchmark else None
+
+    alpha_line = f"- **Alpha (CAGR vs benchmark):** {alpha:+.2%}" if alpha is not None else "- **Alpha (CAGR vs benchmark):** N/A"
+
+    exec_diag = _compute_execution_diagnostics(conn, period_start, period_end)
+    trade_days = exec_diag['trade_days']
+    trading_days = exec_diag['trading_days']
+    exec_rate_days = (trade_days / trading_days) if trading_days else 0.0
+
+    signals_lines = "\n".join([f"- **{s}**: {n}" for s, n in exec_diag['signals_by_state']])
+    orders_lines = "\n".join([f"- **{t}**: {n}" for t, n in exec_diag['orders_by_type']])
+
+    md = f"""# Performance Report — {run_id}
+
+**Generated:** {ts}
+
+## Periodo
+- **Preset:** {period.get('preset')}
+- **Start:** {period_start}
+- **End:** {period_end}
+- **Trading days (signals):** {trading_days}
+
+## Session snapshot (contesto)
+- **Session snapshot:** {session_snapshot_file}
+
+## Riproducibilità
+
+```powershell
+py scripts\\data\\compute_signals.py --preset full
+py scripts\\backtest\\backtest_runner.py --preset recent --recent-days 365
+py scripts\\quality\\run_tests.py
+```
+
+## KPI Portfolio
+- **CAGR:** {cagr_p:.2%}
+- **Max Drawdown:** {max_dd_p:.2%}
+- **Volatility (ann.):** {vol_p:.2%}
+- **Sharpe:** {sharpe_p:.2f}
+- **Turnover (proxy):** {turnover_p:.2%}
+
+## KPI Benchmark
+- **Benchmark symbol:** {benchmark_symbol}
+- **CAGR benchmark:** {cagr_b:.2%}
+
+## Confronto
+{alpha_line}
+
+## Execution-rate & sizing diagnostics (high level)
+- **Orders executed (BUY+SELL):** {exec_diag['orders_total']}
+{orders_lines if orders_lines else '- (nessun ordine)'}
+- **Trading days con almeno un trade:** {trade_days}
+- **Execution rate (trade_days / trading_days):** {exec_rate_days:.2%}
+- **RISK_ON stats (risk_scalar):** n={exec_diag['risk_on_stats']['n']}, avg={exec_diag['risk_on_stats']['avg']:.3f}, min={exec_diag['risk_on_stats']['min']:.3f}, max={exec_diag['risk_on_stats']['max']:.3f}
+
+**Interpretazione (conservativa):**
+- Un execution-rate basso in presenza di molti RISK_ON è coerente con `qty = int(target_value / price)` che spesso finisce a 0 (risk_scalar basso + prezzi alti) e/o con gating sul cash.
+- La sezione dettagliata (finestra/dati/config) è nel Session Snapshot per evitare duplicazioni.
+
+## Note operative
+- Questo report è **runtime** e vive nella sessione corrente (`data/reports/sessions/.../08_performance`).
+- I file in `docs/` devono contenere solo metodologia e storia versionata, non output per-run.
+"""
+    return md
+
+
 def run_all_backtests(recent_days=365):
     """Esegue backtest su tutti i preset con KPI separati per ognuno"""
     
@@ -228,13 +527,17 @@ def run_all_backtests(recent_days=365):
     results = []
     any_failed = False
 
-    for preset in preset_order:
+    for i, preset in enumerate(preset_order):
         print("\n" + "=" * 60)
-        print(f"ALL MODE - preset={preset}")
+        print(f"ALL MODE - preset={preset} ({i+1}/{len(preset_order)})")
         print("=" * 60)
         
         # Run ID distinto per ogni preset
         run_id = f"backtest_{preset}_{batch_ts}"
+        
+        # Reset session manager per creare nuova sessione per ogni preset
+        from orchestration.session_manager import reset_session_manager
+        reset_session_manager()
         
         ok = backtest_runner(preset=preset, recent_days=recent_days, run_id_override=run_id)
         results.append((preset, ok))
@@ -320,18 +623,98 @@ def sanity_check(conn):
         print(f" Errore sanity check: {e}")
         return False
 
-def calculate_kpi(conn, config):
+def calculate_kpi(conn, config, start_date=None, end_date=None):
     """Calcola KPI portfolio"""
     
     try:
-        # Ottieni dati portfolio
-        portfolio_data = conn.execute("""
-        SELECT date, adj_close, volume
-        FROM portfolio_overview
-        ORDER BY date
-        """).fetchall()
-        
-        if not portfolio_data:
+        if start_date is None or end_date is None:
+            raise ValueError("start_date/end_date richiesti per KPI coerenti")
+
+        benchmark_symbol = config['universe']['benchmark'][0]['symbol']
+
+        equity_data = conn.execute("""
+        WITH trading_dates AS (
+            SELECT DISTINCT date
+            FROM market_data
+            WHERE symbol = ?
+            AND date BETWEEN ? AND ?
+            ORDER BY date
+        ),
+        cash_flows AS (
+            SELECT 
+                date,
+                SUM(CASE 
+                    WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
+                    WHEN type = 'SELL' THEN qty * price - fees - tax_paid
+                    WHEN type = 'BUY' THEN -(qty * price + fees)
+                    WHEN type = 'INTEREST' THEN qty
+                    ELSE 0
+                END) AS cash_flow
+            FROM fiscal_ledger
+            WHERE run_type = 'BACKTEST'
+            GROUP BY date
+        ),
+        cash_series AS (
+            SELECT 
+                td.date,
+                SUM(COALESCE(cf.cash_flow, 0)) OVER (ORDER BY td.date) AS cash_balance
+            FROM trading_dates td
+            LEFT JOIN cash_flows cf ON td.date = cf.date
+        ),
+        position_changes AS (
+            SELECT 
+                date,
+                symbol,
+                SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) AS qty_change
+            FROM fiscal_ledger
+            WHERE run_type = 'BACKTEST'
+            AND type IN ('BUY', 'SELL')
+            GROUP BY date, symbol
+        ),
+        symbols AS (
+            SELECT DISTINCT symbol FROM position_changes
+        ),
+        positions AS (
+            SELECT
+                td.date,
+                s.symbol,
+                SUM(COALESCE(pc.qty_change, 0)) OVER (
+                    PARTITION BY s.symbol
+                    ORDER BY td.date
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) AS qty
+            FROM trading_dates td
+            CROSS JOIN symbols s
+            LEFT JOIN position_changes pc ON td.date = pc.date AND s.symbol = pc.symbol
+        ),
+        market_value AS (
+            SELECT
+                p.date,
+                SUM(
+                    p.qty * COALESCE((
+                        SELECT md2.close
+                        FROM market_data md2
+                        WHERE md2.symbol = p.symbol
+                          AND md2.date <= p.date
+                        ORDER BY md2.date DESC
+                        LIMIT 1
+                    ), 0)
+                ) AS market_value
+            FROM positions p
+            WHERE p.qty > 0
+            GROUP BY p.date
+        )
+        SELECT
+            cs.date,
+            cs.cash_balance,
+            COALESCE(mv.market_value, 0) AS market_value,
+            cs.cash_balance + COALESCE(mv.market_value, 0) AS equity
+        FROM cash_series cs
+        LEFT JOIN market_value mv ON cs.date = mv.date
+        ORDER BY cs.date
+        """, [benchmark_symbol, start_date, end_date]).fetchall()
+
+        if not equity_data:
             return {
                 'cagr': 0.0,
                 'max_dd': 0.0,
@@ -339,13 +722,12 @@ def calculate_kpi(conn, config):
                 'sharpe': 0.0,
                 'turnover': 0.0
             }
-        
-        df = pd.DataFrame(portfolio_data, columns=['date', 'adj_close', 'volume'])
+
+        df = pd.DataFrame(equity_data, columns=['date', 'cash_balance', 'market_value', 'equity'])
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
-        
-        # Calcola returns giornalieri
-        df['daily_return'] = df['adj_close'].pct_change(fill_method=None)
+
+        df['daily_return'] = df['equity'].pct_change(fill_method=None)
         
         # Rimuovi primi return (NaN)
         df = df.dropna()
@@ -362,27 +744,32 @@ def calculate_kpi(conn, config):
         # CAGR
         days = (df.index[-1] - df.index[0]).days
         if days > 0:
-            cagr = (df['adj_close'].iloc[-1] / df['adj_close'].iloc[0]) ** (365.25 / days) - 1
+            cagr = (df['equity'].iloc[-1] / df['equity'].iloc[0]) ** (365.25 / days) - 1
         else:
             cagr = 0.0
         
         # Max Drawdown
-        df['cummax'] = df['adj_close'].cummax()
-        df['drawdown'] = (df['adj_close'] - df['cummax']) / df['cummax']
+        df['cummax'] = df['equity'].cummax()
+        df['drawdown'] = (df['equity'] - df['cummax']) / df['cummax']
         max_dd = df['drawdown'].min()
         
-        # Volatilità annualizzata
-        vol = df['daily_return'].std() * (252 ** 0.5)
+        # Volatilità annualizzata (robusta a NaN/inf)
+        daily_ret = df['daily_return'].replace([float('inf'), float('-inf')], pd.NA).dropna().astype(float)
+        vol = float(daily_ret.std()) * (252 ** 0.5) if len(daily_ret) > 1 else 0.0
         
         # Sharpe Ratio
-        if vol > 0:
-            sharpe = cagr / vol
-        else:
-            sharpe = 0.0
+        sharpe = (cagr / vol) if vol and vol > 0 else 0.0
         
-        # Turnover (stima)
-        # Assumiamo turnover medio mensile del 10%
-        turnover = 0.10
+        # Turnover reale (approssimazione standard: traded_value / (2 * avg_equity))
+        traded_value = conn.execute("""
+        SELECT COALESCE(SUM(ABS(qty) * price), 0)
+        FROM fiscal_ledger
+        WHERE run_type = 'BACKTEST'
+        AND type IN ('BUY', 'SELL')
+        """).fetchone()[0]
+
+        avg_equity = float(df['equity'].mean()) if len(df) > 0 else 0.0
+        turnover = (float(traded_value) / (2.0 * avg_equity)) if avg_equity > 0 else 0.0
         
         return {
             'cagr': cagr,
@@ -402,10 +789,13 @@ def calculate_kpi(conn, config):
             'turnover': 0.0
         }
 
-def calculate_benchmark_kpi(conn, config):
+def calculate_benchmark_kpi(conn, config, start_date=None, end_date=None):
     """Calcola KPI benchmark"""
     
     try:
+        if start_date is None or end_date is None:
+            raise ValueError("start_date/end_date richiesti per benchmark coerente")
+
         # Ottieni dati benchmark
         benchmark_symbol = config['universe']['benchmark'][0]['symbol']
         
@@ -413,8 +803,9 @@ def calculate_benchmark_kpi(conn, config):
         SELECT date, adj_close
         FROM risk_metrics 
         WHERE symbol = ?
+        AND date BETWEEN ? AND ?
         ORDER BY date
-        """, [benchmark_symbol]).fetchall()
+        """, [benchmark_symbol, start_date, end_date]).fetchall()
         
         if not benchmark_data:
             return {

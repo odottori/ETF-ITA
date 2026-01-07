@@ -15,21 +15,27 @@ from datetime import datetime
 from pathlib import Path
 
 class SessionManager:
-    def __init__(self, base_reports_dir=None, script_name=None):
+    def __init__(self, base_reports_dir=None, script_name=None, force_new_session=False):
         if base_reports_dir is None:
             base_reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'reports', 'sessions')
         
         self.base_reports_dir = Path(base_reports_dir)
         self.current_session = None
         self.script_name = script_name
+        self.force_new_session = force_new_session
+        self.subdir_mapping = self._default_subdir_mapping()
         
-        # Logica: health_check crea nuova sessione, altri usano esistente
+        # Logica: health_check o force_new_session crea nuova sessione, altri usano esistente
         self._load_or_create_session()
+
+        # Garantisce che la sessione corrente abbia la struttura aggiornata
+        # (utile per sessioni legacy create prima di nuovi subdir come 09_tests/10_analysis)
+        self._ensure_session_structure()
         
     def _load_or_create_session(self):
-        """Logica: health_check crea nuova sessione, altri usano esistente"""
-        if self.script_name == 'health_check':
-            # Primo script: crea nuova sessione
+        """Logica: health_check o force_new_session crea nuova sessione, altri usano esistente"""
+        if self.script_name == 'health_check' or self.force_new_session:
+            # Primo script o richiesta esplicita: crea nuova sessione
             self.create_session()
         else:
             # Altri script: carica sessione esistente
@@ -42,6 +48,32 @@ class SessionManager:
                 'current_session': self.current_session,
                 'created_at': datetime.now().isoformat()
             }, f, indent=2)
+
+    def _default_subdir_mapping(self):
+        """Mapping logico -> cartelle con prefisso ordinale (template corrente)."""
+        return {
+            '01_health_checks': 'health_checks',
+            '02_automated': 'automated',
+            '03_guardrails': 'guardrails',
+            '04_risk': 'risk',
+            '05_stress_tests': 'stress_tests',
+            '06_strategy': 'strategy',
+            '07_backtests': 'backtests',
+            '08_performance': 'performance',
+            '09_tests': 'tests',
+            '10_analysis': 'analysis',
+        }
+
+    def _ensure_session_structure(self):
+        """Crea eventuali sottocartelle mancanti nella sessione corrente.
+
+        Non rimuove né rinomina cartelle legacy (es. 09_analysis); garantisce solo
+        che le cartelle del template corrente esistano, così i report futuri sono
+        sempre coerenti.
+        """
+        session_dir = self.get_current_session_dir()
+        for prefixed_name in self.subdir_mapping.keys():
+            (session_dir / prefixed_name).mkdir(parents=True, exist_ok=True)
     
     def _load_latest_session(self):
         """Carica l'ultima sessione esistente"""
@@ -68,17 +100,7 @@ class SessionManager:
         session_dir = self.base_reports_dir / timestamp
         
         # Crea tutte le sottocartelle della sessione con prefissi ordinali
-        subdirs = {
-            '01_health_checks': 'health_checks',
-            '02_automated': 'automated', 
-            '03_guardrails': 'guardrails',
-            '04_risk': 'risk',
-            '05_stress_tests': 'stress_tests',
-            '06_strategy': 'strategy',
-            '07_backtests': 'backtests',
-            '08_performance': 'performance',
-            '09_analysis': 'analysis'
-        }
+        subdirs = self._default_subdir_mapping()
         
         # In test mode, crea solo le cartelle essenziali
         if test_mode:
@@ -86,7 +108,8 @@ class SessionManager:
                 '01_health_checks': 'health_checks',
                 '03_guardrails': 'guardrails', 
                 '05_strategy': 'strategy',
-                '08_analysis': 'analysis'
+                '09_tests': 'tests',
+                '10_analysis': 'analysis'
             }
             subdirs = essential_subdirs
         
@@ -128,20 +151,29 @@ class SessionManager:
         if not self.current_session:
             self.create_session()
         
-        # Mappa report type → sottocartella corretta
+        # Mappa report type → sottocartella corretta (COMPLETO)
         subdir_mapping = {
             'health_checks': 'health_checks',
             'strategy': 'strategy',
             'automated_test_cycle': 'automated',
+            'automated': 'automated',
             'stress_test': 'stress_tests',
+            'stress_tests': 'stress_tests',
             'guardrails': 'guardrails',
             'risk_management': 'risk',
+            'risk': 'risk',
             'backtest': 'backtests',
-            'performance': 'performance'
+            'backtests': 'backtests',
+            'performance': 'performance',
+            'tests': 'tests',
+            'analysis': 'analysis'
         }
         
         subdir_name = subdir_mapping.get(report_type, 'analysis')
         subdir = self.get_subdir_path(subdir_name)
+        
+        # Assicura che la cartella esista
+        subdir.mkdir(parents=True, exist_ok=True)
         
         if format_type == 'json':
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -195,12 +227,27 @@ class SessionManager:
 # Singleton globale
 _session_manager = None
 
-def get_session_manager(script_name=None):
-    """Restituisce l'istanza singleton del session manager"""
+def get_session_manager(script_name=None, force_new_session=False):
+    """Restituisce l'istanza singleton del session manager
+    
+    Args:
+        script_name: Nome dello script chiamante
+        force_new_session: Se True, crea una nuova sessione (per lanci multipli)
+    """
     global _session_manager
+    
+    # Se richiesta nuova sessione, reset singleton
+    if force_new_session:
+        _session_manager = None
+    
     if _session_manager is None:
-        _session_manager = SessionManager(script_name=script_name)
+        _session_manager = SessionManager(script_name=script_name, force_new_session=force_new_session)
     return _session_manager
+
+def reset_session_manager():
+    """Reset del singleton (utile per test e lanci multipli)"""
+    global _session_manager
+    _session_manager = None
 
 def get_test_session_manager():
     """Crea e restituisce un session manager per test (nuovo standard)"""

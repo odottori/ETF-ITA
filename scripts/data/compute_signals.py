@@ -104,16 +104,28 @@ def compute_signals(start_date=None, end_date=None, preset=None, lookback_days=6
         
         print(" Signal Engine ready")
         
-        # 2. Ottieni simboli universe
+        # 2. Ottieni simboli universe (supporta tutte le strutture)
         symbols = []
-        symbols.extend([etf['symbol'] for etf in config['universe']['core']])
-        symbols.extend([etf['symbol'] for etf in config['universe']['satellite']])
+        universe = config['universe']
         
-        # Aggiungi bond se presenti (per diversificazione operativa)
-        if 'bond' in config['universe']:
-            bond_symbols = [etf['symbol'] for etf in config['universe']['bond']]
-            symbols.extend(bond_symbols)
-            print(f" Bond symbols added: {bond_symbols}")
+        # Nuova struttura v2 (equity_usa, equity_international, equity_global, bond, alternative)
+        if 'equity_usa' in universe:
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_usa', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_international', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_global', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('bond', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('alternative', [])])
+        # Struttura v1 (equity_core, bond, alternative)
+        elif 'equity_core' in universe:
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_core', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('bond', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('alternative', [])])
+        # Vecchia struttura (core, satellite)
+        else:
+            symbols.extend([etf['symbol'] for etf in universe.get('core', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('satellite', [])])
+            if 'bond' in universe:
+                symbols.extend([etf['symbol'] for etf in universe.get('bond', [])])
         
         print(f" Processing symbols: {symbols}")
 

@@ -121,6 +121,9 @@ def strategy_engine(dry_run=True, commit=False):
                 print(f"️ {symbol}: Prezzo close mancante")
                 continue
             
+            # FIX BUG #7: Inizializza stop_reason per evitare NameError
+            stop_reason = None
+            
             # 6.1 Check stop-loss/trailing stop PRIMA di qualsiasi decisione
             stop_action, stop_reason = check_stop_loss_trailing_stop(config, symbol, current_price, positions_dict)
             
@@ -266,6 +269,9 @@ def strategy_engine(dry_run=True, commit=False):
                 cost_ratio = (commission + slippage + tax_estimate) / position_value
                 trade_score = momentum_score - cost_ratio * 10  # Scaling factor per costi
                 trade_score = max(0, min(1, trade_score))  # Clamp 0-1
+                
+                # FIX BUG #6: Usa positions_dict per current_qty
+                current_qty = positions_dict.get(symbol, {}).get('qty', 0)
                 
                 # Logica separata MANDATORY vs OPPORTUNISTIC
                 score_entry_min = config['settings']['score_entry_min']

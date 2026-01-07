@@ -69,7 +69,7 @@ def setup_database():
         )
         """)
         
-        # Tabella fiscal_ledger (registro operazioni)
+        # Tabella fiscal_ledger (registro operazioni) - APPEND-ONLY
         conn.execute("""
         CREATE TABLE IF NOT EXISTS fiscal_ledger (
             id INTEGER PRIMARY KEY,
@@ -84,9 +84,19 @@ def setup_database():
             trade_currency VARCHAR DEFAULT 'EUR',
             exchange_rate_used DOUBLE DEFAULT 1.0 CHECK (exchange_rate_used > 0),
             price_eur DOUBLE,
-            run_id VARCHAR,
+            run_id VARCHAR NOT NULL,
             run_type VARCHAR DEFAULT 'PRODUCTION',
+            decision_path VARCHAR NOT NULL,
+            reason_code VARCHAR NOT NULL,
+            execution_price_mode VARCHAR DEFAULT 'CLOSE_SAME_DAY_SLIPPAGE',
+            source_order_id INTEGER,
             notes VARCHAR,
+            entry_date DATE,
+            entry_score DOUBLE,
+            expected_holding_days INTEGER,
+            expected_exit_date DATE,
+            actual_holding_days INTEGER,
+            exit_reason VARCHAR,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
@@ -182,6 +192,64 @@ def setup_database():
         )
         """)
         
+        # Tabella orders_plan (proposte ordini con reject tracking)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS orders_plan (
+            id INTEGER PRIMARY KEY,
+            run_id VARCHAR NOT NULL,
+            date DATE NOT NULL,
+            symbol VARCHAR NOT NULL,
+            side VARCHAR NOT NULL CHECK (side IN ('BUY', 'SELL', 'HOLD')),
+            qty DOUBLE NOT NULL CHECK (qty >= 0),
+            status VARCHAR NOT NULL CHECK (status IN ('TRADE', 'HOLD', 'REJECTED')),
+            execution_price_mode VARCHAR NOT NULL DEFAULT 'CLOSE_SAME_DAY_SLIPPAGE',
+            proposed_price DOUBLE CHECK (proposed_price >= 0),
+            candidate_score DOUBLE CHECK (candidate_score >= 0 AND candidate_score <= 1),
+            decision_path VARCHAR NOT NULL,
+            reason_code VARCHAR NOT NULL,
+            reject_reason VARCHAR,
+            config_snapshot_hash VARCHAR,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
+        # Tabella position_plans (stato corrente piano posizioni aperte)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS position_plans (
+            symbol VARCHAR PRIMARY KEY,
+            is_open BOOLEAN NOT NULL DEFAULT TRUE,
+            entry_date DATE NOT NULL,
+            entry_run_id VARCHAR NOT NULL,
+            entry_price DOUBLE NOT NULL CHECK (entry_price > 0),
+            holding_days_target INTEGER NOT NULL CHECK (holding_days_target >= 30 AND holding_days_target <= 180),
+            expected_exit_date DATE NOT NULL,
+            last_review_date DATE,
+            current_score DOUBLE CHECK (current_score >= 0 AND current_score <= 1),
+            plan_status VARCHAR DEFAULT 'ACTIVE' CHECK (plan_status IN ('ACTIVE', 'EXTENDED', 'CLOSING', 'CLOSED')),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
+        # Tabella position_events (history eventi piano)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS position_events (
+            event_id INTEGER PRIMARY KEY,
+            run_id VARCHAR NOT NULL,
+            date DATE NOT NULL,
+            symbol VARCHAR NOT NULL,
+            event_type VARCHAR NOT NULL CHECK (event_type IN (
+                'ENTRY_PLANNED', 'ENTRY_EXECUTED', 
+                'HOLDING_EXTENDED', 'HOLDING_REVIEWED',
+                'EXIT_PLANNED', 'EXIT_EXECUTED', 'EXIT_FORCED'
+            )),
+            from_exit_date DATE,
+            to_exit_date DATE,
+            reason_code VARCHAR NOT NULL,
+            payload_json VARCHAR,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        
         print("Tabelle create")
         
         # 2. Creazione indici
@@ -193,10 +261,18 @@ def setup_database():
             "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_date ON fiscal_ledger(date)",
             "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_symbol ON fiscal_ledger(symbol)",
             "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_type ON fiscal_ledger(type)",
+            "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_run_id ON fiscal_ledger(run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_decision_path ON fiscal_ledger(decision_path)",
             "CREATE INDEX IF NOT EXISTS idx_ingestion_audit_run_id ON ingestion_audit(run_id)",
             "CREATE INDEX IF NOT EXISTS idx_trading_calendar_venue_date ON trading_calendar(venue, date)",
             "CREATE INDEX IF NOT EXISTS idx_trade_journal_run_id ON trade_journal(run_id)",
-            "CREATE INDEX IF NOT EXISTS idx_tax_loss_expires ON tax_loss_carryforward(expires_at)"
+            "CREATE INDEX IF NOT EXISTS idx_tax_loss_expires ON tax_loss_carryforward(expires_at)",
+            "CREATE INDEX IF NOT EXISTS idx_orders_plan_run_id ON orders_plan(run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_orders_plan_date_symbol ON orders_plan(date, symbol)",
+            "CREATE INDEX IF NOT EXISTS idx_orders_plan_status ON orders_plan(status)",
+            "CREATE INDEX IF NOT EXISTS idx_position_plans_is_open ON position_plans(is_open)",
+            "CREATE INDEX IF NOT EXISTS idx_position_events_run_id ON position_events(run_id)",
+            "CREATE INDEX IF NOT EXISTS idx_position_events_symbol_date ON position_events(symbol, date)"
         ]
         
         for idx in indici:
@@ -318,11 +394,12 @@ def setup_database():
         # Ottieni prossimo ID disponibile
         next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
         
+        setup_run_id = f"setup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         conn.execute("""
         INSERT OR IGNORE INTO fiscal_ledger 
-        (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id)
-        VALUES (?, ?, 'DEPOSIT', 'CASH', ?, 1.0, 0.0, 0.0, 1.0, ?)
-        """, [next_id, today, start_capital, f"setup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"])
+        (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id, decision_path, reason_code)
+        VALUES (?, ?, 'DEPOSIT', 'CASH', ?, 1.0, 0.0, 0.0, 1.0, ?, 'SETUP', 'INITIAL_DEPOSIT')
+        """, [next_id, today, start_capital, setup_run_id])
         
         print(f" Deposito iniziale di €{start_capital:,.2f} inserito")
         

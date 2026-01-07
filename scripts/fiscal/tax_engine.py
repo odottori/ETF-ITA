@@ -199,8 +199,11 @@ def get_available_zainetto(tax_category, realize_date, conn):
         float: Importo zainetto disponibile (negativo se presente)
     """
     
+    # FIX BUG #9: Formula corretta per zainetto disponibile
+    # loss_amount è negativo, used_amount è positivo
+    # Disponibile = SUM(loss_amount) + SUM(used_amount)
     result = conn.execute("""
-        SELECT COALESCE(SUM(loss_amount + used_amount), 0) as available_loss
+        SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0) as available_loss
         FROM tax_loss_carryforward 
         WHERE tax_category = ? 
         AND used_amount < ABS(loss_amount)

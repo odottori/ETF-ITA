@@ -9,7 +9,7 @@
     "inertia_threshold": 0.001,
     "cash_interest_rate": 0.02,
     "cash_interest_monthly": true,
-    "score_entry_min": 0.7,
+    "score_entry_min": 0.5,
     "score_rebalance_min": 0.6,
     "force_deviation": 0.05
   },
@@ -17,35 +17,95 @@
     "core": [
       {
         "symbol": "CSSPX.MI",
-        "name": "iShares Core S&P 500",
+        "name": "iShares Core S&P 500 EUR Acc",
+        "underlying": "SP500",
         "dist_policy": "ACC",
-        "ter": 0.07,
+        "ter": 0.0007,
         "currency": "EUR",
         "tax_category": "OICR_ETF",
-        "aum_eur": 500000000,
+        "aum_eur": 75000000000,
         "cost_model": {
           "commission_pct": 0.001,
           "slippage_bps": 5
         },
         "execution_model": "T+1_OPEN",
-        "fx_enabled": false
-      }
-    ],
-    "satellite": [
+        "fx_enabled": false,
+        "weight_target": 0.40,
+        "role": "GROWTH_ENGINE"
+      },
       {
-        "symbol": "XS2L.MI",
-        "name": "Xtrackers S&P 500 2x",
+        "symbol": "EIMI.MI",
+        "name": "iShares MSCI EM IMI",
+        "underlying": "EMERGING_MARKETS",
         "dist_policy": "ACC",
-        "ter": 0.35,
+        "ter": 0.0018,
         "currency": "EUR",
         "tax_category": "OICR_ETF",
-        "aum_eur": 500000000,
+        "aum_eur": 15000000000,
         "cost_model": {
           "commission_pct": 0.001,
           "slippage_bps": 8
         },
         "execution_model": "T+1_OPEN",
-        "fx_enabled": false
+        "fx_enabled": false,
+        "weight_target": 0.15,
+        "role": "DIVERSIFIER"
+      },
+      {
+        "symbol": "SGLD.MI",
+        "name": "Invesco Physical Gold ETC",
+        "underlying": "GOLD",
+        "dist_policy": "ACC",
+        "ter": 0.0012,
+        "currency": "EUR",
+        "tax_category": "ETC",
+        "aum_eur": 15000000000,
+        "cost_model": {
+          "commission_pct": 0.001,
+          "slippage_bps": 5
+        },
+        "execution_model": "T+1_OPEN",
+        "fx_enabled": false,
+        "weight_target": 0.25,
+        "role": "FISCAL_HEDGE"
+      },
+      {
+        "symbol": "AGGH.MI",
+        "name": "iShares Global Agg Bond EUR Hedged",
+        "underlying": "GLOBAL_AGG_BOND",
+        "dist_policy": "ACC",
+        "ter": 0.0010,
+        "currency": "EUR",
+        "tax_category": "OICR_ETF",
+        "aum_eur": 10000000000,
+        "cost_model": {
+          "commission_pct": 0.001,
+          "slippage_bps": 3
+        },
+        "execution_model": "T+1_OPEN",
+        "fx_enabled": false,
+        "weight_target": 0.20,
+        "role": "STABILIZER"
+      }
+    ],
+    "satellite": [
+      {
+        "symbol": "SEGA.MI",
+        "name": "iShares Euro Govt Bond 1-3yr",
+        "underlying": "EURO_GOVT_BOND_SHORT",
+        "dist_policy": "ACC",
+        "ter": 0.0020,
+        "currency": "EUR",
+        "tax_category": "OICR_ETF",
+        "aum_eur": 5000000000,
+        "cost_model": {
+          "commission_pct": 0.001,
+          "slippage_bps": 3
+        },
+        "execution_model": "T+1_OPEN",
+        "fx_enabled": false,
+        "weight_target": 0.00,
+        "role": "CASH_PARKING"
       }
     ],
     "benchmark": [
@@ -58,23 +118,6 @@
         "execution_model": "N/A",
         "fx_enabled": true,
         "fx_pair": "USDEUR=X"
-      }
-    ],
-    "bond": [
-      {
-        "symbol": "AGGH.MI",
-        "name": "iShares Core Global Aggregate Bond EUR Hedged",
-        "dist_policy": "ACC",
-        "ter": 0.1,
-        "currency": "EUR",
-        "tax_category": "OICR_ETF",
-        "aum_eur": 1000000000,
-        "cost_model": {
-          "commission_pct": 0.001,
-          "slippage_bps": 3
-        },
-        "execution_model": "T+1_OPEN",
-        "fx_enabled": false
       }
     ]
   },
@@ -113,5 +156,30 @@
   "fiscal": {
     "tax_rate_capital": 0.26,
     "tax_loss_carry_years": 4
+  },
+  "portfolio_construction": {
+    "max_open_positions": 5,
+    "min_cash_reserve_pct": 0.05,
+    "min_trade_value": 1500,
+    "score_add_threshold": 1.2
+  },
+  "holding_period": {
+    "base_holding_days": 15,
+    "min_holding_days": 5,
+    "max_holding_days": 30
+  },
+  "ranking_weights": {
+    "momentum": 0.45,
+    "risk_scalar": 0.25,
+    "volatility": 0.20,
+    "cost_penalty": 0.05,
+    "overlap_penalty": 0.10,
+    "alpha": 0.00
+  },
+  "execution": {
+    "execution_price_mode": "CLOSE_SAME_DAY_SLIPPAGE",
+    "slippage_bps_default": 5,
+    "max_entries_per_day": 1,
+    "forbid_overlap_underlying": false
   }
 }

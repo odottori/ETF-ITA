@@ -8,23 +8,33 @@ Costruire un sistema EOD "smart retail" per residenti italiani, focalizzato su:
 - disciplina decisionale (Signal Engine oggettivo)
 
 ## 1.1 Stato Sistema
-- **Status**: PRODUCTION READY v10.8
-- **Version**: r38 — 2026-01-07
-- **Components**: Core modules, risk management, fiscal engine, backtest engine, market calendar
-- **Backtest Engine**: EVENT-DRIVEN (day-by-day, SELL→BUY, cash management)
+- **Status**: PRODUCTION READY v10.8.0
+- **Version**: r40 — 2026-01-07
+- **Components**: 
+  - Signal Engine (compute_signals.py)
+  - Strategy Engine V2 (strategy_engine_v2.py) - TWO-PASS workflow
+  - Portfolio Construction (portfolio_construction.py) - Holding period dinamico
+  - Execute Orders (execute_orders.py) - Pre-trade controls
+  - Backtest Engine (backtest_engine.py) - Event-driven simulation
+  - Fiscal Engine (tax_engine.py) - Tassazione italiana completa
+  - Session Manager (session_manager.py) - Report serializzati
+  - Risk Metrics (vista DB) - Window functions
+- **Backtest Engine**: EVENT-DRIVEN (day-by-day, SELL→BUY priority, cash management realistico)
+- **Strategy Engine V2**: TWO-PASS (Exit → Cash Update → Entry con ranking candidati)
+- **Holding Period**: DINAMICO (5-30 giorni, logica invertita momentum)
+- **Pre-Trade Controls**: HARD CHECKS (cash e position verification)
+- **Fiscal Engine**: COMPLETO (zainetto per categoria fiscale, scadenza 31/12+4 anni)
 - **Auto-Update**: PROATTIVO (ingest + compute automatico, data freshness check)
 - **Market Calendar**: INTELLIGENTE (festività + auto-healing chiusure eccezionali)
-- **Test Coverage**: VERIFIED BY sanity_check_v003 + test_market_calendar_quality (10/10)
-- **Strategy Engine**: VERIFIED BY strategy_engine_v003
-- **Guardrails**: VERIFIED BY guardrails_v003
+- **Schema DB**: 19 tabelle (15 tabelle + 4 viste) - 100% documentato
 
 ### Verification Gates
 Gate reali (script esistenti nel repo):
 
 - **Unit/Integration Gate (pytest)**: `py -m pytest -q`
-- **Data Quality Gate (health_check)**: `py scripts/core/health_check.py`
-- **Risk Gate (guardrails)**: `py scripts/core/check_guardrails.py`
-- **Accounting Gate (sanity_check)**: `py scripts/core/sanity_check.py`
+- **Data Quality Gate (health_check)**: `py scripts/quality/health_check.py`
+- **Risk Gate (guardrails)**: `py scripts/risk/check_guardrails.py`
+- **Accounting Gate (sanity_check)**: `py scripts/quality/sanity_check.py`
 - **Schema Contract Gate (schema_validation)**: `py -m pytest -q tests/test_schema_validation.py`
 
 ## 2. Architettura
@@ -37,32 +47,39 @@ Gate reali (script esistenti nel repo):
 - Fiscal Model: Italia (OICR_ETF baseline)
 
 ## 3. Documenti Canonici
-- DIPF ProjectDoc (r38 — v10.8)
-- DDCT DataDictionary (r38 — v10.8)
-- TLST ToDoList (r38 — v10.8)
-- README operativo (r38 — v10.8)
-- PROJECT_OVERVIEW (r38 — v10.8)
-- AGENT_RULES (v003)
+- DIPF ProjectDoc (r40 — v10.8.0) - Riconciliato con implementazione reale
+- DDCT DataDictionary (r44 — v10.8.0) - Riscritto da zero su schema DB reale
+- TLST ToDoList (r40 — v10.8.0) - Riconciliato con implementazione reale
+- README operativo (r40 — v10.8.0) - Riconciliato con implementazione reale
+- PROJECT_OVERVIEW (r40 — v10.8.0) - Riconciliato
+- AGENT_RULES (v10.5.0)
 
-## 4. Requisiti Funzionali
-- RF-01: ingestione dati EOD con audit
-- RF-02: health check completo
-- RF-03: signal engine oggettivo
-- RF-04: guardrails e risk management
-- RF-05: strategy engine con dry-run
-- RF-06: ledger fiscale con PMC
-- RF-07: Run Package serializzato
-- RF-08: stress test Monte Carlo
-- RF-09: sanity check bloccante
-- RF-10: session manager ordinale
-- RF-11: benchmark after-tax coerente
-- RF-12: EUR/ACC gate
-- RF-13: zombie price exclusion
-- RF-14: spike detection per simbolo
-- RF-15: cash interest mensile
-- RF-16: journaling forecast/postcast
-- RF-17: emotional gap (se attivo)
-- RF-18: tax-friction aware inertia (se attivo)
+## 4. Requisiti Funzionali (IMPLEMENTATI)
+- RF-01: ✅ Ingestione dati EOD con audit (ingest_data.py)
+- RF-02: ✅ Health check completo (health_check.py)
+- RF-03: ✅ Signal engine oggettivo (compute_signals.py)
+- RF-04: ✅ Guardrails e risk management (check_guardrails.py, enhanced_risk_management.py)
+- RF-05: ✅ Strategy engine V2 TWO-PASS (strategy_engine_v2.py)
+- RF-06: ✅ Ledger fiscale con PMC (fiscal_ledger 26 colonne)
+- RF-07: ✅ Run Package serializzato (session_manager.py)
+- RF-08: ✅ Stress test (stress_test.py)
+- RF-09: ✅ Sanity check bloccante (sanity_check.py)
+- RF-10: ✅ Session manager (session_manager.py)
+- RF-11: ✅ Benchmark after-tax (risk_metrics vista)
+- RF-12: ✅ EUR/ACC gate (symbol_registry validation)
+- RF-13: ✅ Zombie price exclusion (spike_detector.py, zombie_exclusion_enforcer.py)
+- RF-14: ✅ Spike detection per simbolo (spike_detector.py)
+- RF-15: ✅ Cash interest mensile (update_ledger.py)
+- RF-16: ✅ Journaling forecast/postcast (trade_journal, orders_plan)
+- RF-17: ✅ Tax-friction aware logic (candidate_score con cost_penalty)
+- RF-18: ✅ Holding period dinamico (5-30 giorni, portfolio_construction.py)
+- RF-19: ✅ Pre-trade controls (check_cash_available, check_position_available)
+- RF-20: ✅ Backtest event-driven (backtest_engine.py)
+- RF-21: ✅ Fiscal engine completo (tax_engine.py - zainetto per categoria)
+- RF-22: ✅ Portfolio construction (ranking candidati + constraints)
+- RF-23: ✅ Position management (position_plans, position_events, position_peaks)
+- RF-24: ✅ Execution prices vista (close per valorizzazione)
+- RF-25: ✅ Risk metrics vista (window functions + close/volume)
 
 ## 5. Requisiti Non Funzionali
 - RNF-01: riproducibilità totale
@@ -94,10 +111,24 @@ Ogni modifica deve includere:
 - stress test
 - sanity check
 
-## 8. Architettura Scripts
-- **scripts/core/**: Moduli production (17 file)
-- **scripts/utility/**: Manutenzione dati (2 file)
-- **scripts/archive/**: File obsoleti (0 file)
+## 8. Architettura Scripts (REALE)
+- **scripts/setup/**: Setup & initialization (4 file)
+- **scripts/data/**: Data pipeline (3 file)
+- **scripts/trading/**: Strategy & execution (5 file)
+- **scripts/backtest/**: Backtesting (3 file)
+- **scripts/quality/**: Data quality & health (7 file)
+- **scripts/risk/**: Risk management (7 file)
+- **scripts/fiscal/**: Tax & fiscal (2 file)
+- **scripts/reports/**: Reports & analysis (3 file)
+- **scripts/orchestration/**: Workflow orchestration (4 file)
+- **scripts/utils/**: Shared utilities (4 file)
+- **scripts/maintenance/**: Maintenance scripts (3 file)
+- **scripts/analysis/**: Analysis tools (6 file)
+- **scripts/strategy/**: Strategy modules (1 file)
+- **scripts/temp/**: Temporary scripts (4 file)
+- **scripts/archive/**: Historical scripts (0 file)
+
+**Totale**: 53 file Python
 - **tests/**: Suite test
 - **scripts/temp/**: File temporanei da pulire
 

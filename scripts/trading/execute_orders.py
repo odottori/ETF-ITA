@@ -18,36 +18,64 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.path_manager import get_path_manager
 from fiscal.tax_engine import calculate_tax, create_tax_loss_carryforward, update_zainetto_usage
 
-def check_cash_available(conn, required_cash):
+def check_cash_available(conn, required_cash, run_type=None):
     """Verifica cash disponibile prima di BUY"""
     
-    cash_balance = conn.execute("""
-    SELECT COALESCE(SUM(CASE 
-        WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
-        WHEN type = 'SELL' THEN qty * price - fees - tax_paid
-        WHEN type = 'BUY' THEN -(qty * price + fees)
-        WHEN type = 'INTEREST' THEN qty
-        ELSE 0 
-    END), 0) as cash_balance
-    FROM fiscal_ledger
-    """).fetchone()[0]
+    if run_type:
+        cash_balance = conn.execute("""
+        SELECT COALESCE(SUM(CASE 
+            WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
+            WHEN type = 'SELL' THEN qty * price - fees - tax_paid
+            WHEN type = 'BUY' THEN -(qty * price + fees)
+            WHEN type = 'INTEREST' THEN qty
+            ELSE 0 
+        END), 0) as cash_balance
+        FROM fiscal_ledger
+        WHERE run_type = ?
+        """, [run_type]).fetchone()[0]
+    else:
+        cash_balance = conn.execute("""
+        SELECT COALESCE(SUM(CASE 
+            WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
+            WHEN type = 'SELL' THEN qty * price - fees - tax_paid
+            WHEN type = 'BUY' THEN -(qty * price + fees)
+            WHEN type = 'INTEREST' THEN qty
+            ELSE 0 
+        END), 0) as cash_balance
+        FROM fiscal_ledger
+        """).fetchone()[0]
     
     return cash_balance >= required_cash, cash_balance
 
-def check_position_available(conn, symbol, required_qty):
+def check_position_available(conn, symbol, required_qty, run_type=None):
     """Verifica posizione disponibile prima di SELL"""
     
-    position_check = conn.execute("""
-    SELECT SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
-    FROM fiscal_ledger 
-    WHERE symbol = ? AND type IN ('BUY', 'SELL')
-    """, [symbol]).fetchone()
+    if run_type:
+        position_check = conn.execute("""
+        SELECT SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
+        FROM fiscal_ledger 
+        WHERE symbol = ? AND type IN ('BUY', 'SELL')
+        AND run_type = ?
+        """, [symbol, run_type]).fetchone()
+    else:
+        position_check = conn.execute("""
+        SELECT SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
+        FROM fiscal_ledger 
+        WHERE symbol = ? AND type IN ('BUY', 'SELL')
+        """, [symbol]).fetchone()
     
     available_qty = position_check[0] if position_check and position_check[0] else 0
     return available_qty >= required_qty, available_qty
 
-def execute_orders(orders_file=None, commit=False):
-    """Esegue ordini da file e scrive nel fiscal_ledger"""
+def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PRODUCTION'):
+    """Esegue ordini da file e scrive nel fiscal_ledger
+    
+    Args:
+        orders_file: Path al file ordini JSON
+        commit: Se True, committa le modifiche al DB
+        order_date: Data ordine (default: oggi). Usato per backtest storici
+        run_type: 'PRODUCTION' o 'BACKTEST'
+    """
     
     print(" EXECUTE ORDERS - ETF Italia Project v10")
     print("=" * 60)
@@ -105,6 +133,12 @@ def execute_orders(orders_file=None, commit=False):
         rejected_orders = []
         run_id = f"execute_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
+        # Data ordine: usa parametro o default oggi
+        if order_date is None:
+            order_date = datetime.now().date()
+        elif isinstance(order_date, str):
+            order_date = datetime.strptime(order_date, '%Y-%m-%d').date()
+        
         for order in executable_orders:
             symbol = order['symbol']
             action = order['action']
@@ -136,7 +170,7 @@ def execute_orders(orders_file=None, commit=False):
                 slippage = position_value * (slippage_bps / 10000)
                 
                 total_required = position_value + commission + slippage
-                cash_available, cash_balance = check_cash_available(conn, total_required)
+                cash_available, cash_balance = check_cash_available(conn, total_required, run_type=run_type)
                 
                 if not cash_available:
                     print(f"    ❌ CASH INSUFFICIENTE: richiesto €{total_required:.2f}, disponibile €{cash_balance:.2f}")
@@ -155,7 +189,7 @@ def execute_orders(orders_file=None, commit=False):
                 
             elif action == 'SELL':
                 # Verifica posizione esistente
-                position_available, available_qty = check_position_available(conn, symbol, qty)
+                position_available, available_qty = check_position_available(conn, symbol, qty, run_type=run_type)
                 
                 if not position_available:
                     print(f"    ❌ POSIZIONE INSUFFICIENTE: richiesto {qty:.0f}, disponibile {available_qty:.0f}")
@@ -197,11 +231,11 @@ def execute_orders(orders_file=None, commit=False):
             # 5.3 Calcola tax per vendite con logica zainetto
             tax_paid = 0.0
             if action == 'SELL':
-                # Calcola realized gain per tax
+                # Calcola realized gain per tax (FIX BUG #1: query ottimizzata)
                 avg_buy_price = conn.execute("""
-                SELECT AVG(CASE WHEN type = 'BUY' THEN price ELSE NULL END) as avg_buy_price
+                SELECT AVG(price) as avg_buy_price
                 FROM fiscal_ledger 
-                WHERE symbol = ? AND type IN ('BUY', 'SELL')
+                WHERE symbol = ? AND type = 'BUY'
                 """, [symbol]).fetchone()
                 
                 if avg_buy_price and avg_buy_price[0]:
@@ -209,8 +243,8 @@ def execute_orders(orders_file=None, commit=False):
                     if price > avg_price:
                         realized_gain = (price - avg_price) * qty
                         
-                        # Usa logica fiscale completa con zainetto
-                        tax_result = calculate_tax(realized_gain, symbol, datetime.now().date(), conn)
+                        # Usa logica fiscale completa con zainetto (FIX BUG #2: usa order_date)
+                        tax_result = calculate_tax(realized_gain, symbol, order_date, conn)
                         tax_paid = tax_result['tax_amount']
                         
                         print(f"    Gain: €{realized_gain:.2f}, Tax: €{tax_paid:.2f}")
@@ -222,15 +256,15 @@ def execute_orders(orders_file=None, commit=False):
                                 symbol, 
                                 tax_result['tax_category'], 
                                 tax_result['zainetto_used'], 
-                                datetime.now().date(), 
+                                order_date, 
                                 conn
                             )
                     else:
-                        # Loss: crea zainetto
+                        # Loss: crea zainetto (FIX BUG #2: usa order_date)
                         loss_amount = (price - avg_price) * qty  # Negativo
                         if loss_amount < -0.01:  # Soglia minima
                             zainetto_record = create_tax_loss_carryforward(
-                                symbol, datetime.now().date(), loss_amount, conn
+                                symbol, order_date, loss_amount, conn
                             )
                             print(f"    Loss: €{loss_amount:.2f} -> zainetto creato")
                             print(f"    Scadenza: {zainetto_record['expires_at']}")
@@ -246,25 +280,28 @@ def execute_orders(orders_file=None, commit=False):
             # 5.5 Ottieni next ID per fiscal_ledger
             next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
             
-            # 5.6 Inserisci in fiscal_ledger
+            # 5.6 Inserisci in fiscal_ledger (FIX BUG #2-4: order_date, run_type, decision_path, reason_code)
             ledger_record = {
                 'id': next_id,
-                'date': datetime.now().date(),
+                'date': order_date,
                 'type': action,
                 'symbol': symbol,
                 'qty': float(qty),
                 'price': float(price),
                 'fees': float(total_fees),
                 'tax_paid': float(tax_paid),
-                'pmc_snapshot': None,  # Will be calculated by update_ledger (Portfolio Market Value)
-                'run_id': run_id
+                'pmc_snapshot': None,
+                'run_id': run_id,
+                'run_type': run_type,
+                'decision_path': 'STRATEGY_ENGINE',
+                'reason_code': reason
             }
             
             if commit:
                 conn.execute("""
                 INSERT INTO fiscal_ledger 
-                (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id, run_type, decision_path, reason_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [
                     ledger_record['id'],
                     ledger_record['date'],
@@ -275,7 +312,10 @@ def execute_orders(orders_file=None, commit=False):
                     ledger_record['fees'],
                     ledger_record['tax_paid'],
                     ledger_record['pmc_snapshot'],
-                    ledger_record['run_id']
+                    ledger_record['run_id'],
+                    ledger_record['run_type'],
+                    ledger_record['decision_path'],
+                    ledger_record['reason_code']
                 ])
                 
                 print(f"    ✅ Eseguito - ID: {next_id}")

@@ -267,11 +267,29 @@ def ingest_data(start_date_override=None, end_date_override=None, full_refresh=F
     try:
         print(f" Ingestion dati - Run ID: {run_id}")
         
-        # Raccolta simboli da universe
+        # Raccolta simboli da universe (supporta tutte le strutture)
         symbols = []
-        symbols.extend([etf['symbol'] for etf in config['universe']['core']])
-        symbols.extend([etf['symbol'] for etf in config['universe']['satellite']])
-        symbols.extend([etf['symbol'] for etf in config['universe']['benchmark']])
+        universe = config['universe']
+        
+        # Nuova struttura v2 (equity_usa, equity_international, equity_global, bond, alternative)
+        if 'equity_usa' in universe:
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_usa', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_international', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_global', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('bond', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('alternative', [])])
+        # Struttura v1 (equity_core, bond, alternative)
+        elif 'equity_core' in universe:
+            symbols.extend([etf['symbol'] for etf in universe.get('equity_core', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('bond', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('alternative', [])])
+        # Vecchia struttura (core, satellite)
+        else:
+            symbols.extend([etf['symbol'] for etf in universe.get('core', [])])
+            symbols.extend([etf['symbol'] for etf in universe.get('satellite', [])])
+        
+        # Benchmark sempre presente
+        symbols.extend([etf['symbol'] for etf in universe.get('benchmark', [])])
         
         print(f" Simboli da processare: {symbols}")
         

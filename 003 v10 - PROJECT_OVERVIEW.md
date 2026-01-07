@@ -8,16 +8,24 @@ Costruire un sistema EOD "smart retail" per residenti italiani, focalizzato su:
 - disciplina decisionale (Signal Engine oggettivo)
 
 ## 1.1 Stato Sistema
-- **Status**: CANDIDATE PRODUCTION
-- **Components**: Core modules, risk management, fiscal engine
-- **Test Coverage**: VERIFIED BY sanity_check_v003
+- **Status**: PRODUCTION READY v10.8
+- **Version**: r38 — 2026-01-07
+- **Components**: Core modules, risk management, fiscal engine, backtest engine, market calendar
+- **Backtest Engine**: EVENT-DRIVEN (day-by-day, SELL→BUY, cash management)
+- **Auto-Update**: PROATTIVO (ingest + compute automatico, data freshness check)
+- **Market Calendar**: INTELLIGENTE (festività + auto-healing chiusure eccezionali)
+- **Test Coverage**: VERIFIED BY sanity_check_v003 + test_market_calendar_quality (10/10)
 - **Strategy Engine**: VERIFIED BY strategy_engine_v003
 - **Guardrails**: VERIFIED BY guardrails_v003
 
 ### Verification Gates
-- **Economic Coherence Gate**: `py scripts/core/sanity_check.py --economic-coherence`
-- **Critical Fixes Gate**: `py scripts/core/validate_fixes.py --all`
-- **Production Gate**: `py scripts/core/production_readiness_test.py`
+Gate reali (script esistenti nel repo):
+
+- **Unit/Integration Gate (pytest)**: `py -m pytest -q`
+- **Data Quality Gate (health_check)**: `py scripts/core/health_check.py`
+- **Risk Gate (guardrails)**: `py scripts/core/check_guardrails.py`
+- **Accounting Gate (sanity_check)**: `py scripts/core/sanity_check.py`
+- **Schema Contract Gate (schema_validation)**: `py -m pytest -q tests/test_schema_validation.py`
 
 ## 2. Architettura
 - DB: DuckDB (`data/etf_data.duckdb`)
@@ -29,10 +37,11 @@ Costruire un sistema EOD "smart retail" per residenti italiani, focalizzato su:
 - Fiscal Model: Italia (OICR_ETF baseline)
 
 ## 3. Documenti Canonici
-- DIPF ProjectDoc (v003)
-- DDCT DataDictionary (v003)
-- TLST ToDoList (v003)
-- README operativo (v003)
+- DIPF ProjectDoc (r38 — v10.8)
+- DDCT DataDictionary (r38 — v10.8)
+- TLST ToDoList (r38 — v10.8)
+- README operativo (r38 — v10.8)
+- PROJECT_OVERVIEW (r38 — v10.8)
 - AGENT_RULES (v003)
 
 ## 4. Requisiti Funzionali
@@ -73,9 +82,8 @@ Ogni modifica deve includere:
 - controllo aggiornamento documentazione / semaforica + cross reference (sempre, tassativo)
 
 ### Quality Gates
-- **Unit Test Gate**: `py -m pytest tests/unit/ --cov=scripts/core`
-- **Integration Test Gate**: `py -m pytest tests/integration/ --cov=scripts/core`
-- **Documentation Gate**: `py scripts/utility/check_canonical_consistency.py`
+- **Unit/Integration Test Gate**: `py -m pytest -q`
+- **Documentation Gate**: (canonici: DIPF/DDCT/TLST/README) review + cross-check manuale
 
 ## 7. Output Obbligatori
 - manifest.json

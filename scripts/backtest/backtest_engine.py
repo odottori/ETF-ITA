@@ -33,8 +33,8 @@ try:
 except Exception:
     pass
 
-from session_manager import get_session_manager
-from execute_orders import check_cash_available, check_position_available
+from orchestration.session_manager import get_session_manager
+from trading.execute_orders import check_cash_available, check_position_available
 from implement_tax_logic import calculate_tax
 
 class BacktestEngine:
@@ -730,3 +730,5 @@ def run_backtest_simulation():
 if __name__ == "__main__":
     success = run_backtest_simulation()
     sys.exit(0 if success else 1)
+
+

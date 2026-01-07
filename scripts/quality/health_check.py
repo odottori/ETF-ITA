@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
-from session_manager import get_session_manager
+from orchestration.session_manager import get_session_manager
 
 def health_check():
     """Health check completo del sistema"""
@@ -701,3 +701,4 @@ if __name__ == "__main__":
     else:
         print("❌ Health check fallito - sequenza interrotta")
         sys.exit(1)
+

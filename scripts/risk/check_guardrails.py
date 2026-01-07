@@ -16,8 +16,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
 
-from session_manager import get_session_manager
-from sequence_runner import run_sequence_from
+from orchestration.session_manager import get_session_manager
+from orchestration.sequence_runner import run_sequence_from
 
 def check_guardrails():
     """Verifica guardrails e risk management"""
@@ -288,3 +288,5 @@ if __name__ == "__main__":
     else:
         print("❌ Check guardrails fallito - sequenza interrotta")
         sys.exit(1)
+
+

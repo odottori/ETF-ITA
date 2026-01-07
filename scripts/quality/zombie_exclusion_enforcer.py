@@ -131,7 +131,7 @@ def enforce_zombie_exclusion():
         
         # Salva audit log
         try:
-            from session_manager import get_session_manager
+            from orchestration.session_manager import get_session_manager
             sm = get_session_manager()
             audit_file = sm.add_report_to_session('analysis', audit_data, 'json')
             print(f"   📋 Audit log salvato: {audit_file}")
@@ -156,3 +156,5 @@ def enforce_zombie_exclusion():
 if __name__ == "__main__":
     success = enforce_zombie_exclusion()
     sys.exit(0 if success else 1)
+
+

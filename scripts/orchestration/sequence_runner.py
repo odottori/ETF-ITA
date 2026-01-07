@@ -15,7 +15,7 @@ import queue
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from session_manager import get_session_manager
+from orchestration.session_manager import get_session_manager
 
 # Mappatura degli script in sequenza ordinale
 SCRIPT_SEQUENCE = {
@@ -212,3 +212,5 @@ def run_single_script(script_name):
     except Exception as e:
         print(f"ERROR: Errore eseguendo {script_name}: {e}")
         return False
+
+

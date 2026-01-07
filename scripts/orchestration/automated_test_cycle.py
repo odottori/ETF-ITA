@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
 
-from session_manager import get_session_manager
+from orchestration.session_manager import get_session_manager
 
 def automated_test_cycle():
     """Ciclo automatico di test mirati"""
@@ -322,3 +322,5 @@ def automated_test_cycle():
 if __name__ == "__main__":
     success = automated_test_cycle()
     sys.exit(0 if success else 1)
+
+

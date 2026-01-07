@@ -225,7 +225,7 @@ def calculate_vol_targeting():
         
         # Salva audit log
         try:
-            from session_manager import get_session_manager
+            from orchestration.session_manager import get_session_manager
             sm = get_session_manager()
             audit_file = sm.add_report_to_session('analysis', audit_data, 'json')
             print(f"   📋 Audit log salvato: {audit_file}")
@@ -251,3 +251,5 @@ def calculate_vol_targeting():
 if __name__ == "__main__":
     success = calculate_vol_targeting()
     sys.exit(0 if success else 1)
+
+

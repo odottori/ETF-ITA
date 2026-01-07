@@ -1,7 +1,7 @@
 # DATADICTIONARY (ETF_ITA)
 
 **Package:** v10.8 (naming canonico)  
-**Doc Revision:** r39 — 2026-01-07  
+**Doc Revision:** r40 — 2026-01-07  
 **Stato:** PRODUCTION READY v10.8  
 
 **Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
@@ -25,6 +25,26 @@
 **Config:**  
 - ETF Universe: `config/etf_universe.json`  
 - Market Calendar: `config/market_holidays.json` (festività + exceptional_closures)
+
+**Scripts:** (riorganizzati per chiarezza)
+- `scripts/setup/`: Setup & initialization (setup_db, load_trading_calendar)
+- `scripts/data/`: Data pipeline (ingest_data, compute_signals, extend_historical_data)
+- `scripts/trading/`: Strategy & execution (strategy_engine, execute_orders, update_ledger)
+- `scripts/backtest/`: Backtesting (backtest_engine, backtest_runner)
+- `scripts/quality/`: Data quality & health (health_check, sanity_check, spike_detector, zombie_exclusion_enforcer, data_quality_audit)
+- `scripts/risk/`: Risk management (check_guardrails, implement_risk_controls, enhanced_risk_management, diversification_guardrails, vol_targeting, trailing_stop_v2)
+- `scripts/fiscal/`: Tax & fiscal (implement_tax_logic, update_tax_loss_carryforward)
+- `scripts/reports/`: Reports & analysis (performance_report_generator, stress_test)
+- `scripts/orchestration/`: Workflow orchestration (sequence_runner, session_manager, automated_test_cycle)
+- `scripts/utils/`: Shared utilities (path_manager, market_calendar)
+- `scripts/maintenance/`: Maintenance scripts (update_market_calendar)
+
+**Docs:** (riorganizzati)
+- `docs/backups/`: Backup ZIP files
+- `docs/schema/v003/`: DB schema contract (versioned)
+- `docs/history/fixes/`: Bug fix reports
+- `docs/history/features/`: Feature implementation reports
+- `docs/history/tests/`: Test analysis reports
 
 **Temp:** `temp/` (script temporanei, auto-cleanup)
 

@@ -16,9 +16,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
 
-from session_manager import get_session_manager
-from sequence_runner import run_sequence_from
-from implement_risk_controls import check_stop_loss_trailing_stop, calculate_portfolio_value, calculate_target_weights, calculate_current_weights
+from orchestration.session_manager import get_session_manager
+from orchestration.sequence_runner import run_sequence_from
+from risk.implement_risk_controls import check_stop_loss_trailing_stop, calculate_portfolio_value, calculate_target_weights, calculate_current_weights
 
 def strategy_engine(dry_run=True, commit=False):
     """Motore strategia con dry-run"""
@@ -380,7 +380,7 @@ def strategy_engine(dry_run=True, commit=False):
         # 6.1 Esegui ordini se --commit
         if not dry_run and commit:
             print("\n 🔄 COMMIT MODE - Esecuzione ordini...")
-            from execute_orders import execute_orders
+            from trading.execute_orders import execute_orders
             success = execute_orders(orders_file=orders_file, commit=True)
             if success:
                 print("✅ Ordini eseguiti con successo")
@@ -427,3 +427,5 @@ if __name__ == "__main__":
     else:
         print("❌ Strategy engine fallito - sequenza interrotta")
         sys.exit(1)
+
+

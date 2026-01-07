@@ -133,7 +133,7 @@ def detect_spikes():
         
         # Salva audit log
         try:
-            from session_manager import get_session_manager
+            from orchestration.session_manager import get_session_manager
             sm = get_session_manager()
             audit_file = sm.add_report_to_session('analysis', audit_data, 'json')
             print(f"   📋 Audit log salvato: {audit_file}")
@@ -157,3 +157,5 @@ def detect_spikes():
 if __name__ == "__main__":
     success = detect_spikes()
     sys.exit(0 if success else 1)
+
+

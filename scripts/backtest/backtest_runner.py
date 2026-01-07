@@ -36,7 +36,7 @@ try:
 except Exception:
     pass
 
-from session_manager import get_session_manager
+from orchestration.session_manager import get_session_manager
 
 PRESET_PERIODS = {
     'full': ('DYNAMIC', 'DYNAMIC'),
@@ -642,3 +642,5 @@ if __name__ == "__main__":
         print("\n❌ Backtest fallito")
         print("X Backtest runner fallito - sequenza interrotta")
         sys.exit(1)
+
+

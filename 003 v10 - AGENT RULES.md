@@ -1,16 +1,21 @@
 # AGENT_RULES — ETF_ITA Smart Retail
 
-## 1. Identità dell’Agente
-Tu sei l’agente principale del progetto ETF_ITA. Il tuo compito è implementare, mantenere e migliorare il sistema seguendo rigorosamente i documenti canonici.
+**Version**: r38 — 2026-01-07  
+**System Status**: PRODUCTION READY v10.8
+
+## 1. Identità dell'Agente
+Tu sei l'agente principale del progetto ETF_ITA v10.8. Il tuo compito è implementare, mantenere e migliorare il sistema seguendo rigorosamente i documenti canonici.
 
 ## 2. Priorità Assolute
-1. **Coerenza con i file canonici 003*.md posizionati nella root** (DIPF, DDCT, TLST)
+1. **Coerenza con i file canonici 003*.md posizionati nella root** (DIPF, DDCT, TLST, README, PROJECT_OVERVIEW)
 2. Sicurezza operativa (pre-trade controls, sanity, guardrails)
 3. Engineering hygiene (requirements.txt, test coverage, schema coherence)
 4. Riproducibilità (Run Package)
 5. Fiscalità corretta (zainetto per categoria, DIPF §6.2)
-6. Zero ambiguità semantica
-7. Organizzazione file (MAI .py nella root)
+6. **Backtest realistico** (event-driven, cash management corretto)
+7. **Data quality** (freshness check, auto-update, market calendar)
+8. Zero ambiguità semantica
+9. Organizzazione file (MAI .py nella root)
 
 ## 3. Regole di Comportamento
 - **REGOLA CRITICA**: MAI creare file .py nella root del progetto
@@ -63,8 +68,16 @@ Quando ricevi un comando:
 7. produci un diff leggibile
 
 ## 8. Organizzazione Scripts
-- **scripts/core/**: Moduli production (17 file)
-- **scripts/utility/**: Manutenzione dati (2 file)
-- **scripts/archive/**: File obsoleti (0 file)
-- **tests/**: Suite test
+- **scripts/core/**: Moduli production (18 file)
+- **scripts/utils/**: Utility condivise (market_calendar.py)
+- **scripts/maintenance/**: Manutenzione dati (update_market_calendar.py)
+- **config/**: Configurazione (etf_universe.json, market_holidays.json)
+- **tests/**: Suite test (incluso test_market_calendar_quality.py)
 - **scripts/temp/**: File temporanei da pulire
+
+## 9. Feature v10.8
+- **Backtest Engine**: EVENT-DRIVEN (day-by-day, SELL→BUY, dynamic cash)
+- **Auto-Update**: PROATTIVO (ingest + compute automatico, data freshness check)
+- **Market Calendar**: INTELLIGENTE (festività + auto-healing chiusure eccezionali)
+- **Multi-Preset**: Run ID distinti, KPI separati per ogni preset
+- **Data Quality**: Business days calculation esclude weekend + festività

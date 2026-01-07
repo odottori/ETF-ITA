@@ -1,0 +1,73 @@
+{
+  "description": "Market holidays for Italian/European stock exchanges (Borsa Italiana)",
+  "source": "https://www.borsaitaliana.it/borsaitaliana/calendario-e-orari-di-negoziazione/calendario-borsa-italiana.en.htm",
+  "last_updated": "2026-01-07",
+  "holidays": {
+    "2024": [
+      "2024-01-01",
+      "2024-03-29",
+      "2024-04-01",
+      "2024-04-25",
+      "2024-05-01",
+      "2024-12-25",
+      "2024-12-26"
+    ],
+    "2025": [
+      "2025-01-01",
+      "2025-04-18",
+      "2025-04-21",
+      "2025-04-25",
+      "2025-05-01",
+      "2025-12-25",
+      "2025-12-26"
+    ],
+    "2026": [
+      "2026-01-01",
+      "2026-04-03",
+      "2026-04-06",
+      "2026-04-25",
+      "2026-05-01",
+      "2026-12-25",
+      "2026-12-26"
+    ],
+    "2027": [
+      "2027-01-01",
+      "2027-03-26",
+      "2027-03-29",
+      "2027-04-25",
+      "2027-05-01",
+      "2027-12-25",
+      "2027-12-26"
+    ]
+  },
+  "exceptional_closures": {
+    "description": "Chiusure eccezionali non pianificate (emergenze, eventi straordinari)",
+    "dates": [
+      "2026-01-06"
+    ],
+    "reasons": {
+      "2026-01-06": "Auto-detected: no data available after multiple update attempts"
+    }
+  },
+  "notes": {
+    "fixed_holidays": [
+      "New Year's Day (Jan 1)",
+      "Liberation Day (Apr 25)",
+      "Labour Day (May 1)",
+      "Christmas Day (Dec 25)",
+      "Boxing Day (Dec 26)"
+    ],
+    "variable_holidays": [
+      "Good Friday (varies)",
+      "Easter Monday (varies)"
+    ],
+    "excluded_italian_holidays": [
+      "Epiphany (Jan 6) - market open",
+      "Republic Day (Jun 2) - market open",
+      "Ferragosto (Aug 15) - market open",
+      "All Saints (Nov 1) - market open",
+      "Immaculate Conception (Dec 8) - market open"
+    ],
+    "exceptional_closure_policy": "In caso di eventi eccezionali (terremoti, emergenze nazionali, blackout), la borsa può chiudere. Queste date vanno aggiunte manualmente in 'exceptional_closures' quando si verificano."
+  }
+}

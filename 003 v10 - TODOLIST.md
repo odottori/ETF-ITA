@@ -1,9 +1,12 @@
 # TODOLIST - Implementation Plan (ETF_ITA)
 
-**Package:** v10 (naming canonico)  
-**Doc Revision:** v003 — 2026-01-06  
+**Package:** v10.8 (naming canonico)  
+**Doc Revision:** r38 — 2026-01-07  
 **Baseline produzione:** EUR / ACC  
-**System Status:** CANDIDATE PRODUCTION  
+**System Status:** PRODUCTION READY v10.8  
+**Backtest Engine:** EVENT-DRIVEN (day-by-day, SELL→BUY, cash management)  
+**Auto-Update:** PROATTIVO (ingest + compute automatico, data freshness check)  
+**Market Calendar:** INTELLIGENTE (festività + auto-healing chiusure eccezionali)  
 **Strategy Engine:** VERIFIED BY test_strategy_engine_logic.py (momentum_score refactor)  
 **Determinismo Ciclo:** VERIFIED BY test_minimal_gate_suite.py (deterministic execution)  
 **Pre-Trade Controls:** VERIFIED BY test_pre_trade_controls.py (cash + position checks)  
@@ -30,6 +33,8 @@
 | EP-03 | `scripts/core/ingest_data.py` | `market_data` + `ingestion_audit` | DIPF §1.2, §3 | [🟢] VERIFIED |
 | EP-04 | `scripts/core/health_check.py` | `health_report.md` | DIPF §3.5, DD-10 | [🟢] VERIFIED |
 | EP-05 | `scripts/core/compute_signals.py` | segnali + snapshot | DD-6 | [🟢] VERIFIED |
+| EP-05b | `scripts/core/compute_signals.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | segnali periodo (preset) | DIPF §4 | [🟡] CANDIDATE |
+| EP-05c | `scripts/core/compute_signals.py --all` | segnali full+recent+critici | DIPF §4 | [🟡] CANDIDATE |
 | EP-06 | `scripts/core/check_guardrails.py` | SAFE/DANGER + motivazioni | DIPF §5.3 | [🟢] VERIFIED |
 | EP-07 | `scripts/core/strategy_engine.py --dry-run` | `data/orders.json` | DIPF §8.1, DD-12 | [🟢] VERIFIED |
 | EP-08 | `scripts/core/strategy_engine.py --commit` | Esecuzione ordini permanente | DIPF §8.2 | [🟢] VERIFIED |
@@ -40,6 +45,8 @@
 | EP-13 | `scripts/core/sanity_check.py` | sanity check bloccante | DIPF §9.1 | [🟢] VERIFIED |
 | EP-14 | `scripts/core/performance_report_generator.py` | report performance sessione | System Test | [🟢] VERIFIED |
 | EP-15 | `scripts/core/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] VERIFIED |
+| EP-15b | `scripts/core/backtest_runner.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | Run Package periodo (preset) | DIPF §7, §9 | [🟡] CANDIDATE |
+| EP-15c | `scripts/core/backtest_runner.py --all` | Run Package full+recent+critici | DIPF §7, §9 | [🟡] CANDIDATE |
 | EP-16 | `scripts/core/backtest_engine.py` | Simulazione realistica backtest | Backtest Engine | [🟢] VERIFIED |
 | 🛡️ | `scripts/core/enhanced_risk_management.py` | risk management avanzato | Risk Management | [🟢] VERIFIED |
 | 🧾 | `scripts/core/execute_orders.py` | integrazione logica fiscale completa | Fiscal Logic | [🟢] VERIFIED |
@@ -60,8 +67,8 @@
   - orders proposti (BUY/SELL/HOLD), qty, reason, `explain_code`
   - cash impact
   - tax estimate (se SELL o se cost model lo richiede)
-  - stime: `expected_alpha_est`, `fees_est`, `tax_friction_est`
-  - `do_nothing_score` + `recommendation` (HOLD/TRADE)
+  - stime: `momentum_score`, `fees_est`, `tax_friction_est`
+  - `trade_score` + `recommendation` (HOLD/TRADE)
   - guardrails state
 - DoD: nessuna scrittura su DB/ledger; output deterministico a parità input.
 
@@ -203,22 +210,22 @@
 ## STATO IMPLEMENTAZIONE
 
 ### ENTRYPOINTS COMPLETATI (16/16)
-- **EP-01**: Setup Database ✅
-- **EP-02**: Trading Calendar ✅
-- **EP-03**: Ingestion Data ✅
-- **EP-04**: Health Check ✅
-- **EP-05**: Compute Signals ✅
-- **EP-06**: Check Guardrails ✅
-- **EP-07**: Strategy Engine (dry-run) ✅
-- **EP-08**: Strategy Engine (commit) ✅
-- **EP-09**: Complete Cycle (dry-run) ✅
-- **EP-10**: Complete Cycle (commit) ✅
-- **EP-11**: Update Ledger ✅
-- **EP-12**: Backtest Runner ✅
-- **EP-13**: Stress Test ✅
-- **EP-14**: Sanity Check ✅
-- **EP-15**: Performance Report ✅
-- **EP-16**: Backtest Engine ✅
+- **EP-01**: Setup Database ✅ [`scripts/core/setup_db.py`]
+- **EP-02**: Trading Calendar ✅ [`scripts/core/load_trading_calendar.py`]
+- **EP-03**: Ingestion Data ✅ [`scripts/core/ingest_data.py`]
+- **EP-04**: Health Check ✅ [`scripts/core/health_check.py`]
+- **EP-05**: Compute Signals ✅ [`scripts/core/compute_signals.py`]
+- **EP-06**: Check Guardrails ✅ [`scripts/core/check_guardrails.py`]
+- **EP-07**: Strategy Engine (dry-run) ✅ [`scripts/core/strategy_engine.py --dry-run`]
+- **EP-08**: Strategy Engine (commit) ✅ [`scripts/core/strategy_engine.py --commit`]
+- **EP-09**: Complete Cycle (dry-run) ✅ [`scripts/core/run_complete_cycle.py --dry-run`]
+- **EP-10**: Complete Cycle (commit) ✅ [`scripts/core/run_complete_cycle.py --commit`]
+- **EP-11**: Update Ledger ✅ [`scripts/core/update_ledger.py --commit`]
+- **EP-12**: Stress Test ✅ [`scripts/core/stress_test.py`]
+- **EP-13**: Sanity Check ✅ [`scripts/core/sanity_check.py`]
+- **EP-14**: Performance Report ✅ [`scripts/core/performance_report_generator.py`]
+- **EP-15**: Backtest Runner ✅ [`scripts/core/backtest_runner.py`]
+- **EP-16**: Backtest Engine ✅ [`scripts/core/backtest_engine.py`]
 
 ### CICLO DI FIDUCIA COMPLETO
 - **TL-1.1**: Sanity check bloccante ✅

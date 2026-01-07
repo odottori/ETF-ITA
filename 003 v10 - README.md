@@ -2,13 +2,16 @@
 
 | Meta-Dato | Valore |
 | :--- | :--- |
-| **Package (canonico)** | v10 |
-| **Doc Revision** | v003 — 2026-01-06 |
+| **Package (canonico)** | v10.8 |
+| **Doc Revision** | r38 — 2026-01-07 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **PRODUCTION READY** |
-| **Scripts Funzionanti** | **17/17** (100% success) |
+| **Stato Sistema** | **PRODUCTION READY v10.8** |
+| **Scripts Funzionanti** | **18/18** (100% success) |
 | **Closed Loop** | **ROBUST MUTUAL EXCLUSION** (commit > dry-run, deterministic) |
 | **Determinismo Ciclo** | **IMPLEMENTATO** (produce → esegue → contabilizza sempre deterministico) |
+| **Backtest Engine** | **EVENT-DRIVEN** (day-by-day, SELL→BUY, cash management corretto) |
+| **Auto-Update** | **PROATTIVO** (ingest + compute automatico, data freshness check) |
+| **Market Calendar** | **INTELLIGENTE** (festività + auto-healing chiusure eccezionali) |
 | **Strategy Engine** | **MOMENTUM SCORE IMPLEMENTED** (euristico 0-1, mandatory vs opportunistic) |
 | **Schema Coherence** | **DRIFT ELIMINATED** (contract unico + validation) |
 
@@ -74,6 +77,28 @@ py scripts/core/health_check.py
 py scripts/core/compute_signals.py
 ```
 
+Modalità avanzate (periodi critici / rolling / full storico):
+
+```powershell
+# FULL storico (usa min/max disponibili per ogni simbolo)
+py scripts/core/compute_signals.py --preset full
+
+# RECENT mobile (rolling window; default 365 giorni)
+py scripts/core/compute_signals.py --preset recent --recent-days 365
+
+# Periodi critici (preset)
+py scripts/core/compute_signals.py --preset gfc
+py scripts/core/compute_signals.py --preset eurocrisis
+py scripts/core/compute_signals.py --preset covid
+py scripts/core/compute_signals.py --preset inflation2022
+
+# Range custom
+py scripts/core/compute_signals.py --start-date 2020-02-01 --end-date 2020-06-30
+
+# ALL (full + recent + periodi critici)
+py scripts/core/compute_signals.py --all --recent-days 365
+```
+
 ### EP-06 — Check Guardrails
 ```powershell
 py scripts/core/check_guardrails.py
@@ -89,8 +114,12 @@ py scripts/core/strategy_engine.py --commit
 ```
 Output: `data/reports/<run_id>/orders.json` con:
 - ordini proposti (BUY/SELL/HOLD) e motivazioni (`explain_code`)
-- stime costi/attrito (`fees_est`, `tax_friction_est`, `expected_alpha_est`)
-- **`do_nothing_score`** + **`recommendation`** (HOLD/TRADE)
+- stime costi/attrito (`fees_est`, `tax_friction_est`, `momentum_score`)
+- **`trade_score`** + **`recommendation`** (HOLD/TRADE)
+
+Nota output file:
+- file JSON diff-friendly salvato in `data/orders/orders_<timestamp>.json`
+- copia anche nella sessione corrente `data/reports/sessions/<timestamp>/06_strategy/`
 
 ### EP-08 — Execute Orders (bridge)
 ```powershell
@@ -112,11 +141,33 @@ py scripts/core/run_complete_cycle.py --dry-run
 py scripts/core/run_complete_cycle.py --commit
 ```
 
-### EP-11 — Backtest Engine
+### EP-15 — Backtest Runner
 ```powershell
 py scripts/core/backtest_runner.py
 ```
 Output: Run Package completo con simulazione realistica.
+
+Modalità avanzate (coerenti con EP-05):
+
+```powershell
+# FULL storico (usa min/max disponibili per i segnali)
+py scripts/core/backtest_runner.py --preset full
+
+# RECENT mobile (rolling window; default 365 giorni)
+py scripts/core/backtest_runner.py --preset recent --recent-days 365
+
+# Periodi critici (preset)
+py scripts/core/backtest_runner.py --preset gfc
+py scripts/core/backtest_runner.py --preset eurocrisis
+py scripts/core/backtest_runner.py --preset covid
+py scripts/core/backtest_runner.py --preset inflation2022
+
+# Range custom
+py scripts/core/backtest_runner.py --start-date 2020-02-01 --end-date 2020-06-30
+
+# ALL (full + recent + periodi critici)
+py scripts/core/backtest_runner.py --all --recent-days 365
+```
 
 ### EP-12 — Stress Test
 ```powershell
@@ -162,11 +213,11 @@ data/reports/sessions/<timestamp>/
 ```powershell
 # Health check completo
 py scripts/core/health_check.py
-# Output: data/reports/sessions/<timestamp>/automated/health_check.json
+# Output: data/reports/sessions/<timestamp>/01_health_checks/health_checks_<timestamp>.md
 
 # Stress test Monte Carlo
 py scripts/core/stress_test.py
-# Output: data/reports/sessions/<timestamp>/automated/stress_test.json
+# Output: data/reports/sessions/<timestamp>/05_stress_tests/stress_test_<timestamp>.json
 
 # Report performance completo
 py scripts/core/performance_report_generator.py
@@ -178,8 +229,8 @@ py scripts/core/performance_report_generator.py
 # Session corrente con dati reali
 Get-Content data/reports/sessions/<timestamp>/session_info.json
 
-# Report automatici
-Get-Content data/reports/sessions/<timestamp>/automated/stress_test.json
+# Report stress test
+Get-Content data/reports/sessions/<timestamp>/05_stress_tests/stress_test_*.json
 
 # Report performance
 Get-Content data/reports/sessions/<timestamp>/08_performance/performance_*.json

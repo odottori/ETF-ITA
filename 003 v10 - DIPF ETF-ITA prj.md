@@ -1,11 +1,11 @@
 # DIPF - Design & Implementation Plan Framework (ETF_ITA)
 
 **Progetto:** ETF Italia Smart Retail  
-**Package:** v10 (naming canonico)  
-**Doc Revision:** v003 — 2026-01-06  
+**Package:** v10.8 (naming canonico)  
+**Doc Revision:** r38 — 2026-01-07  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
-**Stato Documento:** 🟡 CANONICO — CANDIDATE PRODUCTION  
+**Stato Documento:** 🟢 CANONICO — PRODUCTION READY v10.8  
 **Stato Sistema:** CANDIDATE PRODUCTION  
 **Baseline produzione:** EUR / ACC (FX e DIST disattivati salvo feature flag)
 
@@ -100,6 +100,20 @@ Sì, il progetto supporta tutto ciò che non è "tempo reale". È una macchina d
 9) Report e Run Package serializzato.
 
 **Nota:** Il sistema è un vero closed loop con catena di esecuzione completa da segnali a movimenti ledger.
+
+### 1.3 Operational Modes (Period Matrix) — concetti
+Il sistema supporta più modalità di periodo per **Signal Engine** e **Backtest**. Nel DIPF si definiscono i concetti (non i flag CLI):
+
+- **FULL**: intero storico disponibile (baseline per analisi di lungo periodo).
+- **RECENT**: finestra mobile (rolling window) per monitoraggio e regressioni veloci.
+- **PRESET**: periodi critici standardizzati (es. GFC, Euro-crisis, COVID, Inflation 2022).
+- **RANGE**: intervallo esplicito `start_date` → `end_date` per test mirati.
+
+**Riferimenti operativi (comandi/flag):**
+- README: EP-05 (Compute Signals) e EP-11/EP-15 (Backtest)
+- TODOLIST: EP-05b/EP-05c e EP-15b/EP-15c
+
+**Semaforica:** le modalità avanzate (matrix `FULL/RECENT/PRESET/ALL`) restano *candidate* finché non validate end-to-end con report e Run Package riproducibile.
 
 ---
 

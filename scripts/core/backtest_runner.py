@@ -10,14 +10,54 @@ import json
 import duckdb
 import pandas as pd
 from datetime import datetime, timedelta
+import argparse
+import io
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Windows console robustness (avoid UnicodeEncodeError on cp1252)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Fallback (some Windows terminals ignore reconfigure)
+try:
+    if getattr(sys.stdout, "encoding", None) and sys.stdout.encoding.lower() != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+    if getattr(sys.stderr, "encoding", None) and sys.stderr.encoding.lower() != "utf-8":
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+except Exception:
+    pass
+
 from session_manager import get_session_manager
 
-def backtest_runner():
-    """Esegue backtest completo con Run Package"""
+PRESET_PERIODS = {
+    'full': ('DYNAMIC', 'DYNAMIC'),
+    'recent': ('DYNAMIC', 'DYNAMIC'),
+    'covid': ('2020-01-01', '2021-12-31'),
+    'gfc': ('2007-01-01', '2010-12-31'),
+    'eurocrisis': ('2011-01-01', '2013-12-31'),
+    'inflation2022': ('2021-10-01', '2023-03-31'),
+}
+
+
+def _parse_date(s):
+    if s is None:
+        return None
+    return datetime.strptime(s, '%Y-%m-%d').date()
+
+
+def backtest_runner(start_date=None, end_date=None, preset=None, recent_days=365, run_id_override=None):
+    """Esegue backtest completo con Run Package
+    
+    Args:
+        run_id_override: Se fornito, usa questo run_id invece di generarne uno nuovo.
+                        Utile per modalità --all per avere run_id distinti per preset.
+    """
     
     print(" BACKTEST RUNNER - ETF Italia Project v10")
     print("=" * 60)
@@ -53,8 +93,13 @@ def backtest_runner():
         
         print(" Sanity check passed")
         
-        # 2. Genera Run ID
-        run_id = f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # 2. Genera Run ID (usa override se fornito per --all mode)
+        if run_id_override:
+            run_id = run_id_override
+        else:
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            run_id = f"backtest_{ts}" if not preset else f"backtest_{preset}_{ts}"
+        
         run_timestamp = datetime.now().isoformat()
         
         print(f" Run ID: {run_id}")
@@ -65,6 +110,19 @@ def backtest_runner():
         # 3. Esegui simulazione reale prima di calcolare KPI
         print(" Esecuzione simulazione backtest...")
         
+        # Passo parametri al backtest_engine via env (riduce cambiamenti e mantiene compatibilità)
+        # Pulisci env per evitare bleed tra run
+        for k in ['ETF_ITA_PRESET', 'ETF_ITA_START_DATE', 'ETF_ITA_END_DATE', 'ETF_ITA_RECENT_DAYS']:
+            os.environ.pop(k, None)
+
+        if preset:
+            os.environ['ETF_ITA_PRESET'] = preset
+            if preset == 'recent':
+                os.environ['ETF_ITA_RECENT_DAYS'] = str(int(recent_days))
+        elif start_date is not None and end_date is not None:
+            os.environ['ETF_ITA_START_DATE'] = start_date.strftime('%Y-%m-%d')
+            os.environ['ETF_ITA_END_DATE'] = end_date.strftime('%Y-%m-%d')
+
         from backtest_engine import run_backtest_simulation
         if not run_backtest_simulation():
             print(" Simulazione fallita - Backtest interrotto")
@@ -150,6 +208,50 @@ def backtest_runner():
         
     finally:
         conn.close()
+
+
+def run_all_backtests(recent_days=365):
+    """Esegue backtest su tutti i preset con KPI separati per ognuno"""
+    
+    # Ordine deterministico (full storico + rolling + periodi critici)
+    preset_order = ['full', 'recent', 'gfc', 'eurocrisis', 'covid', 'inflation2022']
+    preset_order = [p for p in preset_order if p in PRESET_PERIODS]
+
+    # Timestamp unico per questa run --all
+    batch_ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    results = []
+    any_failed = False
+
+    for preset in preset_order:
+        print("\n" + "=" * 60)
+        print(f"ALL MODE - preset={preset}")
+        print("=" * 60)
+        
+        # Run ID distinto per ogni preset
+        run_id = f"backtest_{preset}_{batch_ts}"
+        
+        ok = backtest_runner(preset=preset, recent_days=recent_days, run_id_override=run_id)
+        results.append((preset, ok))
+        any_failed = any_failed or (not ok)
+        
+        # Delay tra preset per evitare file lock su Windows
+        if preset != preset_order[-1]:
+            print(f"\n⏳ Pausa 2s prima del prossimo preset...")
+            import time
+            time.sleep(2)
+
+    print("\n" + "=" * 60)
+    print("ALL MODE - SUMMARY")
+    print("=" * 60)
+    for preset, ok in results:
+        status = '✅ PASS' if ok else '❌ FAIL'
+        print(f"{preset}: {status}")
+    
+    print(f"\nBatch timestamp: {batch_ts}")
+    print(f"Tutti i report salvati in data/reports/sessions/ con suffisso _{batch_ts}")
+
+    return not any_failed
 
 def sanity_check(conn):
     """Controllo di integrità bloccante"""
@@ -511,12 +613,27 @@ def generate_summary(run_id, portfolio_kpi, benchmark_kpi):
     return summary
 
 if __name__ == "__main__":
-    # Esegui backtest_runner e poi continua con la sequenza
-    success = backtest_runner()
-    
-    if success:
-        # Continua con la sequenza: performance_report_generator, analyze_schema_drift
-        run_sequence_from('backtest_runner')
+    parser = argparse.ArgumentParser(description='Backtest Runner ETF Italia Project')
+    parser.add_argument('--start-date', type=str, default=None, help='Data inizio (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, default=None, help='Data fine (YYYY-MM-DD)')
+    parser.add_argument('--preset', type=str, default=None, help=f"Preset periodo: {list(PRESET_PERIODS.keys())}")
+    parser.add_argument('--all', action='store_true', help='Esegui tutti i preset backtest (full + recent + periodi critici)')
+    parser.add_argument('--recent-days', type=int, default=365, help='Finestra giorni per preset recent (rolling)')
+    args = parser.parse_args()
+
+    start_date = _parse_date(args.start_date)
+    end_date = _parse_date(args.end_date)
+
+    if args.all:
+        success = run_all_backtests(recent_days=args.recent_days)
     else:
+        if args.preset and args.preset not in PRESET_PERIODS:
+            raise SystemExit(f"Preset non valido: {args.preset}. Validi: {list(PRESET_PERIODS.keys())}")
+
+        success = backtest_runner(start_date=start_date, end_date=end_date, preset=args.preset, recent_days=args.recent_days)
+    if success:
+        print("\n✅ Backtest completato con successo")
+    else:
+        print("\n❌ Backtest fallito")
         print("X Backtest runner fallito - sequenza interrotta")
         sys.exit(1)

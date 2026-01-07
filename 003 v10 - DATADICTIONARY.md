@@ -2,7 +2,7 @@
 
 **Package:** v10.8.0 (naming canonico)  
 **Doc Revision:** r44 — 2026-01-07  
-**Stato:** PRODUCTION READY v10.8.0 — SCHEMA REALE COMPLETO  
+**Stato**: BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production) — SCHEMA REALE COMPLETO  
 
 **Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
 **DB Backups:** `data/db/backups/etf_data_backup_<timestamp>.duckdb`  
@@ -57,7 +57,6 @@
 
 **Temp:** `temp/` (script temporanei, auto-cleanup)
 
-**System Status:** PRODUCTION READY v10.8.0  
 **Baseline produzione:** EUR / ACC (FX e DIST disattivati salvo feature flag)
 
 ---

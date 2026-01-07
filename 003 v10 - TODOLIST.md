@@ -3,7 +3,7 @@
 **Package:** v10.8.0 (naming canonico)  
 **Doc Revision:** r40 — 2026-01-07  
 **Baseline produzione:** EUR / ACC  
-**System Status:** PRODUCTION READY v10.8.0  
+**System Status:** BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production)  
 **Backtest Engine:** EVENT-DRIVEN (day-by-day, SELL→BUY priority, cash management realistico)  
 **Strategy Engine V2:** TWO-PASS (Exit → Cash Update → Entry con ranking candidati)  
 **Holding Period:** DINAMICO (5-30 giorni, logica invertita momentum)  

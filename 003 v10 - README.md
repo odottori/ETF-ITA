@@ -5,7 +5,7 @@
 | **Package (canonico)** | v10.8.0 |
 | **Doc Revision** | r40 — 2026-01-07 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **PRODUCTION READY v10.8.0** |
+| **Stato Sistema** | **BACKTEST-READY v10.8.0** + **DECISION SUPPORT** |
 | **Scripts Funzionanti** | **53 file Python** (15 directory) |
 | **Schema DB** | **19 tabelle** (15 tabelle + 4 viste) - 100% documentato |
 | **Closed Loop** | **ROBUST MUTUAL EXCLUSION** (commit > dry-run, deterministic) |
@@ -42,7 +42,9 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 - **Audit Trail Completo**: orders_plan con decision_path, reason_code, candidate_score, reject_reason
 - **Closed Loop**: Sistema completo da segnali a ledger con controlli robusti
 - **Decision support / simulazione backtest-grade**: segnali, ordini proposti (dry-run), controlli rischio, contabilità fiscale simulata e report riproducibili
-- **Non è execution automatica**: la produzione è *human-in-the-loop* (manual gate), soprattutto in caso di guardrails/circuit breaker
+- **Non è execution automatica**: sistema è *human-in-the-loop* (manual gate) per decisioni finali
+- **Gap Production**: Manca execution bridge broker reale, monitoring/alerting, disaster recovery automatico
+- **Stato Reale**: Robusto per backtest e decision support, non ancora autonomous production
 
 ---
 

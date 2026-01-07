@@ -5,8 +5,8 @@
 **Doc Revision:** r40 — 2026-01-07  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
-**Stato Documento:** 🟢 CANONICO — PRODUCTION READY v10.8.0  
-**Stato Sistema:** PRODUCTION READY  
+**Stato Documento:** 🟢 CANONICO  
+**Stato Sistema:** BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production)  
 **Baseline produzione:** EUR / ACC (FX e DIST disattivati salvo feature flag)
 
 ---

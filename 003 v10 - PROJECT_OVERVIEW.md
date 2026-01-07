@@ -8,8 +8,19 @@ Costruire un sistema EOD "smart retail" per residenti italiani, focalizzato su:
 - disciplina decisionale (Signal Engine oggettivo)
 
 ## 1.1 Stato Sistema
-- **Status**: PRODUCTION READY v10.8.0
+- **Stato Sistema**: BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production)
 - **Version**: r40 — 2026-01-07
+
+**Stato Reale**: Sistema robusto per backtest e decision support con human-in-the-loop. Non ancora autonomous production.
+
+**Gap Production Rimanenti**:
+- Execution bridge broker reale (manca integrazione API broker)
+- Monitoring/alerting automatico (nessun sistema attivo)
+- Disaster recovery automatico (backup manuali)
+- Logging strutturato enterprise-grade
+- Performance testing carico reale
+- Security: secrets management, API keys encryption
+
 - **Components**: 
   - Signal Engine (compute_signals.py)
   - Strategy Engine V2 (strategy_engine_v2.py) - TWO-PASS workflow

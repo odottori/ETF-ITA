@@ -14,7 +14,10 @@ import tempfile
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', 'core'))
+
+scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts')
+if scripts_dir not in sys.path:
+    sys.path.append(scripts_dir)
 
 def setup_test_data(conn):
     """Setup dati di test per controlli pre-trade"""
@@ -87,7 +90,7 @@ def test_cash_insufficient_buy(conn):
     
     print("\n🧪 Test: BUY con cash insufficiente")
     
-    from execute_orders import check_cash_available
+    from trading.execute_orders import check_cash_available
     
     # Simula ordine BUY che supera cash disponibile
     required_cash = 50000  # Supera i ~25000 disponibili
@@ -104,7 +107,7 @@ def test_cash_sufficient_buy(conn):
     
     print("\n🧪 Test: BUY con cash sufficiente")
     
-    from execute_orders import check_cash_available
+    from trading.execute_orders import check_cash_available
     
     # Simula ordine BUY entro cash disponibile (con ledger sintetico creato in setup_test_data)
     required_cash = 4000
@@ -121,7 +124,7 @@ def test_position_insufficient_sell(conn):
     
     print("\n🧪 Test: SELL con posizione insufficiente")
     
-    from execute_orders import check_position_available
+    from trading.execute_orders import check_position_available
     
     # Simula vendita che supera posizione disponibile
     required_qty = 150  # Supera i 100 disponibili
@@ -138,7 +141,7 @@ def test_position_sufficient_sell(conn):
     
     print("\n🧪 Test: SELL con posizione sufficiente")
     
-    from execute_orders import check_position_available
+    from trading.execute_orders import check_position_available
     
     # Simula vendita entro posizione disponibile
     required_qty = 50  # Inferiore ai 100 disponibili
@@ -155,7 +158,7 @@ def test_sell_nonexistent_position(conn):
     
     print("\n🧪 Test: SELL su simbolo senza posizione")
     
-    from execute_orders import check_position_available
+    from trading.execute_orders import check_position_available
     
     # Simula vendita su simbolo non posseduto
     required_qty = 10
@@ -173,7 +176,7 @@ def run_pre_trade_tests():
     print(" TEST PRE-TRADE CONTROLS - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'db', 'etf_data.duckdb')
     conn = duckdb.connect(db_path)
     
     try:

@@ -25,7 +25,7 @@ def _run_tax_integration():
     print("=" * 60)
     
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'db', 'etf_data.duckdb')
     
     # Verifica esistenza DB
     if not os.path.exists(db_path):
@@ -56,9 +56,12 @@ def _run_tax_integration():
         # 2. Verifica logica zainetto per categoria
         print("\n2️⃣ Verifica logica zainetto per categoria...")
         
-        # Import funzioni fiscali
-        sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'core'))
-        from implement_tax_logic import calculate_tax, create_tax_loss_carryforward
+        # Import funzioni fiscali (modulo canonico)
+        scripts_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts')
+        if scripts_dir not in sys.path:
+            sys.path.append(scripts_dir)
+
+        from fiscal.tax_engine import calculate_tax, create_tax_loss_carryforward
         
         test_date = datetime(2026, 1, 5).date()
         
@@ -85,11 +88,11 @@ def _run_tax_integration():
         print("\n4️⃣ Verifica integrazione execute_orders...")
         
         # Controlla che execute_orders.py importi le funzioni fiscali
-        execute_orders_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'core', 'execute_orders.py')
+        execute_orders_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'trading', 'execute_orders.py')
         with open(execute_orders_path, 'r', encoding='utf-8') as f:
             execute_content = f.read()
         
-        if 'from implement_tax_logic import' in execute_content:
+        if 'from fiscal.tax_engine import' in execute_content:
             print("   ✅ execute_orders.py integra logica fiscale")
         else:
             print("   ❌ execute_orders.py non integra logica fiscale")
@@ -98,15 +101,15 @@ def _run_tax_integration():
         # 5. Verifica coerenza DIPF
         print("\n5️⃣ Verifica coerenza DIPF...")
         
-        # Controlla che implement_tax_logic.py usi query per categoria fiscale
-        tax_logic_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'core', 'implement_tax_logic.py')
+        # Controlla che tax_engine usi query per categoria fiscale
+        tax_logic_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scripts', 'fiscal', 'tax_engine.py')
         with open(tax_logic_path, 'r', encoding='utf-8') as f:
             tax_logic_content = f.read()
         
         if 'WHERE tax_category = ?' in tax_logic_content:
-            print("   ✅ Query zainetto per categoria fiscale in implement_tax_logic.py")
+            print("   ✅ Query zainetto per categoria fiscale in tax_engine.py")
         else:
-            print("   ❌ Query zainetto ancora per simbolo in implement_tax_logic.py")
+            print("   ❌ Query zainetto non per categoria fiscale in tax_engine.py")
             return False
         
         # Verifica che le query per simbolo in execute_orders.py siano appropriate (posizioni/prezzi)
@@ -131,7 +134,10 @@ def _run_tax_integration():
         
     except Exception as e:
         print(f"❌ Errore durante test: {e}")
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         return False
     finally:
         conn.close()

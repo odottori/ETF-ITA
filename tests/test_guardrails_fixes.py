@@ -25,15 +25,15 @@ class TestGuardrailsFixes(unittest.TestCase):
             }
         }
     
-    @patch('scripts.core.check_guardrails.duckdb.connect')
-    @patch('scripts.core.check_guardrails.get_session_manager')
+    @patch('scripts.risk.check_guardrails.duckdb.connect')
+    @patch('scripts.risk.check_guardrails.get_session_manager')
     @patch('builtins.open', create=True)
     @patch('json.load')
     def test_guardrails_status_variable_name_fix(self, mock_json, mock_open, mock_session, mock_db):
         """Verifica che venga usato guardrails_status invece di guardrails"""
         import sys
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        import scripts.core.check_guardrails as check_guardrails
+        import scripts.risk.check_guardrails as check_guardrails
         
         # Mock config
         mock_json.return_value = self.test_config
@@ -72,15 +72,15 @@ class TestGuardrailsFixes(unittest.TestCase):
             else:
                 raise
     
-    @patch('scripts.core.check_guardrails.duckdb.connect')
-    @patch('scripts.core.check_guardrails.get_session_manager')
+    @patch('scripts.risk.check_guardrails.duckdb.connect')
+    @patch('scripts.risk.check_guardrails.get_session_manager')
     @patch('builtins.open', create=True)
     @patch('json.load')
     def test_position_concentration_uses_close_prices(self, mock_json, mock_open, mock_session, mock_db):
         """Verifica che la concentrazione usi prezzi di chiusura correnti"""
         import sys
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        import scripts.core.check_guardrails as check_guardrails
+        import scripts.risk.check_guardrails as check_guardrails
         
         # Mock config
         mock_json.return_value = self.test_config
@@ -119,15 +119,15 @@ class TestGuardrailsFixes(unittest.TestCase):
         self.assertIn('close as current_price', query_text)
         self.assertIn('market_data', query_text)
     
-    @patch('scripts.core.check_guardrails.duckdb.connect')
-    @patch('scripts.core.check_guardrails.get_session_manager')
+    @patch('scripts.risk.check_guardrails.duckdb.connect')
+    @patch('scripts.risk.check_guardrails.get_session_manager')
     @patch('builtins.open', create=True)
     @patch('json.load')
     def test_market_value_calculation_consistency(self, mock_json, mock_open, mock_session, mock_db):
         """Verifica coerenza calcolo market value"""
         import sys
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        import scripts.core.check_guardrails as check_guardrails
+        import scripts.risk.check_guardrails as check_guardrails
         
         # Mock config
         mock_json.return_value = self.test_config

@@ -20,7 +20,7 @@ def test_tax_bucket_expiry():
 def _run_tax_bucket_expiry():
     """Runner che ritorna bool (per __main__)."""
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'db', 'etf_data.duckdb')
     conn = duckdb.connect(db_path)
     
     print("⏰ P1.2: Test Tax Bucket Expiry")
@@ -162,7 +162,7 @@ def _run_tax_bucket_expiry():
         
         # Salva audit log
         try:
-            from scripts.core.session_manager import get_session_manager
+            from scripts.orchestration.session_manager import get_session_manager
             sm = get_session_manager()
             audit_file = sm.add_report_to_session('analysis', audit_data, 'json')
             print(f"   📋 Audit log salvato: {audit_file}")

@@ -11,6 +11,8 @@ import tempfile
 import duckdb
 from datetime import datetime, date
 from decimal import Decimal
+from pathlib import Path
+from unittest.mock import patch
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -204,8 +206,12 @@ def _run_execute_orders_bridge():
     
     try:
         # Import e test
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts', 'core'))
-        from execute_orders import execute_orders, validate_orders_file
+        scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts')
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+
+        import trading.execute_orders as execute_orders
+        from trading.execute_orders import validate_orders_file
         
         # 1. Test validazione
         print("\n1. Test validazione file...")
@@ -238,22 +244,14 @@ def _run_execute_orders_bridge():
         json.dump(test_config, config_file, indent=2)
         config_file.close()
         
-        # Override config/db path senza sporcare globalmente la suite
-        import execute_orders
-        original_join = execute_orders.os.path.join
+        # Patch path manager per non toccare os.path.join globale
+        fake_pm = type('FakePM', (), {})()
+        fake_pm.etf_universe_path = Path(config_file.name)
+        fake_pm.db_path = Path(db_path)
 
-        def _join_override(*args):
-            # intercetta solo i path specifici del progetto
-            if any(isinstance(a, str) and a.endswith('etf_universe.json') for a in args):
-                return config_file.name
-            if any(isinstance(a, str) and a.endswith('etf_data.duckdb') for a in args):
-                return db_path
-            return original_join(*args)
-
-        execute_orders.os.path.join = _join_override
-        
         # Esegui dry-run
-        success = execute_orders.execute_orders(orders_file=orders_file.name, commit=False)
+        with patch.object(execute_orders, 'get_path_manager', return_value=fake_pm):
+            success = execute_orders.execute_orders(orders_file=orders_file.name, commit=False)
         assert success, "Dry-run fallito"
         print("✅ Dry-run OK")
         
@@ -271,7 +269,8 @@ def _run_execute_orders_bridge():
         # 4. Test commit
         print("\n4. Test commit...")
         
-        success = execute_orders.execute_orders(orders_file=orders_file.name, commit=True)
+        with patch.object(execute_orders, 'get_path_manager', return_value=fake_pm):
+            success = execute_orders.execute_orders(orders_file=orders_file.name, commit=True)
         assert success, "Commit fallito"
         print("✅ Commit OK")
         
@@ -340,7 +339,8 @@ def _run_execute_orders_bridge():
         # Count prima
         count_before = conn.execute("SELECT COUNT(*) FROM fiscal_ledger").fetchone()[0]
         
-        success = execute_orders.execute_orders(orders_file=insufficient_file.name, commit=True)
+        with patch.object(execute_orders, 'get_path_manager', return_value=fake_pm):
+            success = execute_orders.execute_orders(orders_file=insufficient_file.name, commit=True)
         assert success, "Test insufficient qty fallito"
         
         # Count dopo (non deve cambiare)
@@ -360,14 +360,6 @@ def _run_execute_orders_bridge():
         return False
         
     finally:
-        # Restore monkeypatch (critico per isolamento suite)
-        try:
-            import execute_orders
-            if 'original_join' in locals():
-                execute_orders.os.path.join = original_join
-        except Exception:
-            pass
-
         # Cleanup
         conn.close()
         import shutil

@@ -8,9 +8,8 @@ import sys
 import os
 import json
 
-# Aggiungi root e scripts al path
+# Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', 'core'))
 
 def test_positions_dict_key_fix():
     """Test che la chiave sia avg_buy_price e non avg_price"""

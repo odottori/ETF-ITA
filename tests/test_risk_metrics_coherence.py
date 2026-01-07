@@ -22,7 +22,7 @@ def _run_risk_metrics_coherence():
     print(" TEST RISK METRICS COHERENCE")
     print("=" * 50)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'db', 'etf_data.duckdb')
     
     if not os.path.exists(db_path):
         print("❌ Database non trovato")

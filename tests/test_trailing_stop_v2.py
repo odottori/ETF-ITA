@@ -15,7 +15,11 @@ import shutil
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scripts.core.trailing_stop_v2 import (
+scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts')
+if scripts_dir not in sys.path:
+    sys.path.append(scripts_dir)
+
+from risk.trailing_stop_v2 import (
     create_position_peaks_table,
     initialize_position_peak,
     update_position_peak,

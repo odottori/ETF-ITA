@@ -12,10 +12,13 @@ from datetime import datetime
 
 # Aggiungi root e scripts al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', 'core'))
 
-from strategy_engine import strategy_engine
-from implement_risk_controls import apply_position_caps, load_config
+scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts')
+if scripts_dir not in sys.path:
+    sys.path.append(scripts_dir)
+
+from trading.strategy_engine import strategy_engine
+from risk.implement_risk_controls import apply_position_caps, load_config
 
 def test_strategy_engine_fixes():
     """Test completo dei fix implementati"""
@@ -28,7 +31,7 @@ def _run_strategy_engine_fixes():
     print("🧪 STRATEGY ENGINE FIXES TEST - ETF Italia Project v10.7")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'db', 'etf_data.duckdb')
     
     if not os.path.exists(db_path):
         print("❌ Database non trovato")

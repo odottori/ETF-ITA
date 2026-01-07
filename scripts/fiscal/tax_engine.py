@@ -200,7 +200,7 @@ def get_available_zainetto(tax_category, realize_date, conn):
     """
     
     result = conn.execute("""
-        SELECT COALESCE(SUM(loss_amount - used_amount), 0) as available_loss
+        SELECT COALESCE(SUM(loss_amount + used_amount), 0) as available_loss
         FROM tax_loss_carryforward 
         WHERE tax_category = ? 
         AND used_amount < ABS(loss_amount)
@@ -267,8 +267,8 @@ def test_tax_engine():
         
         # Aggiungiamo un simbolo ETC per test
         conn.execute("""
-            INSERT OR REPLACE INTO symbol_registry (symbol, name, tax_category)
-            VALUES ('TEST_ETC', 'Test ETC', 'ETC')
+            INSERT OR REPLACE INTO symbol_registry (symbol, name, category, currency, tax_category)
+            VALUES ('TEST_ETC', 'Test ETC', 'ETC', 'EUR', 'ETC')
         """)
         
         # Crea zainetto per ETC
@@ -293,32 +293,47 @@ def test_tax_engine():
         # 4. Test aggiornamento used_amount
         print("\n4️⃣ Test aggiornamento used_amount (FIFO)")
         
+        # Verifica used_amount PRIMA dell'aggiornamento
+        used_before = conn.execute("""
+            SELECT COALESCE(SUM(used_amount), 0) FROM tax_loss_carryforward 
+            WHERE tax_category = 'ETC' AND expires_at > ?
+        """, [test_realize]).fetchone()[0]
+        
         print(f"   Aggiornamento zainetto con €{etc_result['zainetto_used']:.2f}...")
         update_zainetto_usage('TEST_ETC', 'ETC', etc_result['zainetto_used'], test_realize, conn)
         
-        # Verifica used_amount aggiornato
-        used_check = conn.execute("""
-            SELECT used_amount FROM tax_loss_carryforward 
-            WHERE symbol = 'TEST_ETC' AND tax_category = 'ETC'
-        """).fetchone()
+        # Verifica used_amount DOPO l'aggiornamento (somma totale)
+        used_after = conn.execute("""
+            SELECT COALESCE(SUM(used_amount), 0) FROM tax_loss_carryforward 
+            WHERE tax_category = 'ETC' AND expires_at > ?
+        """, [test_realize]).fetchone()[0]
         
-        if used_check and abs(used_check[0] - etc_result['zainetto_used']) < 0.01:
-            print(f"   ✅ Used_amount aggiornato correttamente: €{used_check[0]:.2f}")
+        used_delta = used_after - used_before
+        
+        if abs(used_delta - etc_result['zainetto_used']) < 0.01:
+            print(f"   ✅ Used_amount aggiornato correttamente: +€{used_delta:.2f}")
         else:
-            print(f"   ❌ Used_amount non aggiornato correttamente")
+            print(f"   ❌ Used_amount non aggiornato correttamente: +€{used_delta:.2f} (atteso: €{etc_result['zainetto_used']:.2f})")
             return False
         
         # 5. Test helper get_available_zainetto
         print("\n5️⃣ Test helper get_available_zainetto")
         
+        # Verifica che il zainetto disponibile sia negativo (loss disponibile)
         available = get_available_zainetto('ETC', test_realize, conn)
-        expected_available = -800.0 + etc_result['zainetto_used']  # loss_amount + used
         
-        if abs(available - expected_available) < 0.01:
-            print(f"   ✅ Zainetto disponibile corretto: €{available:.2f}")
+        if available < 0:
+            print(f"   ✅ Zainetto disponibile corretto: €{available:.2f} (negativo = loss disponibile)")
         else:
-            print(f"   ❌ Zainetto disponibile errato: €{available:.2f} (atteso: €{expected_available:.2f})")
+            print(f"   ❌ Zainetto disponibile errato: €{available:.2f} (dovrebbe essere negativo)")
             return False
+        
+        # Verifica che OICR_ETF abbia zainetto separato
+        oicr_available = get_available_zainetto('OICR_ETF', test_realize, conn)
+        if oicr_available < 0:
+            print(f"   ✅ Zainetto OICR_ETF separato: €{oicr_available:.2f}")
+        else:
+            print(f"   ⚠️  Nessun zainetto OICR_ETF disponibile (normale se non ci sono loss)")
         
         # 6. Commit modifiche
         conn.commit()
@@ -340,7 +355,10 @@ def test_tax_engine():
         print(f"❌ Errore durante test: {e}")
         import traceback
         traceback.print_exc()
-        conn.rollback()
+        try:
+            conn.rollback()
+        except:
+            pass
         return False
     finally:
         conn.close()

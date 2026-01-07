@@ -1,7 +1,7 @@
 # DATADICTIONARY (ETF_ITA)
 
 **Package:** v10.8 (naming canonico)  
-**Doc Revision:** r41 — 2026-01-07  
+**Doc Revision:** r42 — 2026-01-07  
 **Stato:** PRODUCTION READY v10.8  
 
 **Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
@@ -35,7 +35,7 @@
 - `scripts/backtest/`: Backtesting (backtest_engine, backtest_runner)
 - `scripts/quality/`: Data quality & health (health_check, sanity_check, spike_detector, zombie_exclusion_enforcer, data_quality_audit)
 - `scripts/risk/`: Risk management (check_guardrails, implement_risk_controls, enhanced_risk_management, diversification_guardrails, vol_targeting, trailing_stop_v2)
-- `scripts/fiscal/`: Tax & fiscal (implement_tax_logic, update_tax_loss_carryforward)
+- `scripts/fiscal/`: Tax & fiscal (tax_engine)
 - `scripts/reports/`: Reports & analysis (performance_report_generator, stress_test, production_kpi)
 - `scripts/orchestration/`: Workflow orchestration (sequence_runner, session_manager, automated_test_cycle)
 - `scripts/utils/`: Shared utilities (path_manager, market_calendar, console_utils)

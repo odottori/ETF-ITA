@@ -137,8 +137,8 @@
 - DoD: scenario test dove "fare nulla" è scelta ottimale.
 
 ### TL-3.2 Emotional Gap in summary.md
-- [🔴] TODO Calcolo PnL "puro" vs "reale" e stampa gap
-- DoD: se gap < 0, evidenza forte nel summary.
+- [🟢] **COMPLETATO** Calcolo PnL "puro" vs "reale" implementato in performance_report_generator.py
+- DoD: gap calcolato e mostrato con warning se costi elevati (>€100).
 
 ### TL-3.3 Cash-equivalent ticker (feature flag)
 - [🔴] TODO Se `cash_equivalent_enabled=true`: parcheggio liquidità su ticker monetario
@@ -174,23 +174,30 @@
 ## TL-5. Fase 5 — Schema Coherence
 
 ### TL-5.1 Schema Contract
-- [🔴] **TODO** `scripts/core/schema_contract_gate.py` (non presente)
-- DoD: single source of truth da setup_db.py, contract JSON versionato, gate bloccante
+- [🟢] **COMPLETATO** `scripts/quality/schema_contract_gate.py` implementato
+- DoD: validazione formale vs docs/schema/v003/SCHEMA_CONTRACT.json, gate bloccante con strict mode
 
 ### TL-5.2 Schema Coherence Enforcement
-- [🔴] **TODO** `scripts/core/validate_core_scripts.py` (non presente)
-- DoD: test su DB pulita, validazione coerenza tabelle, report dettagliato
+- [🟢] **COMPLETATO** Validazione integrata in schema_contract_gate.py
+- DoD: validazione tabelle/colonne/tipi vs contract, report dettagliato errori/warnings
 
 ---
 
 ## TL-6. Fase 6 — Utility & Operations
 
 ### TL-6.1 Scripts Organization
-- [🟢] **COMPLETATO** Struttura pulita con:
-  - scripts/core/: 17 file production
-  - scripts/utility/: 2 file manutenzione
-  - scripts/archive/: 0 file (pulito)
-  - tests/: suite test completa
+- [🟢] **COMPLETATO** Struttura riorganizzata v10.8 con:
+  - scripts/setup/: 2 file (setup_db, load_trading_calendar)
+  - scripts/data/: 3 file (ingest, signals, extend)
+  - scripts/trading/: 3 file (strategy, execute, ledger)
+  - scripts/backtest/: 2 file (engine, runner)
+  - scripts/quality/: 6 file (health, sanity, audit, spike, zombie, schema_gate)
+  - scripts/risk/: 6 file (guardrails, controls, enhanced, diversification, vol, trailing)
+  - scripts/fiscal/: 1 file (tax_engine)
+  - scripts/reports/: 3 file (performance, stress, production_kpi)
+  - scripts/orchestration/: 3 file (sequence, session, automated_test)
+  - scripts/utils/: 3 file (path_manager, market_calendar, console_utils)
+  - scripts/maintenance/: 3 file (update_calendar, backup_db, restore_db)
 
 ### TL-6.2 Documentation Management
 - [🟢] **COMPLETATO** Documenti canonici v003:
@@ -201,9 +208,9 @@
   - README: comandi operativi
 
 ### TL-6.3 Backup & Maintenance
-- [🔴] TODO `scripts/utility/backup_db.py` (backup pre-commit + CHECKPOINT)
-- [🔴] TODO `scripts/utility/restore_db.py` (ripristino da backup)
-- [🔴] TODO `scripts/utility/update_trading_calendar.py` (manutenzione annuale calendario)
+- [🟢] **COMPLETATO** `scripts/maintenance/backup_db.py` (backup automatico con validazione)
+- [🟢] **COMPLETATO** `scripts/maintenance/restore_db.py` (ripristino con safety backup)
+- [🟢] **COMPLETATO** `scripts/maintenance/update_market_calendar.py` (già esistente)
 
 ---
 

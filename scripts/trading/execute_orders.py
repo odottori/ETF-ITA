@@ -16,8 +16,7 @@ from decimal import Decimal, ROUND_HALF_UP
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
-from fiscal.implement_tax_logic import calculate_tax, create_tax_loss_carryforward
-from fiscal.update_tax_loss_carryforward import update_zainetto_usage
+from fiscal.tax_engine import calculate_tax, create_tax_loss_carryforward, update_zainetto_usage
 
 def check_cash_available(conn, required_cash):
     """Verifica cash disponibile prima di BUY"""

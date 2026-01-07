@@ -21,7 +21,7 @@ setup_windows_console()
 
 from orchestration.session_manager import get_session_manager
 from trading.execute_orders import check_cash_available, check_position_available
-from fiscal.implement_tax_logic import calculate_tax
+from fiscal.tax_engine import calculate_tax
 
 class BacktestEngine:
     """Motore di backtest con simulazione reale"""

@@ -11,28 +11,15 @@ import duckdb
 
 from datetime import datetime, timedelta
 import pandas as pd
-import io
 
 # Aggiungi path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
+from utils.console_utils import setup_windows_console
 
-# Windows console robustness (avoid UnicodeEncodeError on cp1252)
-if hasattr(sys.stdout, "reconfigure"):
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
-
-try:
-    if getattr(sys.stdout, "encoding", None) and sys.stdout.encoding.lower() != "utf-8":
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
-    if getattr(sys.stderr, "encoding", None) and sys.stderr.encoding.lower() != "utf-8":
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
-except Exception:
-    pass
+# Windows console robustness
+setup_windows_console()
 
 def generate_performance_report(db_path, output_dir=None):
     """
@@ -196,6 +183,26 @@ def generate_performance_report(db_path, output_dir=None):
             
             portfolio_volatility, worst_daily_ret = risk_data
             
+            # 5.5 Emotional Gap (TL-3.2)
+            print("💭 Calcolo Emotional Gap (PnL puro vs reale)...")
+            
+            # Calcola fees totali
+            total_fees = conn.execute("""
+            SELECT COALESCE(SUM(fees), 0) as total_fees
+            FROM fiscal_ledger
+            WHERE type IN ('BUY', 'SELL')
+            """).fetchone()[0]
+            
+            # PnL "puro" (senza costi/tasse)
+            pnl_pure = total_realized_pnl + (total_fees or 0) + (total_tax_paid or 0)
+            
+            # PnL "reale" (con costi/tasse)
+            pnl_real = total_realized_pnl
+            
+            # Emotional Gap
+            emotional_gap = pnl_real - pnl_pure
+            emotional_gap_pct = (emotional_gap / pnl_pure * 100) if pnl_pure != 0 else 0
+            
             # 6. Report structure
             report = {
                 'timestamp': datetime.now().isoformat(),
@@ -226,9 +233,18 @@ def generate_performance_report(db_path, output_dir=None):
                 'tax_summary': {
                     'total_realized_pnl': float(total_realized_pnl) if total_realized_pnl else 0,
                     'total_tax_paid': float(total_tax_paid) if total_tax_paid else 0,
+                    'total_fees': float(total_fees) if total_fees else 0,
                     'profitable_trades': int(profitable_trades) if profitable_trades else 0,
                     'losing_trades': int(losing_trades) if losing_trades else 0,
                     'win_rate_pct': float(profitable_trades / (profitable_trades + losing_trades) * 100) if (profitable_trades + losing_trades) > 0 else 0
+                },
+                'emotional_gap': {
+                    'pnl_pure_eur': float(pnl_pure),
+                    'pnl_real_eur': float(pnl_real),
+                    'gap_eur': float(emotional_gap),
+                    'gap_pct': float(emotional_gap_pct),
+                    'total_costs_eur': float((total_fees or 0) + (total_tax_paid or 0)),
+                    'explanation': 'Gap tra PnL teorico (senza costi) e PnL reale (con fees + tasse)'
                 }
             }
             
@@ -241,6 +257,14 @@ def generate_performance_report(db_path, output_dir=None):
             print(f"📊 Portfolio Volatility: {report['risk_metrics']['portfolio_volatility_pct']:.2f}%")
             print(f"💸 Total Tax Paid: €{report['tax_summary']['total_tax_paid']:,.2f}")
             print(f"🎯 Win Rate: {report['tax_summary']['win_rate_pct']:.1f}%")
+            
+            # Emotional Gap warning
+            print(f"\n💭 EMOTIONAL GAP ANALYSIS:")
+            print(f"   PnL Puro (senza costi): €{report['emotional_gap']['pnl_pure_eur']:,.2f}")
+            print(f"   PnL Reale (con costi):  €{report['emotional_gap']['pnl_real_eur']:,.2f}")
+            print(f"   Gap (costi totali):     €{report['emotional_gap']['gap_eur']:,.2f} ({report['emotional_gap']['gap_pct']:.1f}%)")
+            if report['emotional_gap']['gap_eur'] < -100:
+                print(f"   ⚠️  ATTENZIONE: Costi elevati impattano significativamente il rendimento!")
             
             # 8. Save report
             if not output_dir:

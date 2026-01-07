@@ -12,11 +12,48 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from itertools import chain
+import argparse
+import io
+import bisect
+import time
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def compute_signals():
+# Windows console robustness (avoid UnicodeEncodeError on cp1252)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Fallback (some Windows terminals ignore reconfigure)
+try:
+    if getattr(sys.stdout, "encoding", None) and sys.stdout.encoding.lower() != "utf-8":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+    if getattr(sys.stderr, "encoding", None) and sys.stderr.encoding.lower() != "utf-8":
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+except Exception:
+    pass
+
+PRESET_PERIODS = {
+    'full': ('DYNAMIC', 'DYNAMIC'),
+    'recent': ('DYNAMIC', 'DYNAMIC'),
+    'covid': ('2020-01-01', '2021-12-31'),
+    'gfc': ('2007-01-01', '2010-12-31'),
+    'eurocrisis': ('2011-01-01', '2013-12-31'),
+    'inflation2022': ('2021-10-01', '2023-03-31'),
+}
+
+
+def _parse_date(s):
+    if s is None:
+        return None
+    return datetime.strptime(s, '%Y-%m-%d').date()
+
+
+def compute_signals(start_date=None, end_date=None, preset=None, lookback_days=60, recent_days=365):
     """Calcola segnali per universo ETF"""
     
     print(" COMPUTE SIGNALS - ETF Italia Project v10")
@@ -74,43 +111,106 @@ def compute_signals():
             print(f" Bond symbols added: {bond_symbols}")
         
         print(f" Processing symbols: {symbols}")
+
+        # Pre-build Spy Guard cache (massive speedup on FULL/ALL)
+        spy_guard_cache = _build_spy_guard_cache(conn, config)
         
         # 3. Calcola segnali per ogni simbolo
         total_signals = 0
         
+        # Resolve range (static presets here; dynamic presets handled per-symbol)
+        if preset and preset not in ('full', 'recent'):
+            if preset not in PRESET_PERIODS:
+                raise ValueError(f"Preset non valido: {preset}. Validi: {list(PRESET_PERIODS.keys())}")
+            preset_start, preset_end = PRESET_PERIODS[preset]
+            start_date = _parse_date(preset_start)
+            end_date = _parse_date(preset_end)
+
         for symbol in symbols:
             print(f"\n Computing signals for {symbol}")
             
-            # Ottieni dati recenti con metriche
-            metrics_query = """
-            SELECT 
-                date,
-                adj_close,
-                sma_200,
-                volatility_20d,
-                drawdown_pct,
-                daily_return
-            FROM risk_metrics 
-            WHERE symbol = ?
-            ORDER BY date DESC
-            LIMIT 60
-            """
-            
-            df = conn.execute(metrics_query, [symbol]).fetchdf()
-            
+            # Resolve per-symbol dynamic presets
+            local_start = start_date
+            local_end = end_date
+
+            if preset == 'full':
+                min_max = conn.execute(
+                    "SELECT MIN(date) as min_date, MAX(date) as max_date FROM risk_metrics WHERE symbol = ?",
+                    [symbol],
+                ).fetchone()
+                if min_max:
+                    local_start, local_end = min_max
+            elif preset == 'recent':
+                max_date = conn.execute(
+                    "SELECT MAX(date) FROM risk_metrics WHERE symbol = ?",
+                    [symbol],
+                ).fetchone()[0]
+                if max_date is not None:
+                    local_end = max_date
+                    local_start = local_end - timedelta(days=int(recent_days))
+
+            # Ottieni dati con metriche (default: finestra recente; oppure range esplicito)
+            if local_start is not None and local_end is not None:
+                metrics_query = """
+                SELECT 
+                    date,
+                    adj_close,
+                    sma_200,
+                    volatility_20d,
+                    drawdown_pct,
+                    daily_return
+                FROM risk_metrics 
+                WHERE symbol = ?
+                  AND date BETWEEN ? AND ?
+                ORDER BY date ASC
+                """
+                df = conn.execute(metrics_query, [symbol, local_start, local_end]).fetchdf()
+            else:
+                metrics_query = """
+                SELECT 
+                    date,
+                    adj_close,
+                    sma_200,
+                    volatility_20d,
+                    drawdown_pct,
+                    daily_return
+                FROM risk_metrics 
+                WHERE symbol = ?
+                ORDER BY date DESC
+                LIMIT ?
+                """
+                df = conn.execute(metrics_query, [symbol, int(lookback_days)]).fetchdf()
+
             if df.empty:
                 print(f"   ️ No data available for {symbol}")
                 continue
+
+            # Se query era DESC (default), rimetti in ASC per calcolo coerente
+            df = df.sort_values('date')
             
             # Calcola segnali per ogni data
             signals_data = []
-            
-            for idx, row in df.iterrows():
-                signal_date = row['date']
-                current_price = row['adj_close']
-                sma_200 = row['sma_200']
-                volatility_20d = row['volatility_20d']
-                drawdown_pct = row['drawdown_pct']
+
+            # Pre-build entry price cache (avoid per-row ledger queries)
+            entry_price_at_date = _build_entry_price_at_date(conn, symbol)
+
+            total_rows = len(df)
+            loop_start_ts = time.time()
+            last_heartbeat_ts = loop_start_ts
+
+            for i, row in enumerate(df.itertuples(index=False), start=1):
+                # Progress line every 1000 rows
+                if i % 1000 == 0:
+                    now = time.time()
+                    pct = (i / total_rows) * 100 if total_rows else 0
+                    elapsed = now - loop_start_ts
+                    print(f"    progress: {i}/{total_rows} ({pct:.1f}%) elapsed={elapsed:.1f}s", flush=True)
+
+                signal_date = row.date
+                current_price = row.adj_close
+                sma_200 = row.sma_200
+                volatility_20d = row.volatility_20d
+                drawdown_pct = row.drawdown_pct
                 
                 # Inizializza variabili segnale
                 signal_state = 'HOLD'
@@ -129,14 +229,14 @@ def compute_signals():
                         explain_code = 'TREND_DOWN_SMA200'
                 
                 # 3.5 Entry-Aware Stop-Loss Check (after trend but before other filters)
-                entry_price = check_position_entry_price(conn, symbol, signal_date)
+                entry_price = entry_price_at_date(signal_date)
                 if entry_price:
                     stop_action, stop_reason = check_entry_aware_stop_loss(config, symbol, current_price, entry_price, volatility_20d)
                     if stop_action:
                         signal_state = stop_action
                         explain_code = stop_reason
                         risk_scalar = 0.0
-                        print(f"    🛑 Entry-aware stop-loss: {stop_reason}")
+                        print(f"    STOP entry-aware: {stop_reason}")
 
                 # 3.6 Volatility Regime Filter
                 if pd.notna(volatility_20d):
@@ -164,7 +264,7 @@ def compute_signals():
                             explain_code += '_DD_ADJ'
                 
                 # 3.8 Spy Guard (per tutti i simboli)
-                spy_guard_active = check_spy_guard(conn, signal_date, config)
+                spy_guard_active = _spy_guard_active_from_cache(spy_guard_cache, signal_date)
                 spy_guard = spy_guard_active
                 
                 if spy_guard_active:
@@ -221,10 +321,27 @@ def compute_signals():
                         datetime.now()
                     ))
                 
-                # Usa INSERT OR REPLACE per gestire duplicati automaticamente
+                # DuckDB richiede un target esplicito per DO UPDATE quando esistono più vincoli UNIQUE/PK
                 conn.executemany("""
-                INSERT OR REPLACE INTO signals (id, date, symbol, signal_state, risk_scalar, explain_code, sma_200, volatility_20d, spy_guard, regime_filter, created_at)
+                INSERT INTO signals (id, date, symbol, signal_state, risk_scalar, explain_code, sma_200, volatility_20d, spy_guard, regime_filter, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (date, symbol) DO UPDATE SET
+                    signal_state = excluded.signal_state,
+                    risk_scalar = excluded.risk_scalar,
+                    explain_code = excluded.explain_code,
+                    sma_200 = excluded.sma_200,
+                    volatility_20d = excluded.volatility_20d,
+                    spy_guard = excluded.spy_guard,
+                    regime_filter = excluded.regime_filter,
+                    created_at = excluded.created_at
+                WHERE
+                    signals.signal_state IS DISTINCT FROM excluded.signal_state
+                    OR signals.risk_scalar IS DISTINCT FROM excluded.risk_scalar
+                    OR signals.explain_code IS DISTINCT FROM excluded.explain_code
+                    OR signals.sma_200 IS DISTINCT FROM excluded.sma_200
+                    OR signals.volatility_20d IS DISTINCT FROM excluded.volatility_20d
+                    OR signals.spy_guard IS DISTINCT FROM excluded.spy_guard
+                    OR signals.regime_filter IS DISTINCT FROM excluded.regime_filter
                 """, signals_to_insert)
                 
                 print(f"    {symbol}: {len(signals_data)} signals upserted")
@@ -250,8 +367,13 @@ def compute_signals():
             emoji = "" if state == "RISK_ON" else "" if state == "RISK_OFF" else ""
             guard_emoji = "️" if spy_guard else ""
             
+            # Handle None values safely
+            explain_str = explain if explain else "N/A"
+            vol_str = f"{vol:.1%}" if vol is not None else "N/A"
+            regime_str = regime if regime else "N/A"
+            
             print(f"{emoji} {symbol}: {state} (scalar: {scalar:.3f}) {guard_emoji}")
-            print(f"    {explain} | Vol: {vol:.1%} | Regime: {regime}")
+            print(f"    {explain_str} | Vol: {vol_str} | Regime: {regime_str}")
         
         # 5. Summary statistics
         print(f"\n SIGNALS SUMMARY")
@@ -291,6 +413,110 @@ def compute_signals():
         
     finally:
         conn.close()
+
+
+def _build_spy_guard_cache(conn, config):
+    """Preload SPY guard series once (avoid per-row DB queries)."""
+    if not config.get('risk_management', {}).get('spy_guard_enabled', False):
+        return None
+
+    try:
+        df_spy = conn.execute(
+            """
+            SELECT date, adj_close, sma_200
+            FROM risk_metrics
+            WHERE symbol = '^GSPC'
+            ORDER BY date ASC
+            """
+        ).fetchdf()
+
+        if df_spy.empty:
+            return None
+
+        # Keep only rows with SMA
+        df_spy = df_spy[pd.notna(df_spy['sma_200'])].copy()
+        if df_spy.empty:
+            return None
+
+        # Convert dates to python date
+        dates = [d.date() if hasattr(d, 'date') else d for d in df_spy['date'].tolist()]
+        bear_flags = [(float(ac) < float(sma)) for ac, sma in zip(df_spy['adj_close'].tolist(), df_spy['sma_200'].tolist())]
+        return (dates, bear_flags)
+    except Exception:
+        return None
+
+
+def _spy_guard_active_from_cache(cache, signal_date):
+    if cache is None:
+        return False
+
+    dates, flags = cache
+    if signal_date is None:
+        return False
+
+    d = signal_date.date() if hasattr(signal_date, 'date') else signal_date
+    pos = bisect.bisect_right(dates, d) - 1
+    if pos < 0:
+        return False
+    return bool(flags[pos])
+
+
+def _build_entry_price_at_date(conn, symbol):
+    """Build O(N) entry price lookup using one ledger scan (avoid per-row DB queries)."""
+
+    try:
+        events = conn.execute(
+            """
+            SELECT date, type, qty, price
+            FROM fiscal_ledger
+            WHERE symbol = ? AND type IN ('BUY', 'SELL')
+            ORDER BY date ASC
+            """,
+            [symbol],
+        ).fetchall()
+    except Exception:
+        events = []
+
+    # Fast path: no events => always None
+    if not events:
+        def _none(_d):
+            return None
+        return _none
+
+    # Two-pointer over events
+    j = 0
+    qty = 0.0
+    avg_price = 0.0
+
+    def _advance_to(d):
+        nonlocal j, qty, avg_price
+
+        dd = d.date() if hasattr(d, 'date') else d
+        while j < len(events):
+            ev_date, ev_type, ev_qty, ev_price = events[j]
+            ev_d = ev_date.date() if hasattr(ev_date, 'date') else ev_date
+            if ev_d > dd:
+                break
+
+            q = float(ev_qty)
+            p = float(ev_price)
+
+            if ev_type == 'BUY':
+                new_qty = qty + q
+                if new_qty > 0:
+                    avg_price = ((avg_price * qty) + (p * q)) / new_qty if qty > 0 else p
+                qty = new_qty
+            else:  # SELL
+                qty = qty - q
+                if qty <= 0:
+                    qty = 0.0
+                    avg_price = 0.0
+
+            j += 1
+
+        return avg_price if qty > 0 else None
+
+    return _advance_to
 
 def check_position_entry_price(conn, symbol, date):
     """Ottiene prezzo di entrata per posizione esistente"""
@@ -368,5 +594,36 @@ def check_spy_guard(conn, date, config):
     return False
 
 if __name__ == "__main__":
-    success = compute_signals()
+    parser = argparse.ArgumentParser(description='Compute Signals - ETF Italia Project')
+    parser.add_argument('--start-date', type=str, default=None, help='Data inizio (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, default=None, help='Data fine (YYYY-MM-DD)')
+    parser.add_argument('--preset', type=str, default=None, help=f"Preset periodo: {list(PRESET_PERIODS.keys())}")
+    parser.add_argument('--lookback-days', type=int, default=60, help='Default window size quando non si usa range/preset')
+    parser.add_argument('--recent-days', type=int, default=365, help='Finestra giorni per preset recent (rolling)')
+    parser.add_argument('--all', action='store_true', help='Esegui signals per full + recent + periodi critici (presets)')
+    args = parser.parse_args()
+
+    start_date = _parse_date(args.start_date)
+    end_date = _parse_date(args.end_date)
+
+    if args.all:
+        preset_order = ['full', 'recent', 'gfc', 'eurocrisis', 'covid', 'inflation2022']
+        preset_order = [p for p in preset_order if p in PRESET_PERIODS]
+        ok_all = True
+        for p in preset_order:
+            print("\n" + "=" * 60)
+            print(f"ALL MODE - preset={p}")
+            print("=" * 60)
+            ok_all = compute_signals(preset=p, lookback_days=args.lookback_days, recent_days=args.recent_days) and ok_all
+            # Small delay to ensure DB lock is released on Windows
+            time.sleep(0.5)
+        success = ok_all
+    else:
+        success = compute_signals(
+            start_date=start_date,
+            end_date=end_date,
+            preset=args.preset,
+            lookback_days=args.lookback_days,
+            recent_days=args.recent_days,
+        )
     sys.exit(0 if success else 1)

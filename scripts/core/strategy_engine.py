@@ -107,7 +107,14 @@ def strategy_engine(dry_run=True, commit=False):
                 continue
             
             current_price = current_prices[symbol]['close']
-            current_vol = current_prices[symbol]['volatility_20d']
+            current_vol = current_prices[symbol].get('volatility_20d')
+            if current_vol is None:
+                # Default conservativo per evitare crash e mantenere cost model stabile
+                current_vol = 0.15
+            
+            if current_price is None:
+                print(f"️ {symbol}: Prezzo close mancante")
+                continue
             
             # 6.1 Check stop-loss/trailing stop PRIMA di qualsiasi decisione
             stop_action, stop_reason = check_stop_loss_trailing_stop(config, symbol, current_price, positions_dict)
@@ -291,6 +298,7 @@ def strategy_engine(dry_run=True, commit=False):
                     
                     # Costi vendita
                     position_value = qty * current_price
+                    commission_pct = config['universe']['core'][0]['cost_model']['commission_pct']
                     commission = position_value * commission_pct
                     if position_value < 1000:
                         commission = max(5.0, commission)
@@ -380,7 +388,7 @@ def strategy_engine(dry_run=True, commit=False):
                 emoji = "" if order['action'] == 'BUY' else "" if order['action'] == 'SELL' else ""
                 print(f"{emoji} {order['symbol']}: {order['action']} {order['qty']:.0f} @ €{order['price']:.2f}")
                 print(f"    {order['reason']} | Costi: €{order['fees_est'] + order['tax_friction_est']:.2f}")
-                print(f"    {order['recommendation']} | Do-nothing: {order['do_nothing_score']:.3f}")
+                print(f"    {order['recommendation']} | Trade score: {order['trade_score']:.3f}")
         
         return True
         

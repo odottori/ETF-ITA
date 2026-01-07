@@ -13,6 +13,9 @@ import duckdb
 import requests
 from datetime import datetime, timedelta
 import hashlib
+import argparse
+import time
+from typing import Optional, Tuple, Dict, List
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,16 +26,40 @@ def get_config():
     with open(config_path, 'r') as f:
         return json.load(f)
 
-def download_stooq_data(symbol, start_date, end_date):
+def download_investing_com_data(symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
+    """Download dati da Investing.com come fallback (via web scraping leggero)"""
+    try:
+        # Mapping simboli Milano → Investing.com
+        investing_map = {
+            'CSSPX.MI': 'ishares-core-s-p-500',
+            'XS2L.MI': 'xtrackers-s-p-500-2x-leveraged-daily',
+            'AGGH.MI': 'ishares-global-aggregate-bond'
+        }
+        
+        if symbol not in investing_map:
+            return None
+        
+        print(f"    Tentativo download Investing.com per {symbol}...")
+        # Nota: implementazione placeholder - richiede API key o scraping
+        # Per ora ritorna None, da implementare con provider premium
+        print(f"    Investing.com: non implementato (richiede API key)")
+        return None
+        
+    except Exception as e:
+        print(f"    Errore Investing.com: {e}")
+        return None
+
+def download_stooq_data(symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
     """Download dati da Stooq.com come fallback"""
     try:
-        # Converti simbolo per Stooq (es. XS2L.MI -> xs2l.mi)
+        # Converti simbolo per Stooq (es. XS2L.MI → xs2lmi)
         stooq_symbol = symbol.lower().replace('.', '')
         
         # Stooq API - formato CSV con data range
         url = f"https://stooq.com/q/l/?s={stooq_symbol}&i=d"
         
         print(f"    Tentativo download Stooq per {symbol}...")
+        time.sleep(0.5)  # Rate limiting
         response = requests.get(url, timeout=30)
         
         if response.status_code == 200 and response.text.strip():
@@ -79,14 +106,42 @@ def download_stooq_data(symbol, start_date, end_date):
         print(f"    Errore Stooq: {e}")
         return None
 
-def validate_data_quality(df, symbol):
+def load_manual_csv_data(symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
+    """Carica dati da CSV manuale come ultimo fallback"""
+    try:
+        csv_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            'data', 'manual', f'{symbol}.csv'
+        )
+        
+        if not os.path.exists(csv_path):
+            return None
+        
+        print(f"    Caricamento CSV manuale per {symbol}...")
+        df = pd.read_csv(csv_path, parse_dates=['Date'], index_col='Date')
+        
+        # Filtra per range date
+        df = df[(df.index.date >= start_date) & (df.index.date <= end_date)]
+        
+        if not df.empty:
+            print(f"    CSV manuale: {len(df)} record caricati")
+            return df
+        
+        return None
+        
+    except Exception as e:
+        print(f"    Errore CSV manuale: {e}")
+        return None
+
+def validate_data_quality(df, symbol: str) -> Tuple[Dict, pd.DataFrame]:
     """Validazione quality gates su dati"""
     
     validation_results = {
         'total_records': len(df),
         'accepted_records': 0,
         'rejected_records': 0,
-        'rejection_reasons': []
+        'rejection_reasons': [],
+        'coverage_pct': 0.0
     }
     
     if df.empty:
@@ -125,9 +180,75 @@ def validate_data_quality(df, symbol):
     validation_results['accepted_records'] = len(valid_df)
     validation_results['rejected_records'] = validation_results['total_records'] - validation_results['accepted_records']
     
+    # Calcola coverage %
+    if validation_results['total_records'] > 0:
+        validation_results['coverage_pct'] = (validation_results['accepted_records'] / validation_results['total_records']) * 100
+    
     return validation_results, valid_df
 
-def ingest_data():
+def download_with_fallback(symbol: str, start_date, end_date) -> Tuple[Optional[pd.DataFrame], str]:
+    """Download multi-source con fallback automatico: YF → Stooq → Investing.com → CSV"""
+    
+    sources = [
+        ('YF', lambda: yf.Ticker(symbol).history(start=start_date, end=end_date)),
+        ('Stooq', lambda: download_stooq_data(symbol, start_date, end_date)),
+        ('Investing.com', lambda: download_investing_com_data(symbol, start_date, end_date)),
+        ('CSV Manual', lambda: load_manual_csv_data(symbol, start_date, end_date))
+    ]
+    
+    for source_name, download_func in sources:
+        try:
+            if source_name == 'YF':
+                print(f"   Download {source_name} {start_date} → {end_date}")
+            
+            data = download_func()
+            
+            if data is not None and not data.empty and len(data) >= 10:
+                if source_name != 'YF':
+                    print(f"    {source_name}: {len(data)} record scaricati")
+                return data, source_name
+            elif source_name == 'YF' and (data is None or data.empty or len(data) < 10):
+                print(f"   ️ {source_name} dati insufficienti ({len(data) if data is not None else 0} record)")
+        
+        except Exception as e:
+            print(f"    Errore {source_name}: {e}")
+            continue
+    
+    return None, 'NONE'
+
+def analyze_gaps(conn, symbol: str, start_date, end_date) -> Dict:
+    """Analizza gap temporali nei dati per un simbolo"""
+    
+    result = conn.execute("""
+    WITH date_series AS (
+        SELECT UNNEST(generate_series(
+            ?::DATE,
+            ?::DATE,
+            INTERVAL '1 day'
+        ))::DATE as expected_date
+    ),
+    actual_dates AS (
+        SELECT date FROM market_data WHERE symbol = ?
+    )
+    SELECT 
+        COUNT(DISTINCT ds.expected_date) as expected_days,
+        COUNT(DISTINCT ad.date) as actual_days,
+        COUNT(DISTINCT ds.expected_date) - COUNT(DISTINCT ad.date) as missing_days
+    FROM date_series ds
+    LEFT JOIN actual_dates ad ON ds.expected_date = ad.date
+    """, [start_date, end_date, symbol]).fetchone()
+    
+    expected, actual, missing = result
+    coverage_pct = (actual / expected * 100) if expected > 0 else 0
+    
+    return {
+        'expected_days': expected,
+        'actual_days': actual,
+        'missing_days': missing,
+        'coverage_pct': coverage_pct
+    }
+
+def ingest_data(start_date_override=None, end_date_override=None, full_refresh=False):
     """Ingestione completa dati di mercato"""
     
     config = get_config()
@@ -160,31 +281,35 @@ def ingest_data():
                 # Download dati yfinance
                 ticker = yf.Ticker(symbol)
                 
-                # Ultima data nel database per questo simbolo
-                last_date_query = "SELECT MAX(date) FROM market_data WHERE symbol = ?"
-                last_date = conn.execute(last_date_query, [symbol]).fetchone()[0]
-                
                 # Calcola range date
-                end_date = datetime.now().date()
-                if last_date:
+                end_date = end_date_override or datetime.now().date()
+
+                if full_refresh:
+                    conn.execute("DELETE FROM market_data WHERE symbol = ?", [symbol])
+                    conn.execute("DELETE FROM staging_data WHERE symbol = ?", [symbol])
+                    last_date = None
+                else:
+                    # Ultima data nel database per questo simbolo
+                    last_date_query = "SELECT MAX(date) FROM market_data WHERE symbol = ?"
+                    last_date = conn.execute(last_date_query, [symbol]).fetchone()[0]
+
+                if start_date_override is not None:
+                    start_date = start_date_override
+                elif last_date:
                     start_date = last_date + timedelta(days=1)
                 else:
                     start_date = end_date - timedelta(days=365)  # 1 anno di dati iniziali
+
+                if start_date > end_date:
+                    print(f"   ️ Range date vuoto: {start_date} → {end_date} (skip)")
+                    continue
                 
-                # Download primario Yahoo Finance
-                print(f"   Download YF {start_date} → {end_date}")
-                hist = ticker.history(start=start_date, end=end_date)
+                # Download multi-source con fallback automatico
+                hist, source_used = download_with_fallback(symbol, start_date, end_date)
                 
-                # Se YF fallisce o dati insufficienti, prova Stooq
-                if hist.empty or len(hist) < 10:
-                    print(f"   ️ YF dati insufficienti ({len(hist)} record)")
-                    stooq_data = download_stooq_data(symbol, start_date, end_date)
-                    if stooq_data is not None and not stooq_data.empty:
-                        hist = stooq_data
-                        print(f"    Usati dati Stooq: {len(hist)} record")
-                    else:
-                        print(f"    Nessun dato disponibile da nessuna fonte")
-                        continue
+                if hist is None or hist.empty:
+                    print(f"    Nessun dato disponibile da nessuna fonte")
+                    continue
                 
                 # Validazione quality gates
                 validation_results, valid_df = validate_data_quality(hist, symbol)
@@ -197,27 +322,41 @@ def ingest_data():
                     print(f"   ️ Rejection reasons: {', '.join(validation_results['rejection_reasons'])}")
                     all_rejection_reasons.extend(validation_results['rejection_reasons'])
                 
-                # Se troppi respinti (>15%), prova Stooq per recuperare
-                if validation_results['rejected_records'] > 0 and validation_results['rejected_records'] / validation_results['total_records'] > 0.15:
-                    print(f"    Troppe rejections ({validation_results['rejected_records']}/{validation_results['total_records']}), provo Stooq...")
-                    stooq_fallback = download_stooq_data(symbol, start_date, end_date)
+                # Auto-recovery: se rejection > 10% e source era YF, prova altre fonti
+                if (source_used == 'YF' and 
+                    validation_results['rejected_records'] > 0 and 
+                    validation_results['rejected_records'] / validation_results['total_records'] > 0.10):
                     
-                    if stooq_fallback is not None and not stooq_fallback.empty:
-                        # Validazione dati Stooq
-                        stooq_validation, stooq_valid = validate_data_quality(stooq_fallback, symbol)
+                    print(f"    Alta rejection rate ({validation_results['coverage_pct']:.1f}% coverage), tento fonti alternative...")
+                    
+                    # Prova fonti alternative in ordine
+                    for alt_source in ['Stooq', 'Investing.com', 'CSV Manual']:
+                        alt_data = None
                         
-                        if stooq_validation['accepted_records'] > validation_results['accepted_records']:
-                            print(f"    Stooq migliore: {stooq_validation['accepted_records']} vs {validation_results['accepted_records']}")
-                            valid_df = stooq_valid
-                            validation_results = stooq_validation
-                            all_rejection_reasons.append(f"Used Stooq fallback for {symbol}")
+                        if alt_source == 'Stooq':
+                            alt_data = download_stooq_data(symbol, start_date, end_date)
+                        elif alt_source == 'Investing.com':
+                            alt_data = download_investing_com_data(symbol, start_date, end_date)
+                        elif alt_source == 'CSV Manual':
+                            alt_data = load_manual_csv_data(symbol, start_date, end_date)
+                        
+                        if alt_data is not None and not alt_data.empty:
+                            alt_validation, alt_valid = validate_data_quality(alt_data, symbol)
+                            
+                            if alt_validation['coverage_pct'] > validation_results['coverage_pct']:
+                                print(f"    {alt_source} migliore: {alt_validation['coverage_pct']:.1f}% vs {validation_results['coverage_pct']:.1f}%")
+                                valid_df = alt_valid
+                                validation_results = alt_validation
+                                source_used = alt_source
+                                all_rejection_reasons.append(f"Auto-recovery: used {alt_source} for {symbol}")
+                                break
                 
                 # Insert in staging table
                 if not valid_df.empty:
                     # Prepara dati per staging
                     staging_df = valid_df.reset_index()
                     staging_df['symbol'] = symbol
-                    staging_df['source'] = 'YF'
+                    staging_df['source'] = source_used
                     
                     # Rinomina colonne per DB
                     staging_df = staging_df.rename(columns={
@@ -290,9 +429,21 @@ def ingest_data():
         
         conn.commit()
         
+        # Post-ingestion quality metrics
         print(f"\n Ingestion completata!")
         print(f" Totali: {total_accepted} record accettati, {total_rejected} record respinti")
-        print(f" Run ID: {run_id}")
+        
+        if total_accepted + total_rejected > 0:
+            overall_coverage = (total_accepted / (total_accepted + total_rejected)) * 100
+            print(f" Coverage globale: {overall_coverage:.1f}%")
+        
+        # Gap analysis per simbolo
+        print(f"\n Gap Analysis:")
+        for symbol in symbols:
+            gap_info = analyze_gaps(conn, symbol, start_date_override or (end_date - timedelta(days=365)), end_date)
+            print(f"   {symbol}: {gap_info['actual_days']}/{gap_info['expected_days']} giorni ({gap_info['coverage_pct']:.1f}% coverage, {gap_info['missing_days']} gap)")
+        
+        print(f"\n Run ID: {run_id}")
         
         return True
         
@@ -304,9 +455,15 @@ def ingest_data():
     finally:
         conn.close()
 
-def main():
-    success = ingest_data()
-    sys.exit(0 if success else 1)
-
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='Ingestione dati - ETF Italia Project')
+    parser.add_argument('--start-date', type=str, default=None, help='Data inizio (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, default=None, help='Data fine (YYYY-MM-DD)')
+    parser.add_argument('--full-refresh', action='store_true', help='Reingest completa per simbolo (cancella market_data per symbol)')
+    args = parser.parse_args()
+
+    start_date_override = datetime.strptime(args.start_date, '%Y-%m-%d').date() if args.start_date else None
+    end_date_override = datetime.strptime(args.end_date, '%Y-%m-%d').date() if args.end_date else None
+
+    success = ingest_data(start_date_override=start_date_override, end_date_override=end_date_override, full_refresh=args.full_refresh)
+    sys.exit(0 if success else 1)

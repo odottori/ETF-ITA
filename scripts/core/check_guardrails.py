@@ -60,7 +60,11 @@ def check_guardrails():
         
         if high_vol_symbols:
             print(f" HIGH VOLATILITY ALERT (> {vol_breaker:.0%}):")
-            for symbol, vol in high_vol_symbols:
+            for row in high_vol_symbols:
+                symbol = row[0]
+                vol = row[1] if len(row) > 1 else None
+                if vol is None:
+                    continue
                 print(f"  {symbol}: {vol:.1%}")
                 guardrails_status['alerts'].append(f"High volatility: {symbol} {vol:.1%}")
             
@@ -82,11 +86,21 @@ def check_guardrails():
             FROM risk_metrics 
             WHERE symbol = '^GSPC' AND date = (SELECT MAX(date) FROM risk_metrics WHERE symbol = '^GSPC')
             """).fetchone()
-            
-            if spy_data and spy_data[0] < spy_data[1]:
+
+            spy_close = None
+            spy_sma = None
+            try:
+                if spy_data and spy_data[0] is not None and spy_data[1] is not None:
+                    spy_close = float(spy_data[0])
+                    spy_sma = float(spy_data[1])
+            except Exception:
+                spy_close = None
+                spy_sma = None
+
+            if spy_close is not None and spy_sma is not None and spy_close < spy_sma:
                 print(f" SPY GUARD ACTIVE (S&P 500 < SMA 200)")
-                print(f"  S&P 500: €{spy_data[0]:.2f} | SMA 200: €{spy_data[1]:.2f}")
-                print(f"  Ratio: {spy_data[0]/spy_data[1]:.3f}")
+                print(f"  S&P 500: €{spy_close:.2f} | SMA 200: €{spy_sma:.2f}")
+                print(f"  Ratio: {spy_close/spy_sma:.3f}")
                 
                 guardrails_status['alerts'].append("Spy Guard active - bear market detected")
                 guardrails_status['recommendations'].append("Consider defensive positioning or cash allocation")
@@ -122,7 +136,11 @@ def check_guardrails():
         
         if low_risk_signals:
             print(f" LOW RISK SCALAR (< {risk_floor:.1f}):")
-            for symbol, scalar in low_risk_signals:
+            for row in low_risk_signals:
+                symbol = row[0]
+                scalar = row[1] if len(row) > 1 else None
+                if scalar is None:
+                    continue
                 print(f"  {symbol}: {scalar:.3f}")
                 guardrails_status['warnings'].append(f"Low risk scalar: {symbol} {scalar:.3f}")
         else:

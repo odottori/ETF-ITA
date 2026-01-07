@@ -258,6 +258,7 @@ def setup_database():
                 AVG(CASE WHEN type = 'BUY' THEN price ELSE NULL END) as avg_buy_price
             FROM fiscal_ledger 
             WHERE type IN ('BUY', 'SELL')
+              AND run_type = 'PRODUCTION'
             GROUP BY symbol
             HAVING SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) != 0
         ),
@@ -270,6 +271,7 @@ def setup_database():
                 ELSE 0 
             END), 0) as cash
             FROM fiscal_ledger
+            WHERE run_type = 'PRODUCTION'
         )
         SELECT 
             cp.symbol,

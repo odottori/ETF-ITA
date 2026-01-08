@@ -202,6 +202,8 @@ def strategy_engine(dry_run=True, commit=False):
                         'price': current_price,
                         'reason': f'REBALANCE_{weight_deviation:.1%}_DEVIATION',
                         'momentum_score': 0.0,
+                        'fees_est': commission + slippage,
+                        'tax_friction_est': 0.0,
                         'trade_score': -1.0,  # Force rebalancing
                         'recommendation': 'TRADE'
                     })
@@ -348,6 +350,8 @@ def strategy_engine(dry_run=True, commit=False):
                     'price': current_price,
                     'reason': explain_code,
                     'momentum_score': 0.0,
+                    'fees_est': 0.0,
+                    'tax_friction_est': 0.0,
                     'trade_score': 1.0,
                     'recommendation': 'HOLD'
                 })

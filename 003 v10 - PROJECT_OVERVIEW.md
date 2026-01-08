@@ -8,8 +8,8 @@ Costruire un sistema EOD "smart retail" per residenti italiani, focalizzato su:
 - disciplina decisionale (Signal Engine oggettivo)
 
 ## 1.1 Stato Sistema
-- **Stato Sistema**: BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production)
-- **Version**: r40 — 2026-01-07
+- **Stato Sistema**: BACKTEST-READY v10.8.3 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING
+- **Version**: r43 — 2026-01-08
 
 **Stato Reale**: Sistema robusto per backtest e decision support con human-in-the-loop. Non ancora autonomous production.
 
@@ -73,7 +73,7 @@ Gate reali (script esistenti nel repo):
 - RF-05: ✅ Strategy engine V2 TWO-PASS (strategy_engine_v2.py)
 - RF-06: ✅ Ledger fiscale con PMC (fiscal_ledger 26 colonne)
 - RF-07: ✅ Run Package serializzato (session_manager.py)
-- RF-08: ✅ Stress test (stress_test.py)
+- RF-08: ✅ Portfolio risk monitor (portfolio_risk_monitor.py) + Monte Carlo gate (monte_carlo_stress_test.py)
 - RF-09: ✅ Sanity check bloccante (sanity_check.py)
 - RF-10: ✅ Session manager (session_manager.py)
 - RF-11: ✅ Benchmark after-tax (risk_metrics vista)

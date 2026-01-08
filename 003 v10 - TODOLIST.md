@@ -1,9 +1,9 @@
 # TODOLIST - Implementation Plan (ETF_ITA)
 
-**Package:** v10.8.0 (naming canonico)  
-**Doc Revision:** r40 — 2026-01-07  
+**Package:** v10.8.3 (naming canonico)  
+**Doc Revision:** r43 — 2026-01-08  
 **Baseline produzione:** EUR / ACC  
-**System Status:** BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production)  
+**System Status:** BACKTEST-READY v10.8.3 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING  
 **Backtest Engine:** EVENT-DRIVEN (day-by-day, SELL→BUY priority, cash management realistico)  
 **Strategy Engine V2:** TWO-PASS (Exit → Cash Update → Entry con ranking candidati)  
 **Holding Period:** DINAMICO (5-30 giorni, logica invertita momentum)  
@@ -11,7 +11,7 @@
 **Pre-Trade Controls:** HARD CHECKS (cash e position verification prima di ledger write)  
 **Fiscal Engine:** COMPLETO (zainetto per categoria fiscale, scadenza 31/12+4 anni)  
 **Auto-Update:** PROATTIVO (ingest + compute automatico, data freshness check)  
-**Market Calendar:** INTELLIGENTE (festività + auto-healing chiusure eccezionali)  
+**Market Calendar:** INTELLIGENTE + CALENDAR HEALING (festività + auto-healing data quality con retry)  
 **Schema DB:** 19 tabelle (15 tabelle + 4 viste) - 100% documentato  
 **Schema Coherence:** VERIFIED BY test_schema_validation.py (contract validation)  
 **Schema Contract:** VERIFIED BY docs/schema/SCHEMA_CONTRACT.json (v003)
@@ -44,13 +44,14 @@
 | EP-09 | `scripts/orchestration/run_complete_cycle.py --dry-run` | Ciclo completo simulato | DIPF §8.3 | [🟡] CANDIDATE |
 | EP-10 | `scripts/orchestration/run_complete_cycle.py --commit` | Ciclo completo esecuzione | DIPF §8.4 | [🟡] CANDIDATE |
 | EP-11 | `scripts/trading/update_ledger.py --commit` | ledger + tax buckets | DIPF §6, DD-5.1 | [🟢] VERIFIED |
-| EP-12 | `scripts/reports/stress_test.py` | stress report | DIPF §9.2 | [🟢] VERIFIED |
+| EP-12 | `scripts/reports/portfolio_risk_monitor.py` | Portfolio risk monitor (VaR/CVaR) | DIPF §9.2 | [🟢] VERIFIED |
 | EP-13 | `scripts/quality/sanity_check.py` | sanity check bloccante | DIPF §9.1 | [🟢] VERIFIED |
 | EP-14 | `scripts/reports/performance_report_generator.py` | report performance sessione | System Test | [🟢] VERIFIED |
 | EP-15 | `scripts/backtest/backtest_runner.py` | Run Package completo | DIPF §7, §9 | [🟢] VERIFIED |
 | EP-15b | `scripts/backtest/backtest_runner.py --preset <full|recent|covid|gfc|eurocrisis|inflation2022>` | Run Package periodo (preset) | DIPF §7, §9 | [🟡] CANDIDATE |
 | EP-15c | `scripts/backtest/backtest_runner.py --all` | Run Package full+recent+critici | DIPF §7, §9 | [🟡] CANDIDATE |
 | EP-16 | `scripts/backtest/backtest_engine.py` | Simulazione event-driven realistica | DIPF §7 | [🟢] VERIFIED |
+| EP-17 | `scripts/analysis/monte_carlo_stress_test.py` | Monte Carlo gate finale pre-AUM (shuffle test) | DIPF §9.3 | [🟢] VERIFIED |
 | 🛡️ | `scripts/risk/enhanced_risk_management.py` | risk management avanzato | DIPF §5.4 | [🟢] VERIFIED |
 | 🧾 | `scripts/trading/execute_orders.py` | pre-trade controls + fiscal integration | DIPF §6 | [🟢] VERIFIED |
 | 🧾 | `scripts/fiscal/tax_engine.py` | tassazione italiana completa + zainetto | DIPF §6.1-6.3 | [🟢] VERIFIED |
@@ -139,6 +140,18 @@
   - `get_available_zainetto()`: Query zainetto disponibile per categoria
   - Logica OICR_ETF vs ETC_ETN_STOCK conforme DIPF §6.2
 - DoD: Fiscalità italiana completa, zainetto per categoria, scadenza corretta.
+
+### TL-1.10 Stress Test Monte Carlo (Gate Finale Pre-AUM)
+- [🟢] **COMPLETATO** `scripts/analysis/stress_test_monte_carlo.py` con:
+  - Shuffle test 1000 iterazioni (riproducibile con seed)
+  - Calcolo metriche: CAGR, MaxDD, Sharpe, Sortino, Calmar
+  - Gate criteria: 5th percentile MaxDD < 25% (retail risk tolerance)
+  - Analisi distribuzione: percentili CAGR/MaxDD, worst/best case scenarios
+  - Report JSON + Markdown con timestamp e conformità DIPF §9.3
+  - Exit code: 0 se gate passed, 1 se gate failed
+- [🟢] **COMPLETATO** `tests/test_stress_test_monte_carlo.py` (18 test unitari)
+- [🟢] **COMPLETATO** `scripts/analysis/run_stress_test_example.py` (modalità real/synthetic)
+- DoD: Gate finale operativo per validazione rischio coda prima di aumentare AUM reale.
 
 ---
 

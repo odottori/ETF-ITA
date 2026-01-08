@@ -17,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
 from utils.console_utils import setup_windows_console
+from orchestration.session_manager import get_session_manager
 
 # Windows console robustness
 setup_windows_console()
@@ -266,10 +267,10 @@ def generate_performance_report(db_path, output_dir=None):
             if report['emotional_gap']['gap_eur'] < -100:
                 print(f"   ⚠️  ATTENZIONE: Costi elevati impattano significativamente il rendimento!")
             
-            # 8. Save report
+            # 8. Save report usando session manager
             if not output_dir:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                output_dir = f"data/reports/sessions/{timestamp}/08_performance"
+                sm = get_session_manager(script_name='performance_report')
+                output_dir = sm.get_subdir_path('performance')
             
             os.makedirs(output_dir, exist_ok=True)
             

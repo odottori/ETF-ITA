@@ -19,15 +19,15 @@ from orchestration.session_manager import get_session_manager
 
 # Mappatura degli script in sequenza ordinale
 SCRIPT_SEQUENCE = {
-    'health_check': ['health_check.py'],
-    'automated_test_cycle': ['automated_test_cycle.py'],
-    'check_guardrails': ['check_guardrails.py'],
-    'risk_management': ['risk_management.py', 'enhanced_risk_management.py'],
-    'stress_test': ['stress_test.py'],
-    'strategy_engine': ['strategy_engine.py'],
-    'backtest_runner': ['backtest_runner.py'],
-    'performance_report_generator': ['performance_report_generator.py'],
-    'analyze_schema_drift': ['analyze_schema_drift.py', 'detailed_schema_analysis.py']
+    'health_check': ['quality/health_check.py'],
+    'automated_test_cycle': ['orchestration/automated_test_cycle.py'],
+    'check_guardrails': ['risk/check_guardrails.py'],
+    'risk_management': ['risk/enhanced_risk_management.py'],
+    'portfolio_risk_monitor': ['reports/portfolio_risk_monitor.py'],
+    'strategy_engine': ['trading/strategy_engine.py'],
+    'backtest_runner': ['backtest/backtest_runner.py'],
+    'performance_report_generator': ['reports/performance_report_generator.py'],
+    'analyze_schema_drift': ['quality/schema_contract_gate.py']
 }
 
 # Ordine di esecuzione
@@ -36,7 +36,7 @@ EXECUTION_ORDER = [
     'automated_test_cycle', 
     'check_guardrails',
     'risk_management',
-    'stress_test',
+    'portfolio_risk_monitor',
     'strategy_engine',
     'backtest_runner',
     'performance_report_generator',
@@ -131,6 +131,7 @@ def run_sequence_from(script_name):
     """Esegue la sequenza completa dallo script specificato in poi"""
     scripts_dir = os.path.dirname(__file__)
     root_dir = os.path.dirname(os.path.dirname(scripts_dir))
+    scripts_root = os.path.join(root_dir, 'scripts')
     
     # Trova lo step corrente
     current_step = get_script_step(script_name)
@@ -151,7 +152,7 @@ def run_sequence_from(script_name):
         main_script = None
         
         for script_file in script_files:
-            script_path = os.path.join(scripts_dir, script_file)
+            script_path = os.path.join(scripts_root, script_file)
             if os.path.exists(script_path):
                 main_script = script_path
                 break
@@ -181,13 +182,14 @@ def run_single_script(script_name):
     """Esegue solo lo script specificato usando la sessione esistente"""
     scripts_dir = os.path.dirname(__file__)
     root_dir = os.path.dirname(os.path.dirname(scripts_dir))
+    scripts_root = os.path.join(root_dir, 'scripts')
     
     # Trova il file dello script
     script_path = None
     for step, scripts in SCRIPT_SEQUENCE.items():
         for script_file in scripts:
-            if script_name in script_file or script_name.endswith(script_file.replace('.py', '')):
-                script_path = os.path.join(scripts_dir, script_file)
+            if script_name in script_file or script_name.endswith(os.path.basename(script_file).replace('.py', '')):
+                script_path = os.path.join(scripts_root, script_file)
                 break
         if script_path:
             break

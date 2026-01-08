@@ -18,10 +18,20 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.path_manager import get_path_manager
 from fiscal.tax_engine import calculate_tax, create_tax_loss_carryforward, update_zainetto_usage
 
+
+def _table_columns(conn, table_name: str):
+    """Ritorna set delle colonne presenti in una tabella (DuckDB)."""
+    cols = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    return {c[1] for c in cols}
+
+
+def _has_column(conn, table_name: str, col_name: str) -> bool:
+    return col_name in _table_columns(conn, table_name)
+
 def check_cash_available(conn, required_cash, run_type=None):
     """Verifica cash disponibile prima di BUY"""
-    
-    if run_type:
+
+    if run_type and _has_column(conn, 'fiscal_ledger', 'run_type'):
         cash_balance = conn.execute("""
         SELECT COALESCE(SUM(CASE 
             WHEN type = 'DEPOSIT' THEN qty * price - fees - tax_paid
@@ -49,8 +59,8 @@ def check_cash_available(conn, required_cash, run_type=None):
 
 def check_position_available(conn, symbol, required_qty, run_type=None):
     """Verifica posizione disponibile prima di SELL"""
-    
-    if run_type:
+
+    if run_type and _has_column(conn, 'fiscal_ledger', 'run_type'):
         position_check = conn.execute("""
         SELECT SUM(CASE WHEN type = 'BUY' THEN qty ELSE -qty END) as net_qty
         FROM fiscal_ledger 
@@ -139,6 +149,8 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
         elif isinstance(order_date, str):
             order_date = datetime.strptime(order_date, '%Y-%m-%d').date()
         
+        fiscal_cols = _table_columns(conn, 'fiscal_ledger')
+
         for order in executable_orders:
             symbol = order['symbol']
             action = order['action']
@@ -298,25 +310,19 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
             }
             
             if commit:
-                conn.execute("""
-                INSERT INTO fiscal_ledger 
-                (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id, run_type, decision_path, reason_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    ledger_record['id'],
-                    ledger_record['date'],
-                    ledger_record['type'],
-                    ledger_record['symbol'],
-                    ledger_record['qty'],
-                    ledger_record['price'],
-                    ledger_record['fees'],
-                    ledger_record['tax_paid'],
-                    ledger_record['pmc_snapshot'],
-                    ledger_record['run_id'],
-                    ledger_record['run_type'],
-                    ledger_record['decision_path'],
-                    ledger_record['reason_code']
-                ])
+                # Inserimento schema-robust: usa solo le colonne presenti
+                ordered_cols = [
+                    'id', 'date', 'type', 'symbol', 'qty', 'price', 'fees', 'tax_paid', 'pmc_snapshot', 'run_id',
+                    'run_type', 'decision_path', 'reason_code'
+                ]
+                insert_cols = [c for c in ordered_cols if c in fiscal_cols]
+                placeholders = ', '.join(['?'] * len(insert_cols))
+                col_list = ', '.join(insert_cols)
+
+                conn.execute(
+                    f"INSERT INTO fiscal_ledger ({col_list}) VALUES ({placeholders})",
+                    [ledger_record[c] for c in insert_cols]
+                )
                 
                 print(f"    ✅ Eseguito - ID: {next_id}")
             else:

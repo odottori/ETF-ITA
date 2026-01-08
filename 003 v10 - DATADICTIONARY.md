@@ -1,19 +1,16 @@
 # DATADICTIONARY (ETF_ITA)
 
-**Package:** v10.8.0 (naming canonico)  
-**Doc Revision:** r44 — 2026-01-07  
-**Stato**: BACKTEST-READY v10.8.0 + DECISION SUPPORT (non autonomous production) — SCHEMA REALE COMPLETO  
+**Package:** v10.8.3 (naming canonico)  
+**Doc Revision:** r47 — 2026-01-08  
+**Stato**: BACKTEST-READY v10.8.3 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING — SCHEMA REALE COMPLETO  
 
 **Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
 **DB Backups:** `data/db/backups/etf_data_backup_<timestamp>.duckdb`  
 
 **Production:**  
-- Orders (commit): `data/production/orders/orders_<timestamp>.json`  
-- Forecasts (dry-run): `data/production/forecasts/forecast_<timestamp>.json`  
-- Postcasts: `data/production/postcasts/postcast_<timestamp>.json`  
-- KPI Forecast: `data/production/forecasts/kpi_forecast_<timestamp>.json`  
-- KPI Postcast: `data/production/postcasts/kpi_postcast_<timestamp>.json`  
-- KPI: `data/production/kpi/` (metriche aggregate)
+- Orders: `data/production/orders/orders_<timestamp>.json` (ordini reali commit)
+- Forecasts KPI: `data/production/forecasts/kpi_forecast_<timestamp>.json` (KPI ordini proposti dry-run)
+- Postcasts KPI: `data/production/postcasts/kpi_postcast_<timestamp>.json` (KPI post-esecuzione)
 
 **Backtests:**  
 - Run directory: `data/backtests/runs/backtest_<preset>_<timestamp>/`  
@@ -24,6 +21,8 @@
 - Summary: `data/backtests/reports/backtest_summary_<batch_ts>.json`
 
 **Reports:** `data/reports/sessions/<timestamp>/[01_health_checks|02_data_quality|03_guardrails|04_risk_management|05_stress_tests|06_strategy_analysis|07_backtest_validation|08_performance_summary]/`  
+**Portfolio Risk Monitor:** `data/reports/sessions/<timestamp>/05_stress_tests/portfolio_risk_<timestamp>.json` (VaR/CVaR monitoring posizioni correnti)  
+**Monte Carlo Stress Test:** `data/reports/sessions/<timestamp>/05_stress_tests/monte_carlo_stress_test_<timestamp>.[json|md]` (gate finale pre-AUM, DIPF §9.3)  
 
 **Config:**  
 - ETF Universe: `config/etf_universe.json`  
@@ -42,7 +41,7 @@
 - `scripts/orchestration/`: Workflow orchestration (sequence_runner, session_manager, automated_test_cycle)
 - `scripts/utils/`: Shared utilities (path_manager, market_calendar, console_utils, universe_helper)
 - `scripts/maintenance/`: Maintenance scripts (update_market_calendar, backup_db, restore_db)
-- `scripts/analysis/`: Analysis tools (analyze_forecast_accuracy, diagnose_execution_rate, regime_adaptive_poc_*)
+- `scripts/analysis/`: Analysis tools (stress_test_monte_carlo, run_stress_test_example, analyze_forecast_accuracy, diagnose_execution_rate, regime_adaptive_poc_*)
 - `scripts/strategy/`: Strategy modules (portfolio_construction)
 - `scripts/temp/`: Temporary scripts (auto-cleanup)
 - `scripts/archive/`: Historical scripts (non-production)
@@ -148,11 +147,19 @@ Tabella di transito per validazione dati prima di merge in market_data.
 
 | Colonna | Tipo | Nullable | Default | Note |
 |---|---|---|---|---|
-| venue | VARCHAR | NO | - | PK (es. BIT, XETRA) |
+| venue | VARCHAR | NO | - | PK (es. BIT) |
 | date | DATE | NO | - | PK |
-| is_open | BOOLEAN | NO | true | mercato aperto |
+| is_open | BOOLEAN | NO | true | mercato aperto (base) |
+| quality_flag | VARCHAR | YES | NULL | calendar healing (venue-level): zombie_price/large_gap/spike/manual_exclusion |
+| flagged_at | TIMESTAMP | YES | - | quando flaggato |
+| flagged_reason | VARCHAR | YES | - | descrizione issue |
+| retry_count | INTEGER | YES | 0 | tentativi healing |
+| last_retry | TIMESTAMP | YES | - | ultimo tentativo |
+| healed_at | TIMESTAMP | YES | - | quando healed |
 
-**PK:** (`venue`, `date`)
+**PK:** (`venue`, `date`)  
+**Indici:** `idx_quality_flag`, `idx_retry_pending`  
+**Note:** Calendar Healing System (v10.8.3) - gestione auto-correttiva data quality
 
 ---
 

@@ -2,10 +2,10 @@
 
 | Meta-Dato | Valore |
 | :--- | :--- |
-| **Package (canonico)** | v10.8.0 |
-| **Doc Revision** | r40 — 2026-01-07 |
+| **Package (canonico)** | v10.8.3 |
+| **Doc Revision** | r43 — 2026-01-08 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **BACKTEST-READY v10.8.0** + **DECISION SUPPORT** |
+| **Stato Sistema** | **BACKTEST-READY v10.8.3** + **DECISION SUPPORT** + **MONTE CARLO GATE** + **CALENDAR HEALING** |
 | **Scripts Funzionanti** | **53 file Python** (15 directory) |
 | **Schema DB** | **19 tabelle** (15 tabelle + 4 viste) - 100% documentato |
 | **Closed Loop** | **ROBUST MUTUAL EXCLUSION** (commit > dry-run, deterministic) |
@@ -37,6 +37,7 @@ Sistema EOD per gestione portafoglio ETF "risk-first" per residenti italiani, co
 - **Pre-Trade Hard Controls**: Cash e posizione verificati prima di ogni trade (no ledger "sporco")
 - **Backtest Event-Driven**: Simulazione day-by-day con SELL priority, cash management realistico
 - **Fiscal Engine Completo**: Tassazione 26% + zainetto per categoria fiscale (OICR_ETF vs ETC_ETN_STOCK)
+- **Calendar Healing System**: Auto-correttivo per data quality (zombie prices, gaps) con retry automatico
 - **Determinismo Assoluto**: Il ciclo "produce → esegue → contabilizza" è completamente deterministico
 - **Reject Logging**: Ogni trade rifiutato loggato con motivazione (cash_reserve, max_positions, overlap)
 - **Audit Trail Completo**: orders_plan con decision_path, reason_code, candidate_score, reject_reason
@@ -180,10 +181,14 @@ py scripts/backtest/backtest_runner.py --start-date 2020-02-01 --end-date 2020-0
 py scripts/backtest/backtest_runner.py --all --recent-days 365
 ```
 
-### EP-12 — Stress Test
+### EP-12 — Portfolio Risk Monitor (VaR/CVaR)
 ```powershell
-py scripts/reports/stress_test.py
+py scripts/reports/portfolio_risk_monitor.py
 ```
+**Obiettivo:** Monitoring operativo del rischio portfolio corrente
+- Simulazione forward-looking con Geometric Brownian Motion
+- Metriche: VaR 95%, CVaR 95%, distribuzione valore futuro
+- Use case: Risk management giornaliero, posizioni attuali
 
 ### EP-13 — Sanity Check (bloccante)
 ```powershell
@@ -194,6 +199,33 @@ py scripts/quality/sanity_check.py
 ```powershell
 py scripts/reports/performance_report_generator.py
 ```
+
+### EP-17 — Monte Carlo Stress Test (Gate Finale Pre-AUM)
+```powershell
+# Modalità synthetic (dati generati per test)
+py scripts/analysis/monte_carlo_stress_test.py --n-sims 1000 --seed 42
+
+# Modalità real (dati da fiscal_ledger)
+py scripts/analysis/monte_carlo_stress_test.py --start-date 2023-01-01 --n-sims 1000
+
+# Con runner helper
+py scripts/analysis/monte_carlo_run_example.py --mode synthetic --n-days 504 --n-sims 1000
+```
+**Obiettivo:** Validazione robustezza strategia (gate DIPF §9.3)
+- Shuffle test su returns storici (permutazioni casuali)
+- Metriche: Distribuzione CAGR/MaxDD, Sharpe, Sortino, Calmar
+- Use case: Gate finale pre-AUM, validazione strategia
+
+**Output:** 
+- Report JSON: `data/reports/sessions/<timestamp>/stress_tests/monte_carlo_stress_test_<timestamp>.json`
+- Report Markdown con tabelle distribuzione e worst/best case
+- Exit code: 0 se gate passed (5th percentile MaxDD < 25%), 1 se failed
+
+**Gate Criteria (DIPF §9.3):**
+- ✅ 5th percentile MaxDD < 25% (retail risk tolerance)
+- ✅ Analisi distribuzione su 1000 simulazioni shuffle test
+- ✅ Worst/best case scenarios identificati
+- ✅ Riproducibilità garantita (seed fisso)
 
 ---
 
@@ -226,9 +258,13 @@ data/reports/sessions/<timestamp>/
 py scripts/quality/health_check.py
 # Output: data/reports/sessions/<timestamp>/01_health_checks/health_checks_<timestamp>.md
 
-# Stress test Monte Carlo
-py scripts/reports/stress_test.py
+# Portfolio risk monitor (VaR/CVaR)
+py scripts/reports/portfolio_risk_monitor.py
 # Output: data/reports/sessions/<timestamp>/05_stress_tests/stress_test_<timestamp>.json
+
+# Monte Carlo stress test (gate finale)
+py scripts/analysis/monte_carlo_stress_test.py --start-date 2023-01-01
+# Output: data/reports/sessions/<timestamp>/stress_tests/monte_carlo_stress_test_<timestamp>.json
 
 # Report performance completo
 py scripts/reports/performance_report_generator.py
@@ -272,7 +308,8 @@ scripts/
 - `update_ledger.py` - Ledger updates
 - `run_complete_cycle.py` - Complete orchestration
 - `backtest_engine.py` - Backtesting simulation
-- `stress_test.py` - Stress testing
+- `portfolio_risk_monitor.py` - Portfolio risk monitoring (VaR/CVaR)
+- `monte_carlo_stress_test.py` - Monte Carlo gate (DIPF §9.3)
 - `sanity_check.py` - Sanity validation
 - `performance_report_generator.py` - Performance reports
 - `enhanced_risk_management.py` - Advanced risk controls

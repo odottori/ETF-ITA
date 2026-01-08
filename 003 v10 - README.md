@@ -2,10 +2,10 @@
 
 | Meta-Dato | Valore |
 | :--- | :--- |
-| **Package (canonico)** | v10.8.3 |
-| **Doc Revision** | r43 — 2026-01-08 |
+| **Package (canonico)** | v10.8.4 |
+| **Doc Revision** | r44 — 2026-01-08 |
 | **Baseline Produzione** | **EUR / ACC** (solo ETF UCITS ad accumulazione in EUR) |
-| **Stato Sistema** | **BACKTEST-READY v10.8.3** + **DECISION SUPPORT** + **MONTE CARLO GATE** + **CALENDAR HEALING** |
+| **Stato Sistema** | **BACKTEST-READY v10.8.4** + **DECISION SUPPORT** + **MONTE CARLO GATE** + **CALENDAR HEALING** + **SCHEMA FIX** |
 | **Scripts Funzionanti** | **53 file Python** (15 directory) |
 | **Schema DB** | **19 tabelle** (15 tabelle + 4 viste) - 100% documentato |
 | **Closed Loop** | **ROBUST MUTUAL EXCLUSION** (commit > dry-run, deterministic) |

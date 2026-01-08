@@ -1,12 +1,12 @@
 # DIPF - Design & Implementation Plan Framework (ETF_ITA)
 
 **Progetto:** ETF Italia Smart Retail  
-**Package:** v10.8.3 (naming canonico)  
-**Doc Revision:** r43 — 2026-01-08  
+**Package:** v10.8.4 (naming canonico)  
+**Doc Revision:** r44 — 2026-01-08  
 **Engine:** DuckDB (embedded OLAP)  
 **Runtime:** Python 3.10+ (Windows)  
 **Stato Documento:** 🟢 CANONICO  
-**Stato Sistema:** BACKTEST-READY v10.8.3 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING  
+**Stato Sistema:** BACKTEST-READY v10.8.4 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING + SCHEMA FIX  
 **Baseline produzione:** EUR / ACC (FX e DIST disattivati salvo feature flag)
 
 ---

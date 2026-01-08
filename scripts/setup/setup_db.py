@@ -124,6 +124,12 @@ def setup_database():
             venue VARCHAR NOT NULL,
             date DATE NOT NULL,
             is_open BOOLEAN NOT NULL DEFAULT TRUE,
+            quality_flag VARCHAR,
+            flagged_at TIMESTAMP,
+            flagged_reason TEXT,
+            retry_count INTEGER DEFAULT 0,
+            last_retry TIMESTAMP,
+            healed_at TIMESTAMP,
             PRIMARY KEY (venue, date)
         )
         """)
@@ -221,7 +227,7 @@ def setup_database():
             entry_date DATE NOT NULL,
             entry_run_id VARCHAR NOT NULL,
             entry_price DOUBLE NOT NULL CHECK (entry_price > 0),
-            holding_days_target INTEGER NOT NULL CHECK (holding_days_target >= 30 AND holding_days_target <= 180),
+            holding_days_target INTEGER NOT NULL CHECK (holding_days_target >= 5 AND holding_days_target <= 30),
             expected_exit_date DATE NOT NULL,
             last_review_date DATE,
             current_score DOUBLE CHECK (current_score >= 0 AND current_score <= 1),
@@ -265,6 +271,8 @@ def setup_database():
             "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_decision_path ON fiscal_ledger(decision_path)",
             "CREATE INDEX IF NOT EXISTS idx_ingestion_audit_run_id ON ingestion_audit(run_id)",
             "CREATE INDEX IF NOT EXISTS idx_trading_calendar_venue_date ON trading_calendar(venue, date)",
+            "CREATE INDEX IF NOT EXISTS idx_trading_calendar_quality_flag ON trading_calendar(quality_flag) WHERE quality_flag IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_trading_calendar_retry_pending ON trading_calendar(last_retry, retry_count) WHERE quality_flag IS NOT NULL",
             "CREATE INDEX IF NOT EXISTS idx_trade_journal_run_id ON trade_journal(run_id)",
             "CREATE INDEX IF NOT EXISTS idx_tax_loss_expires ON tax_loss_carryforward(expires_at)",
             "CREATE INDEX IF NOT EXISTS idx_orders_plan_run_id ON orders_plan(run_id)",

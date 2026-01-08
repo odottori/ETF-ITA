@@ -1,9 +1,9 @@
 # TODOLIST - Implementation Plan (ETF_ITA)
 
-**Package:** v10.8.3 (naming canonico)  
-**Doc Revision:** r43 — 2026-01-08  
+**Package:** v10.8.4 (naming canonico)  
+**Doc Revision:** r44 — 2026-01-08  
 **Baseline produzione:** EUR / ACC  
-**System Status:** BACKTEST-READY v10.8.3 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING  
+**System Status:** BACKTEST-READY v10.8.4 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING + SCHEMA FIX  
 **Backtest Engine:** EVENT-DRIVEN (day-by-day, SELL→BUY priority, cash management realistico)  
 **Strategy Engine V2:** TWO-PASS (Exit → Cash Update → Entry con ranking candidati)  
 **Holding Period:** DINAMICO (5-30 giorni, logica invertita momentum)  

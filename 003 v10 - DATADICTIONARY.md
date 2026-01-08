@@ -1,8 +1,8 @@
 # DATADICTIONARY (ETF_ITA)
 
-**Package:** v10.8.3 (naming canonico)  
-**Doc Revision:** r47 — 2026-01-08  
-**Stato**: BACKTEST-READY v10.8.3 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING — SCHEMA REALE COMPLETO  
+**Package:** v10.8.4 (naming canonico)  
+**Doc Revision:** r48 — 2026-01-08  
+**Stato**: BACKTEST-READY v10.8.4 + DECISION SUPPORT + MONTE CARLO GATE + CALENDAR HEALING — SCHEMA FIX COMPLETATI  
 
 **Database:** `data/db/etf_data.duckdb` (DuckDB embedded)  
 **DB Backups:** `data/db/backups/etf_data_backup_<timestamp>.duckdb`  
@@ -150,16 +150,17 @@ Tabella di transito per validazione dati prima di merge in market_data.
 | venue | VARCHAR | NO | - | PK (es. BIT) |
 | date | DATE | NO | - | PK |
 | is_open | BOOLEAN | NO | true | mercato aperto (base) |
-| quality_flag | VARCHAR | YES | NULL | calendar healing (venue-level): zombie_price/large_gap/spike/manual_exclusion |
+| quality_flag | VARCHAR | YES | NULL | calendar healing: zombie_price/large_gap/spike/manual_exclusion |
 | flagged_at | TIMESTAMP | YES | - | quando flaggato |
-| flagged_reason | VARCHAR | YES | - | descrizione issue |
+| flagged_reason | TEXT | YES | - | descrizione issue |
 | retry_count | INTEGER | YES | 0 | tentativi healing |
 | last_retry | TIMESTAMP | YES | - | ultimo tentativo |
 | healed_at | TIMESTAMP | YES | - | quando healed |
 
 **PK:** (`venue`, `date`)  
-**Indici:** `idx_quality_flag`, `idx_retry_pending`  
-**Note:** Calendar Healing System (v10.8.3) - gestione auto-correttiva data quality
+**Indici:** `idx_trading_calendar_quality_flag`, `idx_trading_calendar_retry_pending`  
+**Note:** Calendar Healing System (v10.8.4) - gestione auto-correttiva data quality  
+**Schema Fix v10.8.4:** Colonne healing integrate in setup_db.py (prima richiedevano migrazione manuale)
 
 ---
 

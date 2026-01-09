@@ -11,7 +11,9 @@
     "cash_interest_monthly": true,
     "score_entry_min": 0.5,
     "score_rebalance_min": 0.6,
-    "force_deviation": 0.05
+    "force_deviation": 0.05,
+    "coverage_threshold": 0.8,
+    "venue": "XMIL"
   },
   "universe": {
     "core": [
@@ -30,8 +32,9 @@
         },
         "execution_model": "T+1_OPEN",
         "fx_enabled": false,
-        "weight_target": 0.40,
-        "role": "GROWTH_ENGINE"
+        "weight_target": 0.4,
+        "role": "GROWTH_ENGINE",
+        "active_from": "2010-05-19"
       },
       {
         "symbol": "EIMI.MI",
@@ -49,7 +52,8 @@
         "execution_model": "T+1_OPEN",
         "fx_enabled": false,
         "weight_target": 0.15,
-        "role": "DIVERSIFIER"
+        "role": "DIVERSIFIER",
+        "active_from": "2020-01-02"
       },
       {
         "symbol": "SGLD.MI",
@@ -67,14 +71,15 @@
         "execution_model": "T+1_OPEN",
         "fx_enabled": false,
         "weight_target": 0.25,
-        "role": "FISCAL_HEDGE"
+        "role": "FISCAL_HEDGE",
+        "active_from": "2020-01-02"
       },
       {
         "symbol": "AGGH.MI",
         "name": "iShares Global Agg Bond EUR Hedged",
         "underlying": "GLOBAL_AGG_BOND",
         "dist_policy": "ACC",
-        "ter": 0.0010,
+        "ter": 0.001,
         "currency": "EUR",
         "tax_category": "OICR_ETF",
         "aum_eur": 10000000000,
@@ -84,8 +89,9 @@
         },
         "execution_model": "T+1_OPEN",
         "fx_enabled": false,
-        "weight_target": 0.20,
-        "role": "STABILIZER"
+        "weight_target": 0.2,
+        "role": "STABILIZER",
+        "active_from": "2020-01-02"
       }
     ],
     "satellite": [
@@ -94,7 +100,7 @@
         "name": "iShares Euro Govt Bond 1-3yr",
         "underlying": "EURO_GOVT_BOND_SHORT",
         "dist_policy": "ACC",
-        "ter": 0.0020,
+        "ter": 0.002,
         "currency": "EUR",
         "tax_category": "OICR_ETF",
         "aum_eur": 5000000000,
@@ -104,8 +110,9 @@
         },
         "execution_model": "T+1_OPEN",
         "fx_enabled": false,
-        "weight_target": 0.00,
-        "role": "CASH_PARKING"
+        "weight_target": 0.0,
+        "role": "CASH_PARKING",
+        "active_from": "2020-01-02"
       }
     ],
     "benchmark": [
@@ -117,7 +124,8 @@
         "tax_category": "INDEX",
         "execution_model": "N/A",
         "fx_enabled": true,
-        "fx_pair": "USDEUR=X"
+        "fx_pair": "USDEUR=X",
+        "active_from": "2010-01-04"
       }
     ]
   },
@@ -126,7 +134,7 @@
     "trailing_stop_satellite": -0.1,
     "trailing_stop_v2": {
       "enabled": true,
-      "drawdown_threshold": -0.10,
+      "drawdown_threshold": -0.1,
       "min_profit_activation": 0.05,
       "reset_on_close": true
     },
@@ -171,15 +179,18 @@
   "ranking_weights": {
     "momentum": 0.45,
     "risk_scalar": 0.25,
-    "volatility": 0.20,
+    "volatility": 0.2,
     "cost_penalty": 0.05,
-    "overlap_penalty": 0.10,
-    "alpha": 0.00
+    "overlap_penalty": 0.1,
+    "alpha": 0.0
   },
   "execution": {
     "execution_price_mode": "CLOSE_SAME_DAY_SLIPPAGE",
     "slippage_bps_default": 5,
     "max_entries_per_day": 1,
     "forbid_overlap_underlying": false
-  }
+  },
+  "venue": "XMIL",
+  "initial_start_date": "2010-01-01",
+  "default_active_from": "2010-01-01"
 }

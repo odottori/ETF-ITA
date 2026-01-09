@@ -189,7 +189,7 @@ def load_trading_calendar(venue='BIT', csv_file=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Load Trading Calendar')
-    parser.add_argument('--venue', default='BIT', help='Venue code (default: BIT)')
+    parser.add_argument('--venue', default='XMIL', help='Venue code (default: XMIL)')
     parser.add_argument('--csv', help='CSV file path (optional)')
     
     args = parser.parse_args()

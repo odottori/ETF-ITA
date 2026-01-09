@@ -37,7 +37,18 @@ def run_tests(pytest_args):
     cmd = [sys.executable, '-m', 'pytest'] + list(pytest_args) + [f'--junitxml={junit_path}']
 
     t0 = time.time()
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    env = os.environ.copy()
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
     t1 = time.time()
 
     stdout_path.write_text(proc.stdout or '', encoding='utf-8', errors='replace')

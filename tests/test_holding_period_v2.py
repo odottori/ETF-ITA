@@ -19,22 +19,22 @@ from scripts.strategy.portfolio_construction import (
 )
 
 def test_holding_period_range():
-    """Test: holding period sempre in range [30, 180]"""
+    """Test: holding period sempre in range [5, 30] (multi-day swing trading)"""
     
     config = {
         'holding_period': {
-            'base_holding_days': 90,
-            'min_holding_days': 30,
-            'max_holding_days': 180
+            'base_holding_days': 15,
+            'min_holding_days': 5,
+            'max_holding_days': 30
         }
     }
     
     # Test casi estremi
     test_cases = [
         # (risk_scalar, volatility, momentum_score, signal_state, expected_min, expected_max)
-        (1.0, 0.10, 0.90, 'RISK_ON', 30, 180),  # Max convinzione
-        (0.0, 0.30, 0.20, 'RISK_OFF', 30, 180),  # Min convinzione
-        (0.5, 0.18, 0.60, 'NEUTRAL', 30, 180),   # Media
+        (1.0, 0.10, 0.90, 'RISK_ON', 5, 30),     # Max convinzione (holding corto)
+        (0.0, 0.30, 0.20, 'RISK_OFF', 5, 30),    # RISK_OFF (holding lungo)
+        (0.5, 0.18, 0.60, 'HOLD', 5, 30),        # HOLD trattato come NEUTRAL
     ]
     
     for risk_scalar, vol, momentum, signal_state, exp_min, exp_max in test_cases:

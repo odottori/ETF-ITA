@@ -12,6 +12,14 @@ import time
 import threading
 import queue
 
+# Ensure stdout/stderr are UTF-8 so Unicode output cannot crash on Windows.
+try:
+    from utils.console_utils import setup_windows_console
+
+    setup_windows_console()
+except Exception:
+    pass
+
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -66,14 +74,22 @@ def _run_script_with_progress(script_path, root_dir):
             except Exception:
                 pass
 
+    env = os.environ.copy()
+    # Make sure child Python also runs in UTF-8 mode.
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+
     proc = subprocess.Popen(
         [sys.executable, script_path],
         cwd=root_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,
         universal_newlines=True,
+        env=env,
     )
 
     t_out = threading.Thread(target=_reader, args=(proc.stdout, 'stdout'), daemon=True)
@@ -127,8 +143,13 @@ def _run_script_with_progress(script_path, root_dir):
 
     return proc.returncode
 
-def run_sequence_from(script_name):
-    """Esegue la sequenza completa dallo script specificato in poi"""
+def run_sequence_from(script_name, include_current: bool = False):
+    """Esegue la sequenza completa a partire dallo script specificato.
+
+    Nota operativa:
+    - Per evitare ricorsioni (uno script che richiama se stesso), di default parte *dopo* lo step indicato.
+    - Usa include_current=True solo quando vuoi eseguire anche lo step corrente (es. runner esterno).
+    """
     scripts_dir = os.path.dirname(__file__)
     root_dir = os.path.dirname(os.path.dirname(scripts_dir))
     scripts_root = os.path.join(root_dir, 'scripts')
@@ -139,11 +160,16 @@ def run_sequence_from(script_name):
         print(f"ERROR: Script '{script_name}' non trovato nella sequenza")
         return False
     
-    print(f"\nSEQUENZA DA STEP {current_step}: {script_name}")
+    start_step = current_step if include_current else current_step + 1
+    if start_step > len(EXECUTION_ORDER):
+        print("\nSEQUENZA: nessuno step successivo da eseguire")
+        return True
+
+    print(f"\nSEQUENZA DA STEP {start_step}: {script_name}")
     print("=" * 60)
     
     # Esegui tutti gli script dallo step corrente in poi
-    for step in EXECUTION_ORDER[current_step-1:]:
+    for step in EXECUTION_ORDER[start_step-1:]:
         print(f"\nSTEP {EXECUTION_ORDER.index(step) + 1}: {step.upper()}")
         print("-" * 40)
         

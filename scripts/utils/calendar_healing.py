@@ -53,6 +53,22 @@ class CalendarHealing:
                 'interval_days': 999,  # Mai retry
                 'max_retry': 0,
                 'max_age_days': 999
+            },
+            # Giorni open ma degradati (copertura parziale): retry lungo (fino a backfill)
+            'data_partial': {
+                'interval_days': 3,
+                'max_retry': 50,
+                'max_age_days': 3650
+            },
+            'data_alert': {
+                'interval_days': 1,
+                'max_retry': 50,
+                'max_age_days': 3650
+            },
+            'no_operations': {
+                'interval_days': 1,
+                'max_retry': 50,
+                'max_age_days': 3650
             }
         }
     
@@ -89,7 +105,9 @@ class CalendarHealing:
                 print(f"⚠️  Data {date} non esiste in trading_calendar, skip flagging")
                 return False
             
-            # Flag solo se il giorno è (base) aperto: evita di toccare festivi/weekend
+            # Flag solo se il giorno è (base) aperto, a meno che sia già stato flaggato
+            # (is_open=FALSE + quality_flag non NULL). Questo rende l'operazione idempotente
+            # e permette di aggiornare reason/quality_flag su giorni già chiusi per remediation.
             is_open_row = conn.execute(
                 "SELECT is_open FROM trading_calendar WHERE venue = ? AND date = ?",
                 [venue, date]
@@ -100,7 +118,12 @@ class CalendarHealing:
                 return False
 
             is_open = bool(is_open_row[0])
-            if not is_open:
+            current_flag = conn.execute(
+                """SELECT quality_flag FROM trading_calendar WHERE venue = ? AND date = ?""",
+                [venue, date],
+            ).fetchone()
+            already_flagged = bool(current_flag and current_flag[0] is not None)
+            if not is_open and not already_flagged:
                 print(f"⚠️  Data {date} venue={venue} non è open (holiday/weekend), skip flagging")
                 return False
 
@@ -124,6 +147,96 @@ class CalendarHealing:
             
         except Exception as e:
             print(f"❌ Errore flagging {date}: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def flag_partial_date(
+        self,
+        date: str,
+        quality_flag: str,
+        reason: str,
+        symbol: Optional[str] = None,
+        venue: str = 'BIT'
+    ) -> bool:
+        """Marca un giorno OPEN come "degraded" senza chiuderlo.
+
+        Usa gli stessi campi del calendar healing (quality_flag, flagged_at, flagged_reason).
+        Non modifica is_open.
+        """
+        conn = duckdb.connect(self.db_path)
+        try:
+            exists = conn.execute(
+                "SELECT COUNT(*) FROM trading_calendar WHERE venue = ? AND date = ?",
+                [venue, date],
+            ).fetchone()[0]
+            if not exists:
+                print(f"⚠️  Data {date} non esiste in trading_calendar, skip partial flagging")
+                return False
+
+            # Applica solo su giorni OPEN (se il giorno è già chiuso per altro motivo, non lo riapriamo qui)
+            is_open_row = conn.execute(
+                "SELECT is_open FROM trading_calendar WHERE venue = ? AND date = ?",
+                [venue, date],
+            ).fetchone()
+            if not is_open_row:
+                return False
+            if not bool(is_open_row[0]):
+                print(f"⚠️  Data {date} venue={venue} non è open, skip partial flagging")
+                return False
+
+            conn.execute(
+                """
+                UPDATE trading_calendar
+                SET
+                    quality_flag = ?,
+                    flagged_at = CURRENT_TIMESTAMP,
+                    flagged_reason = ?,
+                    healed_at = NULL
+                WHERE venue = ? AND date = ?
+                """,
+                [quality_flag, reason, venue, date],
+            )
+
+            symbol_str = f" ({symbol})" if symbol else ""
+            print(f"🚩 PARTIAL: {date}{symbol_str} venue={venue} - {quality_flag}: {reason}")
+            return True
+        except Exception as e:
+            print(f"❌ Errore partial flagging {date}: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def heal_partial_date(self, date: str, venue: str = 'BIT') -> bool:
+        """Pulisce i flag su un giorno OPEN (non modifica is_open)."""
+        conn = duckdb.connect(self.db_path)
+        try:
+            flagged = conn.execute(
+                """SELECT quality_flag, is_open FROM trading_calendar
+                   WHERE venue=? AND date=? AND quality_flag IS NOT NULL""",
+                [venue, date],
+            ).fetchone()
+            if not flagged:
+                return False
+
+            quality_flag, is_open = flagged
+            if not bool(is_open):
+                # Giorno chiuso: usa heal_date (riapre)
+                return self.heal_date(date, venue=venue)
+
+            conn.execute(
+                """
+                UPDATE trading_calendar
+                SET quality_flag=NULL,
+                    healed_at=CURRENT_TIMESTAMP
+                WHERE venue=? AND date=?
+                """,
+                [venue, date],
+            )
+            print(f"✅ HEALED (partial): {date} venue={venue} - {quality_flag} risolto")
+            return True
+        except Exception as e:
+            print(f"❌ Errore healing partial {date}: {e}")
             return False
         finally:
             conn.close()

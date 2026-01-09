@@ -8,7 +8,7 @@ import sys
 import os
 import json
 import duckdb
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Aggiungi root al path per import futuri
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,6 +32,9 @@ def setup_database():
     
     try:
         print(f"Setup database: {db_path}")
+
+        # Esegui tutto lo setup in una singola transazione (rollback affidabile)
+        conn.execute("BEGIN TRANSACTION")
         
         # 1. Creazione tabelle principali
         print("Creazione tabelle...")
@@ -193,11 +196,21 @@ def setup_database():
             used_amount DOUBLE DEFAULT 0.0 CHECK (used_amount >= 0),
             expires_at DATE NOT NULL,
             tax_category VARCHAR NOT NULL,
+            run_type VARCHAR DEFAULT 'PRODUCTION',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             CHECK (used_amount <= ABS(loss_amount))
         )
         """)
         
+
+        # Migrazione: run_type su tax_loss_carryforward (DB legacy)
+        try:
+            cols = {c[1] for c in conn.execute("PRAGMA table_info('tax_loss_carryforward')").fetchall()}
+            if 'run_type' not in cols:
+                conn.execute("ALTER TABLE tax_loss_carryforward ADD COLUMN run_type VARCHAR DEFAULT 'PRODUCTION'")
+        except Exception:
+            pass
+
         # Tabella orders_plan (proposte ordini con reject tracking)
         conn.execute("""
         CREATE TABLE IF NOT EXISTS orders_plan (
@@ -271,8 +284,8 @@ def setup_database():
             "CREATE INDEX IF NOT EXISTS idx_fiscal_ledger_decision_path ON fiscal_ledger(decision_path)",
             "CREATE INDEX IF NOT EXISTS idx_ingestion_audit_run_id ON ingestion_audit(run_id)",
             "CREATE INDEX IF NOT EXISTS idx_trading_calendar_venue_date ON trading_calendar(venue, date)",
-            "CREATE INDEX IF NOT EXISTS idx_trading_calendar_quality_flag ON trading_calendar(quality_flag) WHERE quality_flag IS NOT NULL",
-            "CREATE INDEX IF NOT EXISTS idx_trading_calendar_retry_pending ON trading_calendar(last_retry, retry_count) WHERE quality_flag IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_trading_calendar_quality_flag ON trading_calendar(quality_flag)",
+            "CREATE INDEX IF NOT EXISTS idx_trading_calendar_retry_pending ON trading_calendar(last_retry, retry_count)",
             "CREATE INDEX IF NOT EXISTS idx_trade_journal_run_id ON trade_journal(run_id)",
             "CREATE INDEX IF NOT EXISTS idx_tax_loss_expires ON tax_loss_carryforward(expires_at)",
             "CREATE INDEX IF NOT EXISTS idx_orders_plan_run_id ON orders_plan(run_id)",
@@ -395,28 +408,51 @@ def setup_database():
         
         # 4. Insert deposito iniziale (CRITICO)
         print(" Insert deposito iniziale...")
-        
+
         start_capital = config['settings']['start_capital']
-        today = datetime.now().date()
-        
-        # Ottieni prossimo ID disponibile
-        next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
-        
-        setup_run_id = f"setup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        conn.execute("""
-        INSERT OR IGNORE INTO fiscal_ledger 
-        (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id, decision_path, reason_code)
-        VALUES (?, ?, 'DEPOSIT', 'CASH', ?, 1.0, 0.0, 0.0, 1.0, ?, 'SETUP', 'INITIAL_DEPOSIT')
-        """, [next_id, today, start_capital, setup_run_id])
-        
-        print(f" Deposito iniziale di €{start_capital:,.2f} inserito")
+
+        # Anchor initial deposit to an early date to avoid future-dated
+        # ledger rows when market_data has not yet been ingested/updated.
+        today = datetime(2010, 1, 1).date()
+
+        # Evita duplicati: il deposito iniziale deve essere unico e append-only
+        existing_deposit = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM fiscal_ledger
+            WHERE type = 'DEPOSIT'
+              AND symbol = 'CASH'
+              AND reason_code = 'INITIAL_DEPOSIT'
+            """
+        ).fetchone()[0]
+
+        if int(existing_deposit or 0) == 0:
+            # Ottieni prossimo ID disponibile
+            next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
+
+            setup_run_id = f"setup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            conn.execute(
+                """
+                INSERT INTO fiscal_ledger
+                (id, date, type, symbol, qty, price, fees, tax_paid, pmc_snapshot, run_id, run_type, decision_path, reason_code)
+                VALUES (?, ?, 'DEPOSIT', 'CASH', ?, 1.0, 0.0, 0.0, 1.0, ?, 'PRODUCTION', 'SETUP', 'INITIAL_DEPOSIT')
+                """,
+                [next_id, today, start_capital, setup_run_id],
+            )
+
+            print(f" Deposito iniziale di €{start_capital:,.2f} inserito")
+        else:
+            print(" Deposito iniziale già presente - skip")
         
         # 5. Setup trading calendar base (BIT)
         print(" Setup trading calendar base...")
         
         # Inserisci giorni feriali Italiani come aperti (semplificato)
-        start_date = '2020-01-01'
-        end_date = '2025-12-31'
+        # Trading calendar base range:
+        # - start sufficiently early for long backtests
+        # - end sufficiently in the future to reduce "missing calendar" artifacts
+        start_date = '2010-01-01'
+        end_date = (datetime.now() + timedelta(days=365 * 5)).strftime('%Y-%m-%d')
         
         conn.execute(f"""
         INSERT OR IGNORE INTO trading_calendar (venue, date, is_open)
@@ -440,7 +476,10 @@ def setup_database():
         
     except Exception as e:
         print(f" Errore durante setup database: {e}")
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         return False
         
     finally:

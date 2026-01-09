@@ -195,6 +195,12 @@ def clean_large_gaps(conn, symbols, dry_run=False, venue: str = 'BIT'):
     """
     
     placeholders = ",".join(["?"] * len(symbols))
+        # Bound analysis to available market_data (avoid flagging future calendar days)
+    max_md_date = conn.execute(f"SELECT MAX(date) FROM market_data WHERE symbol IN ({placeholders})", symbols).fetchone()[0]
+    if max_md_date is None:
+        print("⚠️ Nessun market_data disponibile: skip large_gap detection")
+        return {'flagged_dates': 0, 'total_identified': 0}
+
     missing_market_days_query = f"""
     SELECT tc.date
     FROM trading_calendar tc
@@ -205,11 +211,12 @@ def clean_large_gaps(conn, symbols, dry_run=False, venue: str = 'BIT'):
     ) md ON md.date = tc.date
     WHERE tc.venue = ?
       AND tc.is_open = TRUE
+      AND tc.date <= ?
       AND md.date IS NULL
     ORDER BY tc.date
     """
 
-    params = list(symbols) + [venue]
+    params = list(symbols) + [venue, max_md_date]
     missing_days = conn.execute(missing_market_days_query, params).df()
     total_identified = int(len(missing_days))
 

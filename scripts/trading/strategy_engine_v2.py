@@ -26,6 +26,15 @@ from strategy.portfolio_construction import (
     get_positions_for_review
 )
 
+from utils.universe_helper import (
+    get_universe_symbols,
+    get_cost_model_for_symbol,
+    get_ter_for_symbol,
+    get_underlying_for_symbol,
+    get_execution_model_for_symbol,
+)
+from utils.asof_date import compute_asof_date
+
 
 def generate_orders_with_holding_period(
     conn,
@@ -71,14 +80,25 @@ def generate_orders_with_holding_period(
     import hashlib
     
     if current_date is None:
-        current_date = conn.execute("SELECT MAX(date) FROM signals").fetchone()[0]
+        # Calcola una data as-of coerente (avoid look-ahead) se non fornita
+        coverage_threshold = float(config.get('settings', {}).get('coverage_threshold', 0.8))
+        symbols = get_universe_symbols(config, include_benchmark=False)
+        current_date = compute_asof_date(conn, symbols, coverage_threshold=coverage_threshold, venue='BIT')
     
     if run_id is None:
         run_id = f"backtest_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     
     if underlying_map is None:
-        # Default: ogni simbolo è il proprio underlying (no overlap)
+        # Default: deriva underlying da config (fallback: symbol)
         underlying_map = {}
+        # Supporta qualunque struttura universe (core/satellite, v1, v2)
+        universe = config.get('universe', {})
+        for bucket in universe.values():
+            if isinstance(bucket, list):
+                for etf in bucket:
+                    sym = etf.get('symbol')
+                    if sym:
+                        underlying_map[sym] = etf.get('underlying') or sym
     
     # Config snapshot hash per audit
     config_json = json.dumps(config, sort_keys=True)
@@ -109,6 +129,8 @@ def generate_orders_with_holding_period(
         s.risk_scalar,
         s.explain_code,
         rm.volatility_20d,
+        rm.sma_200,
+        rm.daily_return,
         rm.close,
         rm.adj_close
     FROM signals s
@@ -121,14 +143,24 @@ def generate_orders_with_holding_period(
     candidates = []
     
     for row in conn.execute(signals_query, [current_date]).fetchall():
-        symbol, signal_state, risk_scalar, explain_code, volatility, close, adj_close = row
-        
-        # Calcola momentum_score (semplificato: basato su risk_scalar)
-        momentum_score = risk_scalar * 0.8  # Placeholder, da migliorare con SMA/trend
-        
-        # TER e slippage (da config per simbolo)
-        ter = 0.001  # Default 0.1%
-        slippage_bps = 5  # Default 5bps
+        symbol, signal_state, risk_scalar, explain_code, volatility, sma_200, daily_return, close, adj_close = row
+
+        # ------------------------------
+        # Momentum score (0..1) — euristico ma deterministico
+        # - Core: distanza da SMA200 su adj_close
+        # - Micro-adjust: daily_return
+        # Nota: evita precisione falsa, ma produce ranking utile.
+        # ------------------------------
+        ratio = (adj_close / sma_200) if (sma_200 and sma_200 > 0 and adj_close) else 1.0
+        # 0.5 a parità SMA; +10% sopra SMA ~0.75; -10% ~0.25
+        momentum_score = 0.5 + 2.5 * (ratio - 1.0)
+        if daily_return is not None:
+            momentum_score += 0.5 * float(daily_return)  # daily_return tipicamente ~[-0.05, +0.05]
+        momentum_score = max(0.0, min(1.0, float(momentum_score)))
+
+        # TER e slippage da config per simbolo
+        ter = get_ter_for_symbol(config, symbol)
+        slippage_bps = get_cost_model_for_symbol(config, symbol).get('slippage_bps', 5)
         
         signals_data[symbol] = {
             'signal_state': signal_state,
@@ -139,7 +171,8 @@ def generate_orders_with_holding_period(
             'adj_close': adj_close,
             'momentum_score': momentum_score,
             'ter': ter,
-            'slippage_bps': slippage_bps
+            'slippage_bps': slippage_bps,
+            'execution_model': get_execution_model_for_symbol(config, symbol)
         }
     
     # Ottieni posizioni correnti
@@ -214,8 +247,14 @@ def generate_orders_with_holding_period(
             continue
         
         # MANDATORY 4: Trailing Stop (calcola peak da entry)
-        # Nota: richiede tracking peak price, per ora usa entry_price come baseline
-        peak_price = max(entry_price * (1 + trailing_stop_activation), price)  # Peak da activation threshold
+        # Peak stimato via MAX(close) da entry_date a oggi (robusto per backtest)
+        peak_row = conn.execute(
+            """SELECT MAX(close) FROM market_data WHERE symbol = ? AND date BETWEEN ? AND ?""",
+            [symbol, pos['entry_date'], current_date]
+        ).fetchone()
+        peak_close = peak_row[0] if peak_row else None
+        peak_price = peak_close if (peak_close and peak_close > 0) else price
+        peak_price = max(peak_price, entry_price * (1 + trailing_stop_activation))
         drawdown_from_peak = (price - peak_price) / peak_price if peak_price > 0 else 0
         
         if pnl_pct > trailing_stop_activation and drawdown_from_peak <= trailing_stop_pct:
@@ -315,7 +354,7 @@ def generate_orders_with_holding_period(
             p.qty * md.close as market_value
         FROM positions p
         JOIN market_data md ON p.symbol = md.symbol
-        WHERE md.date = (SELECT MAX(date) FROM market_data WHERE symbol = p.symbol)
+        WHERE md.date = (SELECT MAX(date) FROM market_data WHERE symbol = p.symbol AND date <= ?)
     ),
     cash_balance AS (
         SELECT COALESCE(SUM(CASE 
@@ -334,7 +373,7 @@ def generate_orders_with_holding_period(
     FROM position_values pv
     """
     
-    result = conn.execute(portfolio_value_query, [run_type, run_type]).fetchone()
+    result = conn.execute(portfolio_value_query, [run_type, current_date, run_type]).fetchone()
     portfolio_value = result[0] if result[0] else config['settings']['start_capital']
     cash_balance_pre = result[1] if result[1] else config['settings']['start_capital']
     
@@ -532,6 +571,7 @@ def generate_orders_with_holding_period(
     
     return {
         'run_id': run_id,
+        'as_of_date': str(current_date),
         'date': current_date,
         'orders_sell': orders_sell,
         'orders_buy': orders_buy,
@@ -554,7 +594,7 @@ def main():
     parser = argparse.ArgumentParser(description='Strategy Engine V2 con Holding Period')
     parser.add_argument('--date', help='Data target (YYYY-MM-DD)')
     parser.add_argument('--run-type', default='BACKTEST', choices=['BACKTEST', 'PRODUCTION'])
-    parser.add_argument('--dry-run', action='store_true', default=True)
+    parser.add_argument('--dry-run', action='store_true', help='Non scrive su DB (solo output)')
     
     args = parser.parse_args()
     
@@ -575,12 +615,16 @@ def main():
         orders = generate_orders_with_holding_period(
             conn,
             config,
-            current_date,
-            args.run_type,
-            args.dry_run
+            current_date=current_date,
+            run_type=args.run_type,
+            run_id=None,
+            underlying_map=None
         )
         
-        print(f"\n✅ Generati {len(orders)} ordini")
+        n_sell = len(orders.get('orders_sell', []))
+        n_buy = len(orders.get('orders_buy', []))
+        n_rej = len(orders.get('rejects', []))
+        print(f"\n✅ Generati ordini: SELL={n_sell}, BUY={n_buy}, REJECTS={n_rej}")
         
     finally:
         conn.close()

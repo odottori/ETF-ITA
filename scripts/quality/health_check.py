@@ -573,11 +573,18 @@ def run_complete_sequence():
             print(f"❌ {step_name} fallito: script non trovato: {script_path}")
             return False
 
+        env = os.environ.copy()
+        env.setdefault("PYTHONUTF8", "1")
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+
         result = subprocess.run(
             [sys.executable, script_path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=root_dir,
+            env=env,
         )
 
         if result.returncode != 0:

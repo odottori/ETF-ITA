@@ -16,200 +16,234 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.path_manager import get_path_manager
 
 
-def calculate_tax(gain_amount, symbol, realize_date, conn):
+def _has_column(conn, table: str, col: str) -> bool:
+    """True se la tabella contiene la colonna (DuckDB)."""
+    try:
+        cols = conn.execute(f"PRAGMA table_info('{table}')").fetchall()
+        return col in {c[1] for c in cols}
+    except Exception:
+        return False
+
+
+def calculate_tax(gain_amount, symbol, realize_date, conn, run_type: str = 'PRODUCTION'):
+    """Calcola tassazione basata su tax_category e zainetto.
+
+    Invariant: costi/tasse sono informazione/penalty, non gating monetario.
+
+    Nota robustezza: alcuni DB di test minimali non hanno la colonna run_type in
+    tax_loss_carryforward; in tal caso la logica ignora il filtro per run_type.
     """
-    Calcola tassazione basata su tax_category e zainetto
-    
-    Args:
-        gain_amount: Importo gain (positivo)
-        symbol: Simbolo strumento
-        realize_date: Data realizzo
-        conn: Connessione DuckDB
-        
-    Returns:
-        dict con gain_amount, tax_category, tax_amount, zainetto_used, explanation
-    """
-    
-    # 1. Ottieni tax_category del simbolo
-    tax_category_result = conn.execute("""
-        SELECT tax_category FROM symbol_registry WHERE symbol = ?
-    """, [symbol]).fetchone()
-    
-    if not tax_category_result:
-        tax_category = 'OICR_ETF'  # Default
-    else:
-        tax_category = tax_category_result[0]
-    
-    # 2. Per OICR_ETF: nessuna compensazione zainetto, gain tassati pieni
+
+    # 1) tax_category
+    tax_category_result = conn.execute(
+        "SELECT tax_category FROM symbol_registry WHERE symbol = ?",
+        [symbol],
+    ).fetchone()
+
+    tax_category = tax_category_result[0] if tax_category_result else 'OICR_ETF'
+
+    # 2) OICR_ETF: no compensazione
     if tax_category == 'OICR_ETF':
-        tax_amount = gain_amount * 0.26  # Tassazione piena 26%
+        tax_amount = gain_amount * 0.26
         zainetto_used = 0.0
-        explanation = f"OICR_ETF: tassazione piena 26% (no compensazione zainetto)"
-        
-        # NOTA: Le loss OICR_ETF vengono comunque accumulate nello zainetto
-        # per coerenza audit ma non sono utilizzabili per compensare gain OICR_ETF
-        # Diventeranno utilizzabili solo con strumenti ETC_ETN_STOCK
-    
-    # 3. Per ETC/ETN/STOCK: compensazione zainetto possibile
+        explanation = 'OICR_ETF: tassazione piena 26% (no compensazione zainetto)'
+
+        return {
+            'gain_amount': gain_amount,
+            'tax_category': tax_category,
+            'tax_amount': float(tax_amount),
+            'zainetto_used': float(zainetto_used),
+            'explanation': explanation,
+        }
+
+    # 3) ETC/ETN/STOCK: compensazione zainetto possibile
+    if _has_column(conn, 'tax_loss_carryforward', 'run_type'):
+        zainetto_available = conn.execute(
+            """
+            SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0) as available_loss
+            FROM tax_loss_carryforward
+            WHERE tax_category = ?
+              AND COALESCE(run_type, 'PRODUCTION') = ?
+              AND used_amount < ABS(loss_amount)
+              AND expires_at > ?
+            """,
+            [tax_category, run_type, realize_date],
+        ).fetchone()[0]
     else:
-        # Cerca zainetto disponibile non scaduto per categoria fiscale
-        zainetto_available = conn.execute("""
-            SELECT COALESCE(SUM(loss_amount), 0) as available_loss
-            FROM tax_loss_carryforward 
-            WHERE tax_category = ? 
-            AND used_amount < ABS(loss_amount)
-            AND expires_at > ?
-        """, [tax_category, realize_date]).fetchone()[0]
-        
-        if zainetto_available < 0:  # C'è zainetto disponibile
-            # Compensa il gain con lo zainetto
-            compensable_amount = min(gain_amount, abs(zainetto_available))
-            taxable_gain = gain_amount - compensable_amount
-            
-            tax_amount = max(0, taxable_gain) * 0.26
-            zainetto_used = compensable_amount
-            
-            explanation = f"{tax_category}: compensato €{compensable_amount:.2f} con zainetto, tassato €{taxable_gain:.2f}"
-        else:
-            # Nessun zainetto disponibile
-            tax_amount = gain_amount * 0.26
-            zainetto_used = 0.0
-            explanation = f"{tax_category}: nessun zainetto disponibile, tassazione piena"
-    
+        zainetto_available = conn.execute(
+            """
+            SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0) as available_loss
+            FROM tax_loss_carryforward
+            WHERE tax_category = ?
+              AND used_amount < ABS(loss_amount)
+              AND expires_at > ?
+            """,
+            [tax_category, realize_date],
+        ).fetchone()[0]
+
+    zainetto_available = float(zainetto_available or 0.0)
+
+    if zainetto_available < 0:
+        compensable_amount = min(float(gain_amount), abs(zainetto_available))
+        taxable_gain = float(gain_amount) - compensable_amount
+        tax_amount = max(0.0, taxable_gain) * 0.26
+        return {
+            'gain_amount': gain_amount,
+            'tax_category': tax_category,
+            'tax_amount': tax_amount,
+            'zainetto_used': compensable_amount,
+            'explanation': f"{tax_category}: compensato €{compensable_amount:.2f} con zainetto, tassato €{taxable_gain:.2f}",
+        }
+
+    # Nessun zainetto
     return {
         'gain_amount': gain_amount,
         'tax_category': tax_category,
-        'tax_amount': tax_amount,
-        'zainetto_used': zainetto_used,
-        'explanation': explanation
+        'tax_amount': float(gain_amount) * 0.26,
+        'zainetto_used': 0.0,
+        'explanation': f"{tax_category}: nessun zainetto disponibile, tassazione piena",
     }
 
 
-def create_tax_loss_carryforward(symbol, realize_date, loss_amount, conn):
+def create_tax_loss_carryforward(symbol, realize_date, loss_amount, conn, run_type: str = 'PRODUCTION'):
+    """Crea record zainetto con scadenza corretta per categoria fiscale.
+
+    Nota robustezza: se la tabella non ha run_type (DB legacy/test), inserisce
+    senza la colonna.
     """
-    Crea record zainetto con scadenza corretta per categoria fiscale
-    
-    Args:
-        symbol: Simbolo strumento
-        realize_date: Data realizzo loss
-        loss_amount: Importo loss (negativo)
-        conn: Connessione DuckDB
-        
-    Returns:
-        dict con dettagli zainetto creato
-    """
-    
-    # 1. Ottieni tax_category
-    tax_category_result = conn.execute("""
-        SELECT tax_category FROM symbol_registry WHERE symbol = ?
-    """, [symbol]).fetchone()
-    
+
+    tax_category_result = conn.execute(
+        "SELECT tax_category FROM symbol_registry WHERE symbol = ?",
+        [symbol],
+    ).fetchone()
     tax_category = tax_category_result[0] if tax_category_result else 'OICR_ETF'
-    
-    # 2. Calcola scadenza: 31/12/(anno_realize + 4)
-    realize_year = realize_date.year
-    expiry_year = realize_year + 4
-    expires_at = datetime(expiry_year, 12, 31).date()
-    
-    # 3. Inserisci record zainetto per categoria fiscale
+
+    # 31/12/(anno+4)
+    expires_at = datetime(realize_date.year + 4, 12, 31).date()
+
     next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM tax_loss_carryforward").fetchone()[0]
-    
-    conn.execute("""
-        INSERT INTO tax_loss_carryforward 
-        (id, symbol, realize_date, loss_amount, used_amount, expires_at, tax_category)
-        VALUES (?, ?, ?, ?, 0, ?, ?)
-    """, [next_id, symbol, realize_date, loss_amount, expires_at, tax_category])
-    
+
+    if _has_column(conn, 'tax_loss_carryforward', 'run_type'):
+        conn.execute(
+            """
+            INSERT INTO tax_loss_carryforward
+            (id, symbol, realize_date, loss_amount, used_amount, expires_at, tax_category, run_type)
+            VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+            """,
+            [next_id, symbol, realize_date, loss_amount, expires_at, tax_category, run_type],
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO tax_loss_carryforward
+            (id, symbol, realize_date, loss_amount, used_amount, expires_at, tax_category)
+            VALUES (?, ?, ?, ?, 0, ?, ?)
+            """,
+            [next_id, symbol, realize_date, loss_amount, expires_at, tax_category],
+        )
+
     return {
         'symbol': symbol,
         'realize_date': realize_date,
         'loss_amount': loss_amount,
         'expires_at': expires_at,
         'tax_category': tax_category,
-        'note': f'Zainetto creato per categoria {tax_category}, utilizzabile solo con strumenti compatibili'
+        'note': f'Zainetto creato per categoria {tax_category}',
     }
 
 
-def update_zainetto_usage(symbol, tax_category, used_amount, realize_date, conn):
+def update_zainetto_usage(symbol, tax_category, used_amount, realize_date, conn, run_type: str = 'PRODUCTION'):
+    """Aggiorna used_amount per zainetto utilizzato (FIFO).
+
+    Nota: selezione filtrata per run_type se disponibile.
     """
-    Aggiorna used_amount per zainetto utilizzato (FIFO)
-    
-    Args:
-        symbol: Simbolo strumento (per logging)
-        tax_category: Categoria fiscale
-        used_amount: Importo utilizzato dal zainetto
-        realize_date: Data realizzo
-        conn: Connessione DuckDB
-    """
-    
+
     if used_amount <= 0:
         return
-    
-    # Seleziona zainetti disponibili per categoria (ordinati per scadenza FIFO)
-    available_zainetti = conn.execute("""
-        SELECT id, loss_amount, used_amount
-        FROM tax_loss_carryforward 
-        WHERE tax_category = ? 
-        AND used_amount < ABS(loss_amount)
-        AND expires_at > ?
-        ORDER BY expires_at ASC, id ASC
-    """, [tax_category, realize_date]).fetchall()
-    
-    remaining_to_use = used_amount
-    
-    for zainetto in available_zainetti:
+
+    if _has_column(conn, 'tax_loss_carryforward', 'run_type'):
+        available_zainetti = conn.execute(
+            """
+            SELECT id, loss_amount, used_amount
+            FROM tax_loss_carryforward
+            WHERE tax_category = ?
+              AND COALESCE(run_type, 'PRODUCTION') = ?
+              AND used_amount < ABS(loss_amount)
+              AND expires_at > ?
+            ORDER BY expires_at ASC, id ASC
+            """,
+            [tax_category, run_type, realize_date],
+        ).fetchall()
+    else:
+        available_zainetti = conn.execute(
+            """
+            SELECT id, loss_amount, used_amount
+            FROM tax_loss_carryforward
+            WHERE tax_category = ?
+              AND used_amount < ABS(loss_amount)
+              AND expires_at > ?
+            ORDER BY expires_at ASC, id ASC
+            """,
+            [tax_category, realize_date],
+        ).fetchall()
+
+    remaining_to_use = float(used_amount)
+
+    for zainetto_id, loss_amount, current_used in available_zainetti:
         if remaining_to_use <= 0:
             break
-            
-        zainetto_id = zainetto[0]
-        loss_amount = zainetto[1]  # Negativo
-        current_used = zainetto[2]
-        
+
+        loss_amount = float(loss_amount)
+        current_used = float(current_used or 0.0)
+
         available_capacity = abs(loss_amount) - current_used
-        
-        if available_capacity > 0:
-            use_this_time = min(remaining_to_use, available_capacity)
-            new_used = current_used + use_this_time
-            
-            # Aggiorna record
-            conn.execute("""
-                UPDATE tax_loss_carryforward 
-                SET used_amount = ?
-                WHERE id = ?
-            """, [new_used, zainetto_id])
-            
-            remaining_to_use -= use_this_time
-            
-            print(f"    Zainetto {zainetto_id}: +€{use_this_time:.2f} usato (totale: €{new_used:.2f})")
-    
+        if available_capacity <= 0:
+            continue
+
+        use_this_time = min(remaining_to_use, available_capacity)
+        new_used = current_used + use_this_time
+
+        conn.execute(
+            "UPDATE tax_loss_carryforward SET used_amount = ? WHERE id = ?",
+            [new_used, zainetto_id],
+        )
+
+        remaining_to_use -= use_this_time
+
     if remaining_to_use > 0.01:
         print(f"    WARNING: Zainetto insufficiente, rimanente: €{remaining_to_use:.2f}")
 
 
-def get_available_zainetto(tax_category, realize_date, conn):
+def get_available_zainetto(tax_category, realize_date, conn, run_type: str = 'PRODUCTION'):
+    """Ritorna zainetto disponibile (negativo se presente).
+
+    Disponibile = SUM(loss_amount) + SUM(used_amount)
     """
-    Helper: Ottieni zainetto disponibile per categoria fiscale
-    
-    Args:
-        tax_category: Categoria fiscale
-        realize_date: Data realizzo
-        conn: Connessione DuckDB
-        
-    Returns:
-        float: Importo zainetto disponibile (negativo se presente)
-    """
-    
-    # FIX BUG #9: Formula corretta per zainetto disponibile
-    # loss_amount è negativo, used_amount è positivo
-    # Disponibile = SUM(loss_amount) + SUM(used_amount)
-    result = conn.execute("""
-        SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0) as available_loss
-        FROM tax_loss_carryforward 
-        WHERE tax_category = ? 
-        AND used_amount < ABS(loss_amount)
-        AND expires_at > ?
-    """, [tax_category, realize_date]).fetchone()
-    
+
+    if _has_column(conn, 'tax_loss_carryforward', 'run_type'):
+        result = conn.execute(
+            """
+            SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0) as available_loss
+            FROM tax_loss_carryforward
+            WHERE tax_category = ?
+              AND COALESCE(run_type, 'PRODUCTION') = ?
+              AND used_amount < ABS(loss_amount)
+              AND expires_at > ?
+            """,
+            [tax_category, run_type, realize_date],
+        ).fetchone()
+    else:
+        result = conn.execute(
+            """
+            SELECT COALESCE(SUM(loss_amount) + SUM(used_amount), 0) as available_loss
+            FROM tax_loss_carryforward
+            WHERE tax_category = ?
+              AND used_amount < ABS(loss_amount)
+              AND expires_at > ?
+            """,
+            [tax_category, realize_date],
+        ).fetchone()
+
     return result[0] if result else 0.0
 
 

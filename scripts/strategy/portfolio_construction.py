@@ -41,9 +41,10 @@ def calculate_expected_holding_days(
     max_days = holding_cfg.get('max_holding_days', 30)    # Max ~1 mese
     
     # Risk adjustment: INVERTITO - alto risk = holding CORTO (prendi profitto veloce)
+    # Nota: la tabella signals usa anche 'HOLD' (trattato come NEUTRAL)
     if signal_state == 'RISK_OFF':
         risk_adj = 1.5  # Più lungo, aspetta recovery
-    elif signal_state == 'NEUTRAL':
+    elif signal_state in ('NEUTRAL', 'HOLD'):
         risk_adj = 1.2 - 0.2 * risk_scalar  # 1.0..1.2
     else:  # RISK_ON
         risk_adj = 1.0 - 0.3 * risk_scalar  # 0.7..1.0 (più risk = più corto)

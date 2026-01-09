@@ -194,7 +194,7 @@ def download_with_fallback(symbol: str, start_date, end_date) -> Tuple[Optional[
     """Download multi-source con fallback automatico: YF → Stooq → Investing.com → CSV"""
     
     sources = [
-        ('YF', lambda: yf.Ticker(symbol).history(start=start_date, end=end_date)),
+        ('YF', lambda: yf.Ticker(symbol).history(start=start_date, end=end_date + timedelta(days=1))),
         ('Stooq', lambda: download_stooq_data(symbol, start_date, end_date)),
         ('Investing.com', lambda: download_investing_com_data(symbol, start_date, end_date)),
         ('CSV Manual', lambda: load_manual_csv_data(symbol, start_date, end_date))
@@ -207,11 +207,11 @@ def download_with_fallback(symbol: str, start_date, end_date) -> Tuple[Optional[
             
             data = download_func()
             
-            if data is not None and not data.empty and len(data) >= 10:
+            if data is not None and not data.empty and len(data) >= 1:
                 if source_name != 'YF':
                     print(f"    {source_name}: {len(data)} record scaricati")
                 return data, source_name
-            elif source_name == 'YF' and (data is None or data.empty or len(data) < 10):
+            elif source_name == 'YF' and (data is None or data.empty or len(data) < 1):
                 print(f"   ️ {source_name} dati insufficienti ({len(data) if data is not None else 0} record)")
         
         except Exception as e:
@@ -252,10 +252,32 @@ def analyze_gaps(conn, symbol: str, start_date, end_date) -> Dict:
         'coverage_pct': coverage_pct
     }
 
-def ingest_data(start_date_override=None, end_date_override=None, full_refresh=False):
+def ingest_data(start_date_override=None, end_date_override=None, full_refresh=False, symbols_filter=None, initial_start_date_override=None):
     """Ingestione completa dati di mercato"""
     
     config = get_config()
+    # Initial start date (per nuovi simboli senza storico in DB)
+    def _parse_date(s):
+        if not s:
+            return None
+        try:
+            return datetime.strptime(str(s), '%Y-%m-%d').date()
+        except Exception:
+            return None
+
+    initial_start_date_default = _parse_date(config.get('initial_start_date')) or _parse_date(config.get('default_active_from')) or datetime(2010,1,1).date()
+    if initial_start_date_override is not None:
+        initial_start_date_default = initial_start_date_override
+
+
+    # Start date default per simboli nuovi (inception): di default 2010-01-01 o quanto definito in config
+    initial_start_date_str = (config.get('initial_start_date') or config.get('default_active_from') or '2010-01-01')
+    try:
+        initial_start_date_cfg = datetime.strptime(initial_start_date_str, '%Y-%m-%d').date()
+    except Exception:
+        initial_start_date_cfg = datetime(2010, 1, 1).date()
+    initial_start_date = initial_start_date_override or initial_start_date_cfg
+
     pm = get_path_manager()
     db_path = str(pm.db_path)
     
@@ -291,6 +313,16 @@ def ingest_data(start_date_override=None, end_date_override=None, full_refresh=F
         # Benchmark sempre presente
         symbols.extend([etf['symbol'] for etf in universe.get('benchmark', [])])
         
+
+
+        # Filtro simboli (opzionale): consente re-ingest chirurgico su uno o piu ticker
+        if symbols_filter:
+            filt = {str(s).strip() for s in symbols_filter if s and str(s).strip()}
+            symbols = [s for s in symbols if s in filt]
+            if not symbols:
+                print('WARNING: Nessun simbolo corrisponde al filtro richiesto; nulla da fare.')
+                return True
+
         print(f" Simboli da processare: {symbols}")
         
         total_accepted = 0
@@ -321,7 +353,7 @@ def ingest_data(start_date_override=None, end_date_override=None, full_refresh=F
                 elif last_date:
                     start_date = last_date + timedelta(days=1)
                 else:
-                    start_date = end_date - timedelta(days=365)  # 1 anno di dati iniziali
+                    start_date = initial_start_date  # 1 anno di dati iniziali
 
                 if start_date > end_date:
                     print(f"   ️ Range date vuoto: {start_date} → {end_date} (skip)")
@@ -482,11 +514,63 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Ingestione dati - ETF Italia Project')
     parser.add_argument('--start-date', type=str, default=None, help='Data inizio (YYYY-MM-DD)')
     parser.add_argument('--end-date', type=str, default=None, help='Data fine (YYYY-MM-DD)')
+    parser.add_argument('--initial-start-date', type=str, default=None, help='Start date di default per simboli nuovi (YYYY-MM-DD). Se omesso usa config.initial_start_date o 2010-01-01')
     parser.add_argument('--full-refresh', action='store_true', help='Reingest completa per simbolo (cancella market_data per symbol)')
+    parser.add_argument('--symbol', action='append', default=None,
+                        help='Processa solo questo simbolo (ripetibile). Esempio: --symbol CSSPX.MI')
+    parser.add_argument('--symbols', type=str, default=None,
+                        help='Lista simboli separati da virgola (alias di --symbol). Esempio: --symbols CSSPX.MI,EIMI.MI')
+
+
+    # Operability gate (post-ingest): valuta completezza dati su universo e marca NOTRADE/NOOPERATIONS nel calendario
+    parser.add_argument('--venue', type=str, default=os.environ.get('ETF_VENUE','XMIL'), help='Venue per trading_calendar (es. BIT o XMIL)')
+    parser.add_argument('--post-operability-gate', action='store_true', help="Forza l'esecuzione di operability_gate.py a fine ingest")
+    parser.add_argument('--no-post-operability-gate', action='store_true', help='Disabilita operability_gate.py post-ingest (default: attivo)')
+    parser.add_argument('--warn-threshold', type=float, default=0.8, help='Soglia warning (>= warn e < 1.0 = operabile con warning)')
+    parser.add_argument('--alert-threshold', type=float, default=0.5, help='Soglia alert (>= alert e < warn = alert; < alert = NOOPERATIONS)')
+    parser.add_argument('--lookback-days', type=int, default=30, help='Giorni indietro da max_market_date da valutare nel gate')
+
     args = parser.parse_args()
 
     start_date_override = datetime.strptime(args.start_date, '%Y-%m-%d').date() if args.start_date else None
     end_date_override = datetime.strptime(args.end_date, '%Y-%m-%d').date() if args.end_date else None
 
-    success = ingest_data(start_date_override=start_date_override, end_date_override=end_date_override, full_refresh=args.full_refresh)
+    symbols_filter = []
+    if getattr(args, 'symbol', None):
+        symbols_filter.extend(args.symbol)
+    if getattr(args, 'symbols', None):
+        symbols_filter.extend([s.strip() for s in args.symbols.split(',') if s.strip()])
+    if not symbols_filter:
+        symbols_filter = None
+
+    success = ingest_data(
+        start_date_override=start_date_override,
+        end_date_override=end_date_override,
+        full_refresh=args.full_refresh,
+        symbols_filter=symbols_filter,
+        initial_start_date_override=args.initial_start_date,
+    )
+
+    # Post-operability gate (se richiesto)
+    run_gate = success and (args.post_operability_gate or (not args.no_post_operability_gate))
+
+    if run_gate:
+        try:
+            import subprocess
+            import sys as _sys
+            from pathlib import Path as _Path
+            gate_script = _Path(__file__).resolve().parents[1] / 'quality' / 'operability_gate.py'
+            cmd = [
+                _sys.executable, str(gate_script),
+                '--venue', args.venue,
+                '--warn-threshold', str(args.warn_threshold),
+                '--alert-threshold', str(args.alert_threshold),
+                '--lookback-days', str(args.lookback_days),
+                '--apply',
+            ]
+            print("\nPost-operability gate: " + " ".join(cmd))
+            subprocess.run(cmd, check=False)
+        except Exception as e:
+            print(f"⚠️  Post-operability gate fallito (non bloccante): {e}")
+
     sys.exit(0 if success else 1)

@@ -16,7 +16,12 @@ from decimal import Decimal, ROUND_HALF_UP
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.path_manager import get_path_manager
+from utils.universe_helper import get_universe_symbols
+from utils.asof_date import compute_asof_date
 from fiscal.tax_engine import calculate_tax, create_tax_loss_carryforward, update_zainetto_usage
+
+from fiscal.pmc_engine import load_position_state, apply_buy, estimate_sell_gain
+from utils.universe_helper import get_cost_model_for_symbol, get_execution_model_for_symbol
 
 
 def _table_columns(conn, table_name: str):
@@ -27,6 +32,21 @@ def _table_columns(conn, table_name: str):
 
 def _has_column(conn, table_name: str, col_name: str) -> bool:
     return col_name in _table_columns(conn, table_name)
+
+
+def _table_exists(conn, table_name: str) -> bool:
+    """True se la tabella esiste nel catalog DuckDB."""
+    try:
+        rows = conn.execute("SHOW TABLES").fetchall()
+        tables = {r[0] for r in rows}
+        return table_name in tables
+    except Exception:
+        # Fallback ultra-safe
+        try:
+            conn.execute(f"SELECT 1 FROM {table_name} LIMIT 1")
+            return True
+        except Exception:
+            return False
 
 def check_cash_available(conn, required_cash, run_type=None):
     """Verifica cash disponibile prima di BUY"""
@@ -100,6 +120,8 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
         config = json.load(f)
     
     conn = duckdb.connect(db_path)
+
+    market_data_exists = _table_exists(conn, 'market_data')
     
     try:
         # 1. Trova file ordini più recente se non specificato
@@ -141,11 +163,40 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
         # 5. Processa ogni ordine
         executed_orders = []
         rejected_orders = []
-        run_id = f"execute_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_id = orders_data.get('run_id') or f"execute_orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        # Data ordine: usa parametro o default oggi
+        # Data ordine: preferisci as_of_date dal file ordini; fallback su as-of coerente da DB
         if order_date is None:
-            order_date = datetime.now().date()
+            file_as_of = orders_data.get('as_of_date')
+            if file_as_of:
+                if isinstance(file_as_of, str):
+                    order_date = datetime.strptime(file_as_of, '%Y-%m-%d').date()
+                else:
+                    order_date = file_as_of
+            else:
+                # fallback: calcola as-of dal DB (coverage-threshold, venue) evitando 'today'
+                pm = get_path_manager()
+                config_path = str(pm.etf_universe_path)
+                coverage_threshold = float(orders_data.get('coverage_threshold', 0.8))
+                venue = 'BIT'
+                try:
+                    with open(config_path, 'r') as cf:
+                        cfg = json.load(cf)
+                    symbols = get_universe_symbols(cfg, include_benchmark=False)
+                    computed = compute_asof_date(conn, symbols, coverage_threshold=coverage_threshold, venue=venue)
+
+                    if computed:
+                        order_date = computed
+                    elif market_data_exists:
+                        order_date = conn.execute("SELECT MAX(date) FROM market_data").fetchone()[0]
+                    else:
+                        # Test harness / DB minimale: fallback su risk_metrics o oggi
+                        order_date = conn.execute("SELECT MAX(date) FROM risk_metrics").fetchone()[0] or datetime.now().date()
+                except Exception:
+                    if market_data_exists:
+                        order_date = conn.execute("SELECT MAX(date) FROM market_data").fetchone()[0] or datetime.now().date()
+                    else:
+                        order_date = conn.execute("SELECT MAX(date) FROM risk_metrics").fetchone()[0] or datetime.now().date()
         elif isinstance(order_date, str):
             order_date = datetime.strptime(order_date, '%Y-%m-%d').date()
         
@@ -157,7 +208,30 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
             qty = order['qty']
             price = order['price']
             reason = order['reason']
-            
+            # Guardrail HARD: non eseguire BUY/SELL se manca market_data per (symbol, order_date)
+            # (Se la tabella market_data non esiste, siamo in un DB minimale / test harness: non bloccare.)
+            if market_data_exists:
+                md_ok = conn.execute(
+                    "SELECT 1 FROM market_data WHERE symbol = ? AND date = ? LIMIT 1",
+                    [symbol, order_date]
+                ).fetchone()
+                if not md_ok:
+                    print(f"    ⛔ REJECT {action} {symbol} - market_data mancante per {order_date}")
+                    order['recommendation'] = 'REJECT'
+                    order['reject_reason'] = 'MARKET_DATA_MISSING'
+                    rejected_orders.append({
+                        'symbol': symbol,
+                        'action': action,
+                        'order_date': str(order_date),
+                        'reason': 'MARKET_DATA_MISSING'
+                    })
+                    continue
+            else:
+                # Informativo (una sola volta) - non spam
+                if not globals().get('_WARNED_NO_MARKET_DATA', False):
+                    globals()['_WARNED_NO_MARKET_DATA'] = True
+                    print("    ⚠️ market_data assente nel DB: skip guardrail market_data (modalità test/harness)")
+
             print(f"\n 🔄 {symbol}: {action} {qty:.0f} @ €{price:.2f}")
             print(f"    Reason: {reason}")
             
@@ -165,7 +239,8 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
             if action == 'BUY':
                 # Verifica cash disponibile
                 position_value = qty * price
-                commission_pct = config['universe']['core'][0]['cost_model']['commission_pct']
+                cost_model = get_cost_model_for_symbol(config, symbol)
+                commission_pct = float(cost_model.get('commission_pct', 0.001))
                 commission = position_value * commission_pct
                 if position_value < 1000:
                     commission = max(5.0, commission)
@@ -178,7 +253,10 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
                 """, [symbol]).fetchone()
                 
                 volatility = volatility_data[0] if volatility_data and volatility_data[0] else 0.15
-                slippage_bps = max(2, volatility * 0.5)
+                base_slippage_bps = float(cost_model.get('slippage_bps', 5))
+                # EUR/ETF: slippage cresce con vol (annualizzata). Converte vol in bps con fattore prudenziale.
+                vol_slippage_bps = max(0.0, float(volatility) * 100.0 * 0.5)  # es. 15% vol -> ~7.5bps
+                slippage_bps = max(base_slippage_bps, vol_slippage_bps)
                 slippage = position_value * (slippage_bps / 10000)
                 
                 total_required = position_value + commission + slippage
@@ -218,70 +296,65 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
                 
                 print(f"    ✅ Posizione OK: richiesto {qty:.0f}, disponibile {available_qty:.0f}")
             
-            # 5.2 Calcola costi realistici (already estimated for BUY cash check)
+            # 5.2 Calcola costi realistici (per simbolo)
             position_value = qty * price
-            
-            # Commissioni
-            commission_pct = config['universe']['core'][0]['cost_model']['commission_pct']
+            cost_model = get_cost_model_for_symbol(config, symbol)
+            commission_pct = float(cost_model.get('commission_pct', 0.001))
             commission = position_value * commission_pct
             if position_value < 1000:
                 commission = max(5.0, commission)
-            
-            # Slippage (basato su volatilità)
-            volatility_data = conn.execute("""
-            SELECT volatility_20d FROM risk_metrics 
-            WHERE symbol = ? 
-            ORDER BY date DESC LIMIT 1
-            """, [symbol]).fetchone()
-            
+
+            # Slippage (basato su volatilità annualizzata → bps)
+            volatility_data = conn.execute(
+                """
+                SELECT volatility_20d FROM risk_metrics 
+                WHERE symbol = ? 
+                ORDER BY date DESC LIMIT 1
+                """,
+                [symbol],
+            ).fetchone()
             volatility = volatility_data[0] if volatility_data and volatility_data[0] else 0.15
-            slippage_bps = max(2, volatility * 0.5)
+            base_slippage_bps = float(cost_model.get('slippage_bps', 5))
+            vol_slippage_bps = max(0.0, float(volatility) * 100.0 * 0.5)  # es. 15% -> ~7.5bps
+            slippage_bps = max(base_slippage_bps, vol_slippage_bps)
             slippage = position_value * (slippage_bps / 10000)
-            
+
             total_fees = commission + slippage
-            
-            # 5.3 Calcola tax per vendite con logica zainetto
+
+            # 5.3 Calcola tax per vendite via PMC (no side effects in dry-run)
             tax_paid = 0.0
+            realized_gain = 0.0
+            pmc_snapshot = None
+            state_before = load_position_state(conn, symbol, run_type=run_type)
+
             if action == 'SELL':
-                # Calcola realized gain per tax (FIX BUG #1: query ottimizzata)
-                avg_buy_price = conn.execute("""
-                SELECT AVG(price) as avg_buy_price
-                FROM fiscal_ledger 
-                WHERE symbol = ? AND type = 'BUY'
-                """, [symbol]).fetchone()
-                
-                if avg_buy_price and avg_buy_price[0]:
-                    avg_price = avg_buy_price[0]
-                    if price > avg_price:
-                        realized_gain = (price - avg_price) * qty
-                        
-                        # Usa logica fiscale completa con zainetto (FIX BUG #2: usa order_date)
-                        tax_result = calculate_tax(realized_gain, symbol, order_date, conn)
-                        tax_paid = tax_result['tax_amount']
-                        
-                        print(f"    Gain: €{realized_gain:.2f}, Tax: €{tax_paid:.2f}")
-                        print(f"    {tax_result['explanation']}")
-                        
-                        # Se usato zainetto, aggiornalo
-                        if tax_result['zainetto_used'] > 0:
-                            update_zainetto_usage(
-                                symbol, 
-                                tax_result['tax_category'], 
-                                tax_result['zainetto_used'], 
-                                order_date, 
-                                conn
-                            )
-                    else:
-                        # Loss: crea zainetto (FIX BUG #2: usa order_date)
-                        loss_amount = (price - avg_price) * qty  # Negativo
-                        if loss_amount < -0.01:  # Soglia minima
-                            zainetto_record = create_tax_loss_carryforward(
-                                symbol, order_date, loss_amount, conn
-                            )
-                            print(f"    Loss: €{loss_amount:.2f} -> zainetto creato")
-                            print(f"    Scadenza: {zainetto_record['expires_at']}")
-                        else:
-                            print(f"    Loss minimo: €{loss_amount:.2f} (sotto soglia)")
+                realized_gain, pmc_used = estimate_sell_gain(state_before, qty, price, total_fees)
+                pmc_snapshot = pmc_used
+
+                if realized_gain > 0.01:
+                    tax_result = calculate_tax(realized_gain, symbol, order_date, conn, run_type=run_type)
+                    tax_paid = float(tax_result['tax_amount'])
+                    print(f"    Gain (PMC): €{realized_gain:.2f}, Tax: €{tax_paid:.2f}")
+                    print(f"    {tax_result['explanation']}")
+
+                    if commit and tax_result.get('zainetto_used', 0) > 0:
+                        update_zainetto_usage(
+                            symbol,
+                            tax_result['tax_category'],
+                            tax_result['zainetto_used'],
+                            order_date,
+                            conn,
+                            run_type=run_type,
+                        )
+                elif realized_gain < -0.01:
+                    print(f"    Loss (PMC): €{realized_gain:.2f}")
+                    if commit:
+                        zainetto_record = create_tax_loss_carryforward(symbol, order_date, realized_gain, conn, run_type=run_type)
+                        print(f"    Loss -> zainetto creato (scadenza: {zainetto_record['expires_at']})")
+            else:
+                # BUY: calcola nuovo PMC post-trade
+                new_state = apply_buy(state_before, qty, price, total_fees)
+                pmc_snapshot = new_state.pmc
             
             # 5.4 Arrotondamenti finanziari
             qty = Decimal(str(qty)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
@@ -293,6 +366,13 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
             next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
             
             # 5.6 Inserisci in fiscal_ledger (FIX BUG #2-4: order_date, run_type, decision_path, reason_code)
+            execution_price_mode = (
+                order.get('execution_price_mode')
+                or orders_data.get('execution_price_mode')
+                or get_execution_model_for_symbol(config, symbol)
+                or 'CLOSE_SAME_DAY_SLIPPAGE'
+            )
+
             ledger_record = {
                 'id': next_id,
                 'date': order_date,
@@ -302,18 +382,29 @@ def execute_orders(orders_file=None, commit=False, order_date=None, run_type='PR
                 'price': float(price),
                 'fees': float(total_fees),
                 'tax_paid': float(tax_paid),
-                'pmc_snapshot': None,
+                'pmc_snapshot': float(pmc_snapshot) if pmc_snapshot is not None else None,
                 'run_id': run_id,
                 'run_type': run_type,
-                'decision_path': 'STRATEGY_ENGINE',
-                'reason_code': reason
+                'decision_path': order.get('decision_path') or 'STRATEGY_ENGINE',
+                'reason_code': order.get('reason_code') or reason,
+                'execution_price_mode': execution_price_mode,
+                'source_order_id': order.get('source_order_id'),
+                # Optional holding-period metadata (se presenti nel file ordini)
+                'entry_date': order.get('entry_date'),
+                'entry_score': order.get('entry_score'),
+                'expected_holding_days': order.get('expected_holding_days'),
+                'expected_exit_date': order.get('expected_exit_date'),
+                'exit_reason': order.get('exit_reason'),
+                'holding_days_actual': order.get('holding_days_actual'),
             }
             
             if commit:
                 # Inserimento schema-robust: usa solo le colonne presenti
                 ordered_cols = [
                     'id', 'date', 'type', 'symbol', 'qty', 'price', 'fees', 'tax_paid', 'pmc_snapshot', 'run_id',
-                    'run_type', 'decision_path', 'reason_code'
+                    'run_type', 'decision_path', 'reason_code', 'execution_price_mode', 'source_order_id',
+                    'entry_date', 'entry_score', 'expected_holding_days', 'expected_exit_date',
+                    'exit_reason', 'holding_days_actual'
                 ]
                 insert_cols = [c for c in ordered_cols if c in fiscal_cols]
                 placeholders = ', '.join(['?'] * len(insert_cols))

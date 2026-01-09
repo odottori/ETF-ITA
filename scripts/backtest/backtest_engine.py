@@ -52,21 +52,35 @@ class BacktestEngine:
         # Deposito iniziale con ID backtest
         next_id = self.conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM fiscal_ledger").fetchone()[0]
         
-        # Usa start_date se fornita, altrimenti oggi
-        deposit_date = start_date if start_date else datetime.now().date()
+        # Usa start_date se fornita; in caso contrario, ancora il deposito alla
+        # prima data disponibile in market_data per evitare "future leak" nei
+        # backtest (non ha senso avere CASH in ledger oltre l'ultimo close).
+        if start_date:
+            deposit_date = start_date
+        else:
+            first_mkt = self.conn.execute("SELECT MIN(date) FROM market_data").fetchone()[0]
+            deposit_date = first_mkt if first_mkt else datetime.now().date()
         
         run_id = f"backtest_init_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
+        trade_ccy = (self.config.get("settings", {}) or {}).get("currency", "EUR")
         self.conn.execute("""
         INSERT INTO fiscal_ledger (
-            id, date, type, symbol, qty, price, fees, tax_paid, 
-            pmc_snapshot, run_type, run_id, decision_path, reason_code, notes
-        ) VALUES (?, ?, 'DEPOSIT', 'CASH', 1, ?, 0, 0, ?, 'BACKTEST', ?, 'SETUP', 'INITIAL_DEPOSIT', 'Initial capital')
+            id, date, type, symbol, qty, price, fees, tax_paid,
+            pmc_snapshot,
+            trade_currency, exchange_rate_used, price_eur,
+            run_type, run_id, decision_path, reason_code, notes
+        ) VALUES (
+            ?, ?, 'DEPOSIT', 'CASH', ?, 1.0, 0, 0,
+            1.0,
+            ?, 1.0, 1.0,
+            'BACKTEST', ?, 'SETUP', 'INITIAL_DEPOSIT', 'Initial capital'
+        )
         """, [
             next_id,
             deposit_date,
-            initial_capital,
-            initial_capital,
+            float(initial_capital),
+            trade_ccy,
             run_id
         ])
         
@@ -559,16 +573,23 @@ def run_backtest_simulation():
                     try:
                         # Step 1: Ingest data (market_data + risk_metrics)
                         print(f"   📥 Step 1/2: Aggiornamento dati storici (ingest_data.py)...")
-                        ingest_script = os.path.join(
-                            os.path.dirname(__file__), 
-                            'ingest_data.py'
-                        )
+                        from pathlib import Path
+
+                        project_root = Path(__file__).resolve().parents[2]
+                        ingest_script = str(project_root / 'scripts' / 'data' / 'ingest_data.py')
                         
+                        env = os.environ.copy()
+                        env.setdefault("PYTHONUTF8", "1")
+                        env.setdefault("PYTHONIOENCODING", "utf-8")
+
                         result_ingest = subprocess.run(
                             [sys.executable, ingest_script],
                             capture_output=True,
                             text=True,
-                            timeout=300  # 5 minuti timeout
+                            encoding="utf-8",
+                            errors="replace",
+                            timeout=300,  # 5 minuti timeout
+                            env=env,
                         )
                         
                         if result_ingest.returncode != 0:
@@ -579,16 +600,16 @@ def run_backtest_simulation():
                             
                             # Step 2: Compute signals (ricalcola segnali)
                             print(f"   🧮 Step 2/2: Ricalcolo segnali (compute_signals.py --preset full)...")
-                            compute_script = os.path.join(
-                                os.path.dirname(__file__), 
-                                'compute_signals.py'
-                            )
+                            compute_script = str(project_root / 'scripts' / 'data' / 'compute_signals.py')
                             
                             result_compute = subprocess.run(
                                 [sys.executable, compute_script, '--preset', 'full'],
                                 capture_output=True,
                                 text=True,
-                                timeout=600  # 10 minuti timeout
+                                encoding="utf-8",
+                                errors="replace",
+                                timeout=600,  # 10 minuti timeout
+                                env=env,
                             )
                             
                             if result_compute.returncode != 0:

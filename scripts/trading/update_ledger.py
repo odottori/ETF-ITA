@@ -98,27 +98,58 @@ def update_ledger(commit=False):
                     next_id, 
                     datetime.now().date(),
                     interest_amount,
-                    portfolio_mv,  # PMC = Portfolio Market Value snapshot
+                    1.0,  # PMC CASH (currency)
                     f"ledger_update_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 ])
                 
                 print(f" Interesse registrato: €{interest_amount:.2f}")
         
-        # 3. Aggiorna pmc_snapshot per record mancanti
-        print("\n Aggiornamento PMC snapshot...")
+        # 3. Ricomputa pmc_snapshot per BUY/SELL (PMC cost basis per simbolo)
+        #    (evita di sovrascrivere con valori di portafoglio)
+        print("\n Ricomputazione PMC snapshot (BUY/SELL)...")
         
-        # Aggiorna PMC per record senza valore
-        conn.execute("""
-        UPDATE fiscal_ledger 
-        SET pmc_snapshot = ?
-        WHERE pmc_snapshot IS NULL
-        """, [portfolio_mv])
+        rows = conn.execute(
+            """
+            SELECT id, date, symbol, type, qty, price, COALESCE(fees, 0) as fees
+            FROM fiscal_ledger
+            WHERE type IN ('BUY', 'SELL')
+            ORDER BY date ASC, id ASC
+            """
+        ).fetchall()
         
-        updated_records = conn.execute("""
-        SELECT COUNT(*) FROM fiscal_ledger WHERE pmc_snapshot = ?
-        """, [portfolio_mv]).fetchone()[0]
+        # State per simbolo: qty, total_cost
+        state = {}
+        updates = []
         
-        print(f" PMC snapshot aggiornati: {updated_records} record")
+        for rid, dt, sym, typ, qty, price, fees in rows:
+            qty = float(qty)
+            price = float(price)
+            fees = float(fees or 0.0)
+            st = state.get(sym, {'qty': 0.0, 'total_cost': 0.0})
+
+            if typ == 'BUY':
+                st['total_cost'] += qty * price + fees
+                st['qty'] += qty
+                pmc = st['total_cost'] / st['qty'] if st['qty'] > 0 else 0.0
+                updates.append((pmc, rid))
+
+            elif typ == 'SELL':
+                pmc_before = st['total_cost'] / st['qty'] if st['qty'] > 0 else 0.0
+                updates.append((pmc_before, rid))
+                if st['qty'] > 0:
+                    q_sell = min(qty, st['qty'])
+                    st['total_cost'] -= pmc_before * q_sell
+                    st['qty'] -= q_sell
+                    if st['qty'] <= 1e-12:
+                        st['qty'] = 0.0
+                        st['total_cost'] = 0.0
+
+            state[sym] = st
+
+        for pmc, rid in updates:
+            conn.execute("UPDATE fiscal_ledger SET pmc_snapshot = ? WHERE id = ?", [pmc, rid])
+
+        print(f" PMC snapshot ricalcolati: {len(updates)} trade")
         
         # 4. Verifica posizioni correnti
         print("\n Posizioni correnti:")

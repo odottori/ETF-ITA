@@ -8,9 +8,17 @@ import sys
 import os
 import json
 import duckdb
-import pandas as pd
-from datetime import datetime, timedelta
-import requests
+from datetime import datetime
+
+from utils.path_manager import get_path_manager
+
+# Best-effort Windows console UTF-8 safety.
+try:
+    from utils.console_utils import setup_windows_console
+
+    setup_windows_console()
+except Exception:
+    pass
 
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,8 +29,17 @@ def audit_data_quality():
     print("🔍 DATA QUALITY AUDIT - ETF Italia Project v10")
     print("=" * 60)
     
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'etf_data.duckdb')
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'etf_universe.json')
+    pm = get_path_manager()
+    db_path = str(pm.db_path)
+    config_path = str(pm.etf_universe_path)
+
+    if not os.path.exists(db_path):
+        print(f"❌ Database non trovato: {db_path}")
+        return {}
+
+    if not os.path.exists(config_path):
+        print(f"❌ Config non trovata: {config_path}")
+        return {}
     
     conn = duckdb.connect(db_path)
     

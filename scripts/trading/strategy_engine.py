@@ -11,6 +11,9 @@ import duckdb
 
 from datetime import datetime
 
+from utils.universe_helper import get_universe_symbols
+from utils.asof_date import compute_asof_date
+
 # Aggiungi root al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -36,6 +39,13 @@ def strategy_engine(dry_run=True, commit=False):
         config = json.load(f)
     
     conn = duckdb.connect(db_path)
+
+    # Determina una data 'as-of' coerente per evitare future leak / look-ahead
+    venue = 'BIT'
+    coverage_threshold = float(config.get('settings', {}).get('coverage_threshold', 0.8))
+    universe_symbols = get_universe_symbols(config, include_benchmark=False)
+    as_of_date = compute_asof_date(conn, universe_symbols, coverage_threshold=coverage_threshold, venue=venue)
+    print(f" As-of date selezionata: {as_of_date} (coverage_threshold={coverage_threshold}, venue={venue})")
     
     try:
         # 1. Ottieni segnali correnti
@@ -44,9 +54,9 @@ def strategy_engine(dry_run=True, commit=False):
         current_signals = conn.execute("""
         SELECT symbol, signal_state, risk_scalar, explain_code
         FROM signals 
-        WHERE date = (SELECT MAX(date) FROM signals)
+        WHERE date = ?
         ORDER BY symbol
-        """).fetchall()
+        """, [as_of_date]).fetchall()
         
         if not current_signals:
             print(" Nessun segnale disponibile")
@@ -76,9 +86,21 @@ def strategy_engine(dry_run=True, commit=False):
             price_data = conn.execute("""
             SELECT close, adj_close, volume, volatility_20d
             FROM risk_metrics 
-            WHERE symbol = ? AND date = (SELECT MAX(date) FROM risk_metrics WHERE symbol = ?)
-            """, [symbol, symbol]).fetchone()
+            WHERE symbol = ? AND date = ?
+            """, [symbol, as_of_date]).fetchone()
             
+
+            if not price_data:
+                # Fallback: usa market_data (ultima data <= as_of_date) se risk_metrics non è disponibile per quella data
+                # STRICT: require market_data on as_of_date (no stale pricing)
+                price_data_md = conn.execute("""
+                SELECT close, adj_close, volume, NULL as volatility_20d
+                FROM market_data
+                WHERE symbol = ?
+                  AND date = ?
+                """, [symbol, as_of_date]).fetchone()
+                price_data = price_data_md
+
             if price_data:
                 current_prices[symbol] = {
                     'close': price_data[0],
@@ -361,6 +383,8 @@ def strategy_engine(dry_run=True, commit=False):
         
         orders_summary = {
             'timestamp': datetime.now().isoformat(),
+            'as_of_date': str(as_of_date),
+            'coverage_threshold': coverage_threshold,
             'dry_run': dry_run,
             'orders': orders,
             'summary': {
